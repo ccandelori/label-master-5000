@@ -35,12 +35,18 @@ class Verification < ApplicationRecord
     super(Array(checks).map { |c| c.respond_to?(:to_h) ? c.to_h : c })
   end
 
+  # A reject carries a draft rejection notice built from the cited findings;
+  # generation is pure string assembly, so it happens inline without
+  # slowing the decision down.
   def record_decision(decision:, note:)
-    update!(decision: decision, decision_note: note, decided_at: Time.current)
+    assign_attributes(decision: decision, decision_note: note, decided_at: Time.current)
+    self.rejection_notice =
+      decided_to_reject? ? RejectionNotice.generate(application: label_application, verification: self) : nil
+    save!
   end
 
   def undo_decision
-    update!(decision: nil, decision_note: nil, decided_at: nil)
+    update!(decision: nil, decision_note: nil, decided_at: nil, rejection_notice: nil)
   end
 
   private

@@ -85,6 +85,10 @@
                       form_class: "inline-block mr-2",
                       class: "rounded-lg border border-green-700 text-green-900 bg-green-50 px-3 py-1.5 font-medium hover:bg-green-100 cursor-pointer" %>
               <% end %>
+              <% if @tab == "decided" && verification.rejection_notice.present? %>
+                <%= link_to "Notice", label_application_rejection_notice_path(application, download: 1),
+                      class: "font-medium text-stone-900 underline underline-offset-2 hover:text-stone-600 mr-3" %>
+              <% end %>
               <%= link_to "Open", application, class: "font-medium text-stone-900 underline underline-offset-2 hover:text-stone-600" %>
             </td>
           </tr>

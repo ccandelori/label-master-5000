@@ -13,6 +13,24 @@
             method: :delete,
             class: "rounded-lg border border-stone-300 px-4 py-2 font-medium hover:bg-stone-100 cursor-pointer" %>
     </div>
+
+    <% if verification.rejection_notice.present? %>
+      <section class="mt-4 border-t border-stone-200 pt-4" data-controller="clipboard" aria-label="Draft rejection notice">
+        <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
+          <h3 class="font-semibold">Draft rejection notice</h3>
+          <div class="flex gap-2">
+            <button type="button" data-clipboard-target="button" data-action="clipboard#copy"
+                    class="rounded-lg border border-stone-300 px-3 py-1.5 font-medium hover:bg-stone-100 cursor-pointer">
+              Copy
+            </button>
+            <%= link_to "Download", label_application_rejection_notice_path(application, download: 1),
+                  class: "rounded-lg border border-stone-300 px-3 py-1.5 font-medium hover:bg-stone-100" %>
+          </div>
+        </div>
+        <pre data-clipboard-target="source"
+             class="whitespace-pre-wrap rounded-lg bg-stone-50 border border-stone-200 p-4 text-sm text-stone-800 max-h-80 overflow-y-auto"><%= verification.rejection_notice %></pre>
+      </section>
+    <% end %>
   <% else %>
     <%= form_with url: label_application_decision_path(application), scope: :decision, class: "flex flex-wrap items-center gap-3" do |f| %>
       <%= f.hidden_field :verification_id, value: verification.id %>

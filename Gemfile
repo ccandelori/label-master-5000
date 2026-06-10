@@ -59,3 +59,5 @@ end
 gem "anthropic", "~> 1.48"
 
 gem "connection_pool", "~> 2.4"
+
+gem "dotenv-rails", "~> 3.2", groups: [ :development, :test ]
