@@ -346,9 +346,10 @@ export default class extends Controller {
   placeColumn(items, column, side, wsRect) {
     items.sort((a, b) => a.targetY - b.targetY)
 
+    // Callouts hug the artwork side of their column so leader lines stay short.
     const elements = items.map((item) => {
       const el = document.createElement("div")
-      el.className = "absolute inset-x-0"
+      el.className = `absolute inset-x-0 flex ${side === "left" ? "justify-end" : "justify-start"}`
       el.innerHTML = this.calloutHtml(item.box)
       el.style.visibility = "hidden"
       column.appendChild(el)
@@ -375,9 +376,12 @@ export default class extends Controller {
       })
     }
 
-    const columnRect = column.getBoundingClientRect()
-    placed.forEach(({ item, top, height }) => {
-      const startX = side === "left" ? columnRect.right - wsRect.left : columnRect.left - wsRect.left
+    // Lines start at the rendered callout's own edge, not the column's -
+    // chips are narrower than the column and would otherwise leave a gap.
+    placed.forEach(({ item, el, top, height }) => {
+      const content = el.firstElementChild
+      const contentRect = (content || el).getBoundingClientRect()
+      const startX = (side === "left" ? contentRect.right : contentRect.left) - wsRect.left
       const startY = top + height / 2
       const endX = side === "left" ? item.edges.left : item.edges.right
       const endY = item.targetY
