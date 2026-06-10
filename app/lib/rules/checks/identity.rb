@@ -54,18 +54,25 @@ module Rules
         normalized = Parsing::TextNormalizer.normalize(extracted)
         phrase_present = phrases.any? { |p| normalized.include?(Parsing::TextNormalizer.normalize(p)) }
 
-        applicant_present = applicant_appears?(expected, extracted)
-
-        if applicant_present && phrase_present
+        case applicant_presence(expected, extracted)
+        when :present
+          if phrase_present
+            FieldCheck.new(
+              field: "name_and_address", verdict: "pass", expected: expected, extracted: extracted,
+              citation: citation, note: nil
+            )
+          else
+            FieldCheck.new(
+              field: "name_and_address", verdict: phrase_required?(application) ? "fail" : "pass_with_note",
+              expected: expected, extracted: extracted, citation: citation,
+              note: "Statement lacks a required explanatory phrase such as #{phrases.first(3).join(', ')}"
+            )
+          end
+        when :missing_place
           FieldCheck.new(
-            field: "name_and_address", verdict: "pass", expected: expected, extracted: extracted,
-            citation: citation, note: nil
-          )
-        elsif applicant_present
-          FieldCheck.new(
-            field: "name_and_address", verdict: phrase_required?(application) ? "fail" : "pass_with_note",
-            expected: expected, extracted: extracted, citation: citation,
-            note: "Statement lacks a required explanatory phrase such as #{phrases.first(3).join(', ')}"
+            field: "name_and_address", verdict: "needs_review", expected: expected, extracted: extracted,
+            citation: citation,
+            note: "Applicant name found, but the place of business (city and state) is not clearly on the label"
           )
         else
           FieldCheck.new(
@@ -74,6 +81,34 @@ module Rules
             note: "Label statement does not clearly contain the applicant name from the application"
           )
         end
+      end
+
+      # The label satisfies the regulation with the applicant's name (entity
+      # suffixes like LLC optional) plus city and state - street address and
+      # ZIP are application detail (27 CFR 4.35, 5.66, 7.66). Returns
+      # :present, :missing_place, or :absent. When the application string
+      # yields no parseable US place, falls back to whole-string word
+      # matching, which cannot distinguish :missing_place.
+      def applicant_presence(expected, extracted)
+        parts = Parsing::NameAddress.parse(expected)
+        return applicant_appears?(expected, extracted) ? :present : :absent if parts.state.nil?
+
+        statement_tokens = Parsing::TextNormalizer.normalize(extracted).split(" ")
+        return :absent unless name_found?(parts.name, statement_tokens, extracted)
+
+        place_found = Parsing::NameAddress.state_present?(statement_tokens, parts.state) &&
+                      (parts.city.nil? || Parsing::NameAddress.tokens_include?(statement_tokens, parts.city))
+        place_found ? :present : :missing_place
+      end
+
+      # Most of the suffix-stripped name words must appear in the statement;
+      # the label may drop "LLC" but not the name itself.
+      def name_found?(name, statement_tokens, extracted)
+        name_tokens = Parsing::NameAddress.name_tokens(name).reject { |w| w.length < 3 }
+        return applicant_appears?(name, extracted) if name_tokens.empty?
+
+        statement = statement_tokens.join(" ")
+        name_tokens.count { |w| statement.include?(w) }.to_f / name_tokens.size >= 0.6
       end
 
       def country_of_origin(application, facts, rules)
