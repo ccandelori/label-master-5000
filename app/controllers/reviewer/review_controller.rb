@@ -85,12 +85,11 @@ module Reviewer
       }
     end
 
-    # The flagged checks, worst first - drives the screen-reader mirror,
-    # the no-artwork fallback list, and the absence rail for findings
-    # with no located box.
+    # Every check, worst first - the inspector renders all of them grouped
+    # by severity; the screen-reader mirror and no-artwork fallback filter
+    # to the flagged subset client-side.
     def findings_for(checks)
-      checks.select { |c| %w[fail needs_review].include?(c.verdict) }
-            .sort_by { |c| -c.severity }
+      checks.sort_by { |c| -c.severity }
             .map do |check|
         {
           field: check.field,

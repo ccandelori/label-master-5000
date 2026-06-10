@@ -1,31 +1,34 @@
 import { Controller } from "@hotwired/stimulus"
 
-// Review mode: the label front and center on a dark workspace, callouts in
-// the margin columns tied to their bounding boxes by elbowed leader lines,
-// two-button decisions, and immediate advance through the queue. Clicking
-// a callout opens a popover with the full check detail: the application
-// value against what was read off the label, plus note and citation.
+// Review mode: the label front and center, every check in the evidence
+// inspector at right, grouped by severity with absences badged inline.
+// Hovering a row spotlights its box on the artwork (and vice versa);
+// clicking unfolds the application-vs-label comparison with its citation.
 //
 // Keyboard: A approve, R reject, B request better image, Space skip,
-// U undo the last decision (5s window), Esc close popover / exit.
+// U undo the last decision (5s window), Esc exit.
 export default class extends Controller {
   static targets = [
-    "workspace", "stage", "svg", "leftColumn", "rightColumn", "image",
-    "caption", "fallback", "empty", "controls", "progress", "summary",
+    "workspace", "stage", "frame", "svg", "image", "caption", "fallback",
+    "inspector", "empty", "controls", "progress", "summary",
     "toast", "toastMessage", "srStatus", "srFindings"
   ]
   static values = { initial: Object, nextUrl: String, exitUrl: String }
 
-  static LINE_COLORS = {
-    fail: "#f87171",
-    needs_review: "#fbbf24",
-    pass_with_note: "#2dd4bf",
-    pass: "#4ade80",
-    default: "#a8a29e"
+  // SVG strokes resolve through the token layer so both schemes hold.
+  static VERDICT_COLORS = {
+    fail: "var(--rv-fail)",
+    needs_review: "var(--rv-warn)",
+    pass_with_note: "var(--rv-pass)",
+    pass: "var(--rv-pass)",
+    default: "var(--rv-ink-faint)"
   }
 
-  // Shared hover affordance: callouts and absence cards are buttons.
-  static AFFORDANCE = "cursor-pointer transition duration-150 hover:scale-[1.03] hover:bg-stone-700/90 hover:shadow-lg hover:shadow-black/40"
+  static GROUPS = [
+    { key: "fail", title: "Failed", verdicts: [ "fail" ] },
+    { key: "needs_review", title: "Needs review", verdicts: [ "needs_review" ] },
+    { key: "pass", title: "Passed", verdicts: [ "pass", "pass_with_note" ] }
+  ]
 
   connect() {
     this.current = this.initialValue.application ? this.initialValue : null
@@ -39,21 +42,10 @@ export default class extends Controller {
 
     this.keyHandler = (event) => this.handleKey(event)
     document.addEventListener("keydown", this.keyHandler)
-    this.outsideClickHandler = (event) => {
-      if (this.popover && !this.popover.contains(event.target) && !event.target.closest("[data-callout-index]")) {
-        this.closePopover()
-      }
-    }
-    document.addEventListener("click", this.outsideClickHandler)
 
-    // Watch the workspace as well as the image: a window resize can move
-    // the margin columns without changing the image's rendered size, and
-    // leader lines and the spotlight mask are drawn in workspace
-    // coordinates.
-    this.resizeObserver = new ResizeObserver(() => this.layoutCallouts())
+    this.resizeObserver = new ResizeObserver(() => this.layoutOverlay())
     this.resizeObserver.observe(this.imageTarget)
-    this.resizeObserver.observe(this.workspaceTarget)
-    this.imageTarget.addEventListener("load", () => this.layoutCallouts())
+    this.imageTarget.addEventListener("load", () => this.layoutOverlay())
 
     if (this.current) {
       this.render(this.current)
@@ -65,15 +57,15 @@ export default class extends Controller {
 
   disconnect() {
     document.removeEventListener("keydown", this.keyHandler)
-    document.removeEventListener("click", this.outsideClickHandler)
     this.resizeObserver.disconnect()
     clearTimeout(this.toastTimer)
+    clearTimeout(this.approveArmTimer)
   }
 
   // --- decisions -----------------------------------------------------------
 
-  // Approving over failed checks takes a second press: the absence rail
-  // and counts make fails visible, this makes them deliberate.
+  // Approving over failed checks takes a second press: the inspector makes
+  // fails visible, this makes them deliberate.
   approve() {
     if (!this.current || this.advancing) return
     const fails = this.current.summary?.fails || 0
@@ -82,10 +74,10 @@ export default class extends Controller {
       clearTimeout(this.approveArmTimer)
       this.approveArmTimer = setTimeout(() => {
         this.approveArmed = false
-        if (this.current) this.renderSummary(this.current)
+        this.summaryTarget.textContent = ""
       }, 4000)
       const message = `${fails} ${fails === 1 ? "check" : "checks"} failed — press Approve again to confirm`
-      this.summaryTarget.innerHTML = `<span class="text-red-400 font-medium">${this.escape(message)}</span>`
+      this.summaryTarget.innerHTML = `<span class="font-medium" style="color: var(--rv-fail)">${this.escape(message)}</span>`
       this.announce(message)
       return
     }
@@ -151,13 +143,10 @@ export default class extends Controller {
 
   handleKey(event) {
     if (event.metaKey || event.ctrlKey || event.altKey) return
+    if (event.target.closest("input, textarea, select")) return
     const key = event.key.toLowerCase()
     if (key === "escape") {
-      if (this.popover) {
-        this.closePopover()
-      } else {
-        window.location.assign(this.exitUrlValue)
-      }
+      window.location.assign(this.exitUrlValue)
     } else if (key === " ") {
       event.preventDefault()
       this.skip()
@@ -240,20 +229,21 @@ export default class extends Controller {
   // --- rendering -----------------------------------------------------------
 
   render(payload) {
+    this.approveArmed = false
+    clearTimeout(this.approveArmTimer)
+    this.summaryTarget.textContent = ""
+
     this.emptyTarget.classList.add("hidden")
     this.emptyTarget.classList.remove("flex")
     this.stageTarget.classList.remove("hidden")
+    this.inspectorTarget.classList.remove("lg:hidden")
     this.controlsTarget.classList.remove("invisible")
-
-    this.approveArmed = false
-    clearTimeout(this.approveArmTimer)
 
     const app = payload.application
     this.progressTarget.textContent = `${payload.remaining} in queue`
-    this.renderSummary(payload)
     this.captionTarget.innerHTML = `
-      <p class="text-lg font-semibold">${this.escape(app.brand_name)}</p>
-      <p class="text-sm text-stone-400">
+      <p class="text-lg font-semibold tracking-tight">${this.escape(app.brand_name)}</p>
+      <p class="text-sm text-ink-muted">
         ${this.escape(app.serial_number)} · ${this.escape(app.beverage_type)}
         ${app.alcohol_content ? ` · ${this.escape(app.alcohol_content)}% ABV` : ""}
         · ${this.escape(app.net_contents)}
@@ -263,37 +253,44 @@ export default class extends Controller {
       this.imageTarget.classList.remove("hidden")
       this.imageTarget.alt = `Label artwork for ${app.brand_name}`
       this.imageTarget.src = payload.artwork_url
-      if (this.imageTarget.complete) this.layoutCallouts()
+      if (this.imageTarget.complete) this.layoutOverlay()
     } else {
       this.imageTarget.classList.add("hidden")
-      this.clearAnnotations()
+      this.svgTarget.replaceChildren()
     }
 
+    this.renderInspector(payload)
     this.renderFallback(payload)
     this.renderScreenReaderMirror(payload)
   }
 
-  // Small screens hide the margin columns; findings drop below the artwork.
-  // The same panel carries the retake notice and the no-preview state.
+  flagged(payload) {
+    return (payload.findings || []).filter((f) => f.verdict === "fail" || f.verdict === "needs_review")
+  }
+
+  // Small screens hide the inspector; flagged findings drop below the
+  // artwork. The same panel carries the retake notice and the no-preview
+  // state.
   renderFallback(payload) {
-    const columnsHidden = getComputedStyle(this.leftColumnTarget).display === "none"
+    const inspectorHidden = getComputedStyle(this.inspectorTarget).display === "none"
     const retake = payload.verification.overall_verdict === "request_retake"
+    const flagged = this.flagged(payload)
     const pieces = []
 
     if (retake) {
-      pieces.push(`<p class="rounded-lg border border-amber-500/50 bg-amber-950/40 text-amber-200 px-4 py-3">
+      pieces.push(`<p class="rounded-lg border border-warn bg-warn-tint text-ink px-4 py-3">
         The artwork could not be read reliably - no field verdicts were issued.
         Request a better image rather than judging from a bad read.</p>`)
     }
     if (!payload.artwork_url) {
-      pieces.push(`<p class="text-stone-400 text-center">No artwork preview available.</p>`)
+      pieces.push(`<p class="text-ink-muted text-center">No artwork preview available.</p>`)
     }
-    if ((columnsHidden || !payload.artwork_url) && payload.findings.length) {
-      pieces.push(payload.findings.map((f) => `
-        <p class="rounded-lg border border-stone-700 bg-stone-900 px-4 py-2.5">
+    if ((inspectorHidden || !payload.artwork_url) && flagged.length) {
+      pieces.push(flagged.map((f) => `
+        <p class="rounded-lg border border-line bg-raised px-4 py-2.5">
           <span class="font-semibold" style="color: ${this.colorFor(f.verdict)}">${this.escape(f.label)} — ${this.escape(f.verdict_label)}</span>
-          ${f.note ? `<span class="block text-stone-300">${this.escape(f.note)}</span>` : ""}
-          ${f.citation ? `<span class="block text-stone-500 text-sm">${this.escape(f.citation)}</span>` : ""}
+          ${f.note ? `<span class="block text-ink-muted">${this.escape(f.note)}</span>` : ""}
+          ${f.citation ? `<span class="block text-ink-faint text-sm">${this.escape(f.citation)}</span>` : ""}
         </p>`).join(""))
     }
 
@@ -302,29 +299,15 @@ export default class extends Controller {
     this.fallbackTarget.classList.toggle("space-y-2", pieces.length > 0)
   }
 
-  // The verdict tally beside the decision buttons: the answer to "did I
-  // miss a finding the artwork annotations could not show?"
-  renderSummary(payload) {
-    if (payload.verification?.overall_verdict === "request_retake") {
-      this.summaryTarget.textContent = ""
-      return
-    }
-    const s = payload.summary || {}
-    const parts = []
-    if (s.fails) parts.push(`<span style="color: ${this.colorFor("fail")}">${s.fails} failed</span>`)
-    if (s.needs_review) parts.push(`<span style="color: ${this.colorFor("needs_review")}">${s.needs_review} need${s.needs_review === 1 ? "s" : ""} review</span>`)
-    parts.push(`<span>${s.passes || 0} passed</span>`)
-    this.summaryTarget.innerHTML = parts.join(" · ")
-  }
-
   renderScreenReaderMirror(payload) {
     const s = payload.summary
+    const flagged = this.flagged(payload)
     this.announce(
       `Now reviewing ${payload.application.brand_name}, serial ${payload.application.serial_number}. ` +
       `${s.fails} failed, ${s.needs_review} need review, ${s.passes} passed. ${payload.remaining} in queue.`
     )
-    this.srFindingsTarget.innerHTML = payload.findings.length
-      ? `<ul>${payload.findings.map((f) =>
+    this.srFindingsTarget.innerHTML = flagged.length
+      ? `<ul>${flagged.map((f) =>
           `<li>${this.escape(f.label)}: ${this.escape(f.verdict_label)}.
            ${this.escape(f.note || "")} ${this.escape(f.citation || "")}</li>`).join("")}</ul>`
       : "<p>No flagged findings.</p>"
@@ -332,366 +315,232 @@ export default class extends Controller {
 
   showEmpty() {
     this.stageTarget.classList.add("hidden")
+    this.inspectorTarget.classList.add("lg:hidden")
     this.controlsTarget.classList.add("invisible")
     this.emptyTarget.classList.remove("hidden")
     this.emptyTarget.classList.add("flex")
     this.progressTarget.textContent = ""
     this.summaryTarget.textContent = ""
-    this.clearAnnotations()
+    this.svgTarget.replaceChildren()
     this.announce("Queue clear. Every submitted application has a decision.")
   }
 
-  // --- callout layout ------------------------------------------------------
+  // --- artwork overlay -----------------------------------------------------
 
-  clearAnnotations() {
-    this.closePopover()
+  // The SVG sits inside the artwork frame, so geometry is a pure scale of
+  // each box's basis to the rendered image; no workspace offsets.
+  layoutOverlay() {
     this.svgTarget.replaceChildren()
-    this.leftColumnTarget.replaceChildren()
-    this.rightColumnTarget.replaceChildren()
-  }
-
-  layoutCallouts() {
-    this.clearAnnotations()
     if (!this.current || !this.current.artwork_url) return
     if (this.imageTarget.naturalWidth === 0) return
-    if (getComputedStyle(this.leftColumnTarget).display === "none") return
 
-    const wsRect = this.workspaceTarget.getBoundingClientRect()
-    const imgRect = this.imageTarget.getBoundingClientRect()
-    const imgLeft = imgRect.left - wsRect.left
-    const imgTop = imgRect.top - wsRect.top
-
-    const boxes = this.current.boxes.filter((b) => b.page === 1)
-    const sides = { left: [], right: [] }
-
-    boxes.forEach((box) => {
-      // Each box carries the pixel basis the extractor measured against.
-      const [basisW, basisH] = box.basis || [1000, 1000]
-      const scaleX = imgRect.width / basisW
-      const scaleY = imgRect.height / basisH
-      const [x, y, w, h] = box.bbox
-      const relCenter = (x + w / 2) / basisW
-      const side = relCenter < 0.5 ? "left" : "right"
-      sides[side].push({
-        box,
-        relCenter,
-        targetY: imgTop + (y + h / 2) * scaleY,
-        edges: {
-          left: imgLeft + x * scaleX,
-          right: imgLeft + (x + w) * scaleX
-        },
-        rect: { x: imgLeft + x * scaleX, y: imgTop + y * scaleY, w: w * scaleX, h: h * scaleY }
-      })
-    })
-
-    this.balanceSides(sides)
-    const allItems = [ ...sides.left, ...sides.right ]
-    this.drawSpotlight(allItems, {
-      x: imgLeft, y: imgTop, w: imgRect.width, h: imgRect.height
-    })
-    this.drawBoxOutlines(allItems)
-
-    // Findings with no located box - an element the application declares
-    // that was never found on the label - have no geometry to anchor to.
-    // They stack as "not found" cards at the top of the lighter column.
-    const locatedFields = new Set(this.current.boxes.flatMap((b) => [ b.field, ...(b.related_fields || []) ]))
-    const absent = (this.current.findings || []).filter((f) => !locatedFields.has(f.field))
-    const railSide = sides.left.length <= sides.right.length ? "left" : "right"
-    const railColumn = railSide === "left" ? this.leftColumnTarget : this.rightColumnTarget
-    const railCursor = this.renderAbsenceRail(absent, railColumn, railSide)
-
-    this.placeColumn(sides.left, this.leftColumnTarget, "left", wsRect, railSide === "left" ? railCursor : 0)
-    this.placeColumn(sides.right, this.rightColumnTarget, "right", wsRect, railSide === "right" ? railCursor : 0)
-  }
-
-  renderAbsenceRail(findings, column, side) {
-    let cursor = 0
-    findings.forEach((finding) => {
-      const index = this.current.findings.indexOf(finding)
-      const color = this.colorFor(finding.verdict)
-      const wrapper = document.createElement("div")
-      wrapper.className = `absolute inset-x-0 flex ${side === "left" ? "justify-end" : "justify-start"}`
-      wrapper.innerHTML = `
-        <button type="button" data-callout-index="${index}" data-callout-source="findings"
-                data-action="review-mode#toggleCallout" aria-expanded="false" aria-haspopup="true"
-                class="text-left rounded-lg border border-dashed bg-stone-900/90 px-3 py-2 ${this.constructor.AFFORDANCE}"
-                style="border-color: ${color}">
-          <p class="text-xs uppercase tracking-wide text-stone-500">Not found on the label</p>
-          <p class="font-semibold text-sm" style="color: ${color}">${this.escape(finding.label)} — ${this.escape(finding.verdict_label)}</p>
-          ${finding.note ? `<p class="text-sm text-stone-300 mt-0.5">${this.escape(finding.note)}</p>` : ""}
-          ${finding.citation ? `<p class="text-xs text-stone-500 mt-0.5">${this.escape(finding.citation)}</p>` : ""}
-        </button>`
-      wrapper.style.top = `${cursor}px`
-      column.appendChild(wrapper)
-      cursor += wrapper.offsetHeight + 16
-    })
-    return cursor
-  }
-
-  // Side assignment follows each box's half of the label, which piles
-  // every callout into one column on an asymmetric label. Move the boxes
-  // nearest the centerline to the lighter side until the columns are
-  // within one of each other - their leader lines stay shortest among
-  // the candidates.
-  balanceSides(sides) {
-    const imbalance = () => sides.left.length - sides.right.length
-    while (imbalance() >= 2) {
-      sides.left.sort((a, b) => a.relCenter - b.relCenter)
-      sides.right.push(sides.left.pop())
-    }
-    while (imbalance() <= -2) {
-      sides.right.sort((a, b) => a.relCenter - b.relCenter)
-      sides.left.push(sides.right.shift())
-    }
-  }
-
-  // Dims the artwork slightly everywhere except inside the bounding boxes,
-  // so the annotated regions read as spotlit.
-  drawSpotlight(items, image) {
-    if (items.length === 0) return
+    const width = this.imageTarget.clientWidth
+    const height = this.imageTarget.clientHeight
+    if (width === 0) return
+    this.svgTarget.setAttribute("viewBox", `0 0 ${width} ${height}`)
 
     const svgNS = "http://www.w3.org/2000/svg"
-    const defs = document.createElementNS(svgNS, "defs")
-    const mask = document.createElementNS(svgNS, "mask")
-    mask.setAttribute("id", "bbox-spotlight")
+    const boxes = (this.current.boxes || []).filter((b) => b.page === 1)
 
-    const visible = document.createElementNS(svgNS, "rect")
-    visible.setAttribute("x", image.x)
-    visible.setAttribute("y", image.y)
-    visible.setAttribute("width", image.w)
-    visible.setAttribute("height", image.h)
-    visible.setAttribute("fill", "white")
-    mask.appendChild(visible)
+    // Dim everything outside the located regions so they read as spotlit.
+    if (boxes.length > 0) {
+      const defs = document.createElementNS(svgNS, "defs")
+      const mask = document.createElementNS(svgNS, "mask")
+      mask.setAttribute("id", "rv-spotlight")
+      const visible = document.createElementNS(svgNS, "rect")
+      visible.setAttribute("x", 0)
+      visible.setAttribute("y", 0)
+      visible.setAttribute("width", width)
+      visible.setAttribute("height", height)
+      visible.setAttribute("fill", "white")
+      mask.appendChild(visible)
 
-    items.forEach(({ rect }) => {
-      const hole = document.createElementNS(svgNS, "rect")
-      hole.setAttribute("x", rect.x)
-      hole.setAttribute("y", rect.y)
-      hole.setAttribute("width", Math.max(rect.w, 6))
-      hole.setAttribute("height", Math.max(rect.h, 6))
-      hole.setAttribute("rx", "3")
-      hole.setAttribute("fill", "black")
-      mask.appendChild(hole)
-    })
-    defs.appendChild(mask)
-    this.svgTarget.appendChild(defs)
+      boxes.forEach((box) => {
+        const rect = this.scaledRect(box, width, height)
+        const hole = document.createElementNS(svgNS, "rect")
+        hole.setAttribute("x", rect.x)
+        hole.setAttribute("y", rect.y)
+        hole.setAttribute("width", Math.max(rect.w, 6))
+        hole.setAttribute("height", Math.max(rect.h, 6))
+        hole.setAttribute("rx", "3")
+        hole.setAttribute("fill", "black")
+        mask.appendChild(hole)
+      })
+      defs.appendChild(mask)
+      this.svgTarget.appendChild(defs)
 
-    const dim = document.createElementNS(svgNS, "rect")
-    dim.setAttribute("x", image.x)
-    dim.setAttribute("y", image.y)
-    dim.setAttribute("width", image.w)
-    dim.setAttribute("height", image.h)
-    dim.setAttribute("fill", "black")
-    dim.setAttribute("opacity", "0.35")
-    dim.setAttribute("mask", "url(#bbox-spotlight)")
-    this.svgTarget.appendChild(dim)
-  }
+      const dim = document.createElementNS(svgNS, "rect")
+      dim.setAttribute("x", 0)
+      dim.setAttribute("y", 0)
+      dim.setAttribute("width", width)
+      dim.setAttribute("height", height)
+      dim.setAttribute("class", "rv-dim")
+      dim.setAttribute("mask", "url(#rv-spotlight)")
+      this.svgTarget.appendChild(dim)
+    }
 
-  drawBoxOutlines(items) {
-    items.forEach(({ box, rect }) => {
-      const el = document.createElementNS("http://www.w3.org/2000/svg", "rect")
+    boxes.forEach((box) => {
+      const rect = this.scaledRect(box, width, height)
+      const el = document.createElementNS(svgNS, "rect")
       el.setAttribute("x", rect.x)
       el.setAttribute("y", rect.y)
       el.setAttribute("width", Math.max(rect.w, 6))
       el.setAttribute("height", Math.max(rect.h, 6))
-      el.setAttribute("fill", "none")
-      el.setAttribute("stroke", this.colorFor(box.verdict))
-      el.setAttribute("stroke-width", "2.5")
       el.setAttribute("rx", "3")
+      el.setAttribute("class", "rv-box")
+      el.style.stroke = this.colorFor(box.verdict)
+      el.style.pointerEvents = "all"
+      el.dataset.boxIndex = this.current.boxes.indexOf(box)
+      el.addEventListener("pointerenter", () => this.highlightFromBox(el.dataset.boxIndex))
+      el.addEventListener("pointerleave", () => this.clearHighlight())
       this.svgTarget.appendChild(el)
     })
   }
 
-  // Greedy vertical slotting: callouts keep their box's vertical order and
-  // never overlap; each line elbows from the card to its box edge. The
-  // cursor starts below any absence cards already in the column.
-  placeColumn(items, column, side, wsRect, startCursor) {
-    items.sort((a, b) => a.targetY - b.targetY)
+  scaledRect(box, width, height) {
+    const [ basisW, basisH ] = box.basis || [ 1000, 1000 ]
+    const [ x, y, w, h ] = box.bbox
+    return {
+      x: x * width / basisW,
+      y: y * height / basisH,
+      w: w * width / basisW,
+      h: h * height / basisH
+    }
+  }
 
-    // Callouts hug the artwork side of their column so leader lines stay short.
-    const elements = items.map((item) => {
-      const el = document.createElement("div")
-      el.className = `absolute inset-x-0 flex ${side === "left" ? "justify-end" : "justify-start"}`
-      el.innerHTML = this.calloutHtml(item.box)
-      el.style.visibility = "hidden"
-      column.appendChild(el)
-      return el
-    })
+  // --- evidence inspector --------------------------------------------------
 
-    let cursor = startCursor
-    const placed = items.map((item, index) => {
-      const el = elements[index]
-      const height = el.offsetHeight
-      const top = Math.max(item.targetY - height / 2, cursor)
-      el.style.top = `${top}px`
-      el.style.visibility = ""
-      cursor = top + height + 16
-      return { item, el, top, height }
-    })
-
-    // If the stack ran past the workspace, shift it up as one block.
-    const overflow = cursor - 16 - this.workspaceTarget.clientHeight
-    if (overflow > 0) {
-      placed.forEach((p) => {
-        p.top = Math.max(p.top - overflow, startCursor)
-        p.el.style.top = `${p.top}px`
+  renderInspector(payload) {
+    const findings = payload.findings || []
+    const boxIndexByField = new Map()
+    ;(payload.boxes || []).forEach((box, index) => {
+      [ box.field, ...(box.related_fields || []) ].forEach((field) => {
+        if (!boxIndexByField.has(field)) boxIndexByField.set(field, index)
       })
-    }
-
-    // Lines start at the rendered callout's own edge, not the column's -
-    // chips are narrower than the column and would otherwise leave a gap.
-    placed.forEach(({ item, el, top, height }, index) => {
-      const content = el.firstElementChild
-      const contentRect = (content || el).getBoundingClientRect()
-      const startX = (side === "left" ? contentRect.right : contentRect.left) - wsRect.left
-      const startY = top + height / 2
-      const endX = side === "left" ? item.edges.left : item.edges.right
-      const endY = item.targetY
-      this.drawLeaderLine(startX, startY, endX, endY, this.colorFor(item.box.verdict), index)
     })
-  }
 
-  drawLeaderLine(startX, startY, endX, endY, color, index) {
-    // Stagger the elbow per callout so same-side lines don't share one
-    // vertical channel.
-    const fraction = 0.3 + 0.12 * (index % 5)
-    const midX = startX + (endX - startX) * fraction
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path")
-    path.setAttribute("d", `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX} ${endY}`)
-    path.setAttribute("fill", "none")
-    path.setAttribute("stroke", color)
-    path.setAttribute("stroke-width", "2")
-    path.setAttribute("opacity", "0.9")
-    this.svgTarget.appendChild(path)
+    const sections = this.constructor.GROUPS.map((group) => {
+      const rows = findings.filter((f) => group.verdicts.includes(f.verdict))
+      if (rows.length === 0) return ""
 
-    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle")
-    dot.setAttribute("cx", endX)
-    dot.setAttribute("cy", endY)
-    dot.setAttribute("r", "3")
-    dot.setAttribute("fill", color)
-    this.svgTarget.appendChild(dot)
-  }
+      const items = rows.map((finding) => {
+        const boxIndex = boxIndexByField.get(finding.field)
+        const located = boxIndex !== undefined
+        const color = this.colorFor(finding.verdict)
+        return `
+          <li>
+            <button type="button"
+                    data-action="review-mode#toggleRow mouseenter->review-mode#rowEntered mouseleave->review-mode#clearHighlight focus->review-mode#rowEntered blur->review-mode#clearHighlight"
+                    ${located ? `data-box-index="${boxIndex}"` : ""}
+                    aria-expanded="false"
+                    class="w-full flex items-center gap-2.5 px-4 py-2.5 text-left cursor-pointer
+                           transition duration-150 hover:bg-raised focus-visible:outline-2
+                           focus-visible:-outline-offset-2 focus-visible:outline-focus">
+              <span class="shrink-0 size-2 rounded-full" style="background: ${color}" aria-hidden="true"></span>
+              <span class="flex-1 min-w-0 truncate text-sm font-medium">${this.escape(finding.label)}</span>
+              ${located ? "" : `<span class="shrink-0 text-xs px-1.5 py-0.5 rounded border border-dashed text-ink-faint border-line-strong">not on label</span>`}
+              <svg class="shrink-0 size-3.5 text-ink-faint transition-transform duration-150" viewBox="0 0 16 16" fill="none" aria-hidden="true" data-chevron>
+                <path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <div class="hidden px-4 pb-3 pt-0.5" data-row-detail>
+              ${this.detailHtml(finding)}
+            </div>
+          </li>`
+      }).join("")
 
-  calloutHtml(box) {
-    const color = this.colorFor(box.verdict)
-    const index = this.current.boxes.indexOf(box)
-    const attrs = `type="button" data-callout-index="${index}" data-callout-source="boxes"
-                   data-action="review-mode#toggleCallout" aria-expanded="false" aria-haspopup="true"`
-    if (box.verdict === "fail" || box.verdict === "needs_review") {
-      const flagged = (box.checks || []).filter((c) => c.verdict === "fail" || c.verdict === "needs_review").length
-      const extra = Math.max(flagged - 1, 0)
       return `
-        <button ${attrs} class="text-left rounded-lg border bg-stone-900/90 px-3 py-2 ${this.constructor.AFFORDANCE}"
-                style="border-color: ${color}">
-          <p class="font-semibold text-sm" style="color: ${color}">${this.escape(box.label)} — ${this.escape(box.verdict_label)}</p>
-          ${box.note ? `<p class="text-sm text-stone-300 mt-0.5">${this.escape(box.note)}</p>` : ""}
-          ${extra ? `<p class="text-xs text-stone-400 mt-0.5">+${extra} more ${extra === 1 ? "issue" : "issues"}</p>` : ""}
-          ${box.citation ? `<p class="text-xs text-stone-500 mt-0.5">${this.escape(box.citation)}</p>` : ""}
-        </button>`
-    }
-    return `
-      <button ${attrs} class="inline-flex items-center gap-1.5 rounded-full border border-stone-700 bg-stone-900/90 px-2.5 py-1 text-sm text-stone-300 hover:border-stone-500 hover:text-stone-100 ${this.constructor.AFFORDANCE}">
-        <span style="color: ${color}" aria-hidden="true">✓</span> ${this.escape(box.label)}
-      </button>`
-  }
+        <section aria-label="${this.escape(group.title)}">
+          <h3 class="sticky top-0 z-10 flex items-baseline gap-2 px-4 pt-4 pb-1.5 bg-panel
+                     text-xs font-semibold uppercase tracking-wider"
+              style="color: ${this.colorFor(group.verdicts[0])}">
+            ${this.escape(group.title)}
+            <span class="text-ink-faint font-normal normal-case tracking-normal">${rows.length}</span>
+          </h3>
+          <ul class="divide-y divide-line/60">${items}</ul>
+        </section>`
+    }).join("")
 
-  // --- check-detail popover --------------------------------------------------
-
-  toggleCallout(event) {
-    const button = event.currentTarget
-    const index = Number(button.dataset.calloutIndex)
-    const source = button.dataset.calloutSource || "boxes"
-    const key = `${source}:${index}`
-    if (this.popover && this.popoverKey === key) {
-      this.closePopover()
-      return
-    }
-
-    this.closePopover()
-    const box = this.current?.[source]?.[index]
-    if (!box) return
-
-    this.popover = document.createElement("div")
-    this.popover.setAttribute("role", "region")
-    this.popover.setAttribute("aria-label", `${box.label} check detail`)
-    this.popover.className =
-      "absolute z-20 w-80 rounded-xl border border-stone-600 bg-stone-900 shadow-2xl shadow-black/60 px-4 py-3 overflow-y-auto"
-    this.popover.innerHTML = this.popoverHtml(box)
-    this.workspaceTarget.appendChild(this.popover)
-    this.positionPopover(button)
-
-    this.popoverKey = key
-    this.popoverButton = button
-    button.setAttribute("aria-expanded", "true")
-  }
-
-  closePopover() {
-    if (!this.popover) return
-    this.popover.remove()
-    this.popover = null
-    this.popoverKey = null
-    this.popoverButton?.setAttribute("aria-expanded", "false")
-    this.popoverButton = null
-  }
-
-  // Beside the callout, toward the artwork, clamped to the workspace. A
-  // popover taller than the workspace (a multi-check element with long
-  // statutory texts) caps its height and scrolls internally; the floor
-  // clamp runs last so the top can never go negative.
-  positionPopover(button) {
-    const wsRect = this.workspaceTarget.getBoundingClientRect()
-    const buttonRect = button.getBoundingClientRect()
-    const inLeftColumn = this.leftColumnTarget.contains(button)
-    this.popover.style.maxHeight = `${this.workspaceTarget.clientHeight - 16}px`
-
-    let left = inLeftColumn
-      ? buttonRect.right - wsRect.left + 12
-      : buttonRect.left - wsRect.left - 12 - this.popover.offsetWidth
-    left = Math.min(Math.max(left, 8), wsRect.width - this.popover.offsetWidth - 8)
-
-    let top = buttonRect.top - wsRect.top
-    top = Math.max(Math.min(top, this.workspaceTarget.clientHeight - this.popover.offsetHeight - 8), 8)
-
-    this.popover.style.left = `${left}px`
-    this.popover.style.top = `${top}px`
-  }
-
-  // One located element can answer several checks; the popover renders
-  // each, worst first, so the chip rollup reconciles with the verdict
-  // counts beside the decision buttons.
-  popoverHtml(box) {
-    const color = this.colorFor(box.verdict)
-    const checks = box.checks || [ box ]
-    const sections = checks.map((check) => this.popoverCheckHtml(check, checks.length > 1)).join("")
-    return `
-      <p class="font-semibold" style="color: ${color}">${this.escape(box.label)} — ${this.escape(box.verdict_label)}</p>
-      <div class="mt-2 divide-y divide-stone-700/60">${sections}</div>`
-  }
-
-  popoverCheckHtml(check, labeled) {
-    const value = (text) => text
-      ? `<dd class="text-sm text-stone-200">${this.escape(text)}</dd>`
-      : `<dd class="text-sm text-stone-500">—</dd>`
-    return `
-      <div class="py-2 first:pt-0 last:pb-0">
-        ${labeled ? `<p class="text-sm font-medium" style="color: ${this.colorFor(check.verdict)}">${this.escape(check.label)} — ${this.escape(check.verdict_label)}</p>` : ""}
-        <dl class="mt-1 space-y-2">
-          <div>
-            <dt class="text-xs uppercase tracking-wide text-stone-500">Application</dt>
-            ${value(check.expected)}
-          </div>
-          <div>
-            <dt class="text-xs uppercase tracking-wide text-stone-500">On the label</dt>
-            ${value(check.extracted)}
-          </div>
-        </dl>
-        ${check.note ? `<p class="text-sm text-stone-300 mt-2">${this.escape(check.note)}</p>` : ""}
-        ${check.citation ? `<p class="text-xs text-stone-500 mt-2">${this.escape(check.citation)}</p>` : ""}
+    this.inspectorTarget.innerHTML = `
+      <div class="overflow-y-auto min-h-0 flex-1 pb-4" data-inspector-scroll>
+        ${sections || `<p class="px-4 py-6 text-sm text-ink-muted">No checks were evaluated.</p>`}
       </div>`
   }
 
+  detailHtml(finding) {
+    const value = (text) => text
+      ? `<dd class="text-sm">${this.escape(text)}</dd>`
+      : `<dd class="text-sm text-ink-faint">—</dd>`
+    return `
+      <dl class="space-y-2 border-l border-line pl-3 ml-0.5">
+        <div>
+          <dt class="text-xs uppercase tracking-wide text-ink-faint">Application</dt>
+          ${value(finding.expected)}
+        </div>
+        <div>
+          <dt class="text-xs uppercase tracking-wide text-ink-faint">On the label</dt>
+          ${value(finding.extracted)}
+        </div>
+        ${finding.note ? `<p class="text-sm text-ink-muted">${this.escape(finding.note)}</p>` : ""}
+        ${finding.citation ? `<p class="text-xs text-ink-faint">${this.escape(finding.citation)}</p>` : ""}
+      </dl>`
+  }
+
+  // Single-open accordion: the unfolded row is the one being judged.
+  toggleRow(event) {
+    const button = event.currentTarget
+    const detail = button.nextElementSibling
+    const wasOpen = !detail.classList.contains("hidden")
+
+    this.inspectorTarget.querySelectorAll("[data-row-detail]").forEach((el) => el.classList.add("hidden"))
+    this.inspectorTarget.querySelectorAll("[aria-expanded]").forEach((el) => {
+      el.setAttribute("aria-expanded", "false")
+      el.querySelector("[data-chevron]")?.classList.remove("rotate-90")
+    })
+
+    if (!wasOpen) {
+      detail.classList.remove("hidden")
+      button.setAttribute("aria-expanded", "true")
+      button.querySelector("[data-chevron]")?.classList.add("rotate-90")
+      this.highlightBox(button.dataset.boxIndex)
+    } else {
+      this.clearHighlight()
+    }
+  }
+
+  rowEntered(event) {
+    this.highlightBox(event.currentTarget.dataset.boxIndex)
+  }
+
+  // Hovering a row spotlights its box; all other boxes recede.
+  highlightBox(boxIndex) {
+    if (boxIndex === undefined || boxIndex === null || boxIndex === "") return
+    this.svgTarget.querySelectorAll(".rv-box").forEach((el) => {
+      const active = el.dataset.boxIndex === String(boxIndex)
+      el.dataset.active = active
+      el.dataset.faded = !active
+    })
+  }
+
+  // Hovering a box highlights its inspector rows.
+  highlightFromBox(boxIndex) {
+    this.highlightBox(boxIndex)
+    this.inspectorTarget.querySelectorAll(`[data-box-index="${boxIndex}"]`).forEach((row) => {
+      row.classList.add("bg-raised")
+      row.scrollIntoView({ block: "nearest", behavior: this.reducedMotion ? "auto" : "smooth" })
+    })
+  }
+
+  clearHighlight() {
+    this.svgTarget.querySelectorAll(".rv-box").forEach((el) => {
+      el.dataset.active = false
+      el.dataset.faded = false
+    })
+    this.inspectorTarget.querySelectorAll("[data-box-index]").forEach((row) => row.classList.remove("bg-raised"))
+  }
+
   colorFor(verdict) {
-    return this.constructor.LINE_COLORS[verdict] || this.constructor.LINE_COLORS.default
+    return this.constructor.VERDICT_COLORS[verdict] || this.constructor.VERDICT_COLORS.default
   }
 
   // --- toast and announcements ---------------------------------------------

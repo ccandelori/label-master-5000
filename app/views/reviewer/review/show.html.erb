@@ -5,17 +5,22 @@
      data-review-mode-exit-url-value="<%= reviewer_queue_path %>">
 
   <%# Quiet top bar: the only persistent chrome in review mode. %>
-  <header class="flex items-center justify-between px-5 py-3 text-sm text-stone-400">
+  <header class="flex items-center justify-between gap-6 px-6 py-3 border-b border-line text-sm text-ink-muted">
     <%= link_to "← Exit review mode", reviewer_queue_path,
-          class: "hover:text-stone-200 underline underline-offset-2" %>
-    <p data-review-mode-target="progress"></p>
-    <p class="hidden sm:block text-base text-stone-300" aria-hidden="true">
-      <kbd class="px-2 py-1 rounded bg-stone-800">A</kbd> approve ·
-      <kbd class="px-2 py-1 rounded bg-stone-800">R</kbd> reject ·
-      <kbd class="px-2 py-1 rounded bg-stone-800">B</kbd> better image ·
-      <kbd class="px-2 py-1 rounded bg-stone-800">Space</kbd> skip ·
-      <kbd class="px-2 py-1 rounded bg-stone-800">U</kbd> undo ·
-      <kbd class="px-2 py-1 rounded bg-stone-800">Esc</kbd> exit
+          class: "shrink-0 hover:text-ink underline underline-offset-4 decoration-line-strong" %>
+    <p class="shrink-0" data-review-mode-target="progress"></p>
+    <p class="hidden xl:block text-ink-faint" aria-hidden="true">
+      <kbd class="px-1.5 py-0.5 rounded border border-line bg-raised text-ink-muted">A</kbd> approve
+      <span class="mx-1">·</span>
+      <kbd class="px-1.5 py-0.5 rounded border border-line bg-raised text-ink-muted">R</kbd> reject
+      <span class="mx-1">·</span>
+      <kbd class="px-1.5 py-0.5 rounded border border-line bg-raised text-ink-muted">B</kbd> better image
+      <span class="mx-1">·</span>
+      <kbd class="px-1.5 py-0.5 rounded border border-line bg-raised text-ink-muted">Space</kbd> skip
+      <span class="mx-1">·</span>
+      <kbd class="px-1.5 py-0.5 rounded border border-line bg-raised text-ink-muted">U</kbd> undo
+      <span class="mx-1">·</span>
+      <kbd class="px-1.5 py-0.5 rounded border border-line bg-raised text-ink-muted">Esc</kbd> exit
     </p>
   </header>
 
@@ -23,60 +28,64 @@
   <div class="sr-only" aria-live="polite" data-review-mode-target="srStatus"></div>
   <div class="sr-only" data-review-mode-target="srFindings" aria-label="Findings for the current label"></div>
 
-  <%# The workspace: margin columns, artwork center, SVG leader lines over it all. %>
-  <div class="relative flex-1 min-h-0" data-review-mode-target="workspace">
-    <svg class="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true"
-         data-review-mode-target="svg"></svg>
-
-    <div class="h-full flex items-stretch gap-4 px-5 transition-opacity duration-150"
-         data-review-mode-target="stage">
-      <div class="relative w-72 shrink-0 hidden lg:block" data-review-mode-target="leftColumn"></div>
-      <div class="flex-1 min-w-0 flex flex-col items-center justify-center gap-3">
+  <%# The workspace: artwork center stage, the evidence inspector at right. %>
+  <div class="relative flex-1 min-h-0 flex" data-review-mode-target="workspace">
+    <div class="flex-1 min-w-0 flex flex-col transition-opacity duration-150" data-review-mode-target="stage">
+      <div class="flex-1 min-h-0 flex flex-col items-center justify-center gap-4 px-8 py-6">
         <div class="text-center" data-review-mode-target="caption"></div>
-        <img class="max-h-[70vh] max-w-full rounded shadow-2xl shadow-black/60 bg-white"
-             alt="" data-review-mode-target="image">
+        <div class="relative max-h-full min-h-0" data-review-mode-target="frame">
+          <img class="max-h-[62vh] max-w-full rounded-sm shadow-xl shadow-ink/15 bg-white"
+               alt="" data-review-mode-target="image">
+          <svg class="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true"
+               data-review-mode-target="svg"></svg>
+        </div>
         <div class="hidden max-w-xl w-full" data-review-mode-target="fallback"></div>
       </div>
-      <div class="relative w-72 shrink-0 hidden lg:block" data-review-mode-target="rightColumn"></div>
+
+      <%# Decision controls under the artwork; the guard line speaks only
+          when approving over failures. %>
+      <footer class="flex flex-col items-center gap-2.5 px-6 pt-2 pb-6" data-review-mode-target="controls">
+        <p class="text-sm min-h-5" aria-live="polite" data-review-mode-target="summary"></p>
+        <div class="flex items-center justify-center gap-3">
+          <button type="button" data-action="review-mode#approve"
+                  class="rounded-lg bg-pass text-on-strong px-9 py-3.5 text-lg font-semibold cursor-pointer
+                         transition duration-150 hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus">
+            ✓ Approve
+          </button>
+          <button type="button" data-action="review-mode#reject"
+                  class="rounded-lg bg-fail text-on-strong px-9 py-3.5 text-lg font-semibold cursor-pointer
+                         transition duration-150 hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus">
+            ✗ Reject
+          </button>
+        </div>
+        <button type="button" data-action="review-mode#requestRetake"
+                class="text-sm text-ink-faint px-3 py-1.5 hover:text-ink-muted cursor-pointer underline-offset-4 hover:underline">
+          Request a better image
+        </button>
+      </footer>
     </div>
 
+    <%# The evidence inspector: every check, grouped by severity, absences
+        badged inline. One scrollable column; hover a row to spotlight its
+        box, click to unfold the regulation-cited comparison. %>
+    <aside class="hidden lg:flex flex-col w-[370px] shrink-0 border-l border-line bg-panel min-h-0"
+           aria-label="Verification findings" data-review-mode-target="inspector"></aside>
+
     <%# Queue-clear state. %>
-    <div class="hidden h-full flex-col items-center justify-center text-center" data-review-mode-target="empty">
+    <div class="hidden h-full w-full flex-col items-center justify-center text-center" data-review-mode-target="empty">
       <p class="text-2xl font-semibold mb-2">Queue clear.</p>
-      <p class="text-stone-400 mb-6">Every submitted application has a decision.</p>
+      <p class="text-ink-muted mb-6">Every submitted application has a decision.</p>
       <%= link_to "Back to the queue", reviewer_queue_path,
-            class: "rounded-lg bg-stone-100 text-stone-900 px-5 py-2.5 font-medium hover:bg-white" %>
+            class: "rounded-lg bg-ink text-surface px-5 py-2.5 font-medium hover:opacity-90" %>
     </div>
   </div>
 
-  <%# Decision controls: the two decisions centered under the label, the
-      quiet retake request beneath them. %>
-  <footer class="flex flex-col items-center gap-2 px-5 pt-4 pb-5" data-review-mode-target="controls">
-    <%# Verdict counts at the decision moment - the answer to "did I miss
-        a finding the artwork annotations could not show?" %>
-    <p class="text-sm text-stone-400" aria-live="polite" data-review-mode-target="summary"></p>
-    <div class="flex items-center justify-center gap-4">
-      <button type="button" data-action="review-mode#approve"
-              class="rounded-xl bg-green-600 text-white px-10 py-4 text-xl font-semibold hover:bg-green-500 cursor-pointer">
-        ✓ Approve
-      </button>
-      <button type="button" data-action="review-mode#reject"
-              class="rounded-xl bg-red-600 text-white px-10 py-4 text-xl font-semibold hover:bg-red-500 cursor-pointer">
-        ✗ Reject
-      </button>
-    </div>
-    <button type="button" data-action="review-mode#requestRetake"
-            class="rounded-lg text-stone-400 px-4 py-2 hover:text-stone-200 cursor-pointer">
-      Request a better image
-    </button>
-  </footer>
-
   <%# Undo toast. %>
-  <div class="hidden fixed bottom-24 left-1/2 -translate-x-1/2 rounded-xl bg-stone-800 border border-stone-700 px-5 py-3 shadow-xl flex items-center gap-4"
+  <div class="hidden fixed bottom-24 left-1/2 -translate-x-1/2 rounded-xl bg-raised border border-line px-5 py-3 shadow-xl shadow-ink/15 flex items-center gap-4"
        data-review-mode-target="toast" role="status">
     <span data-review-mode-target="toastMessage"></span>
     <button type="button" data-action="review-mode#undo"
-            class="font-semibold underline underline-offset-2 hover:text-white cursor-pointer">
+            class="font-semibold underline underline-offset-4 hover:text-ink cursor-pointer">
       Undo (U)
     </button>
   </div>
