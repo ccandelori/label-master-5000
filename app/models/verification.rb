@@ -48,5 +48,24 @@ class Verification < ApplicationRecord
       partial: "label_applications/verification_panel",
       locals: { application: label_application, verification: self }
     )
+    broadcast_batch_row
+  end
+
+  def broadcast_batch_row
+    batch = label_application.batch
+    return if batch.nil?
+
+    broadcast_replace_to(
+      batch,
+      target: "batch_row_#{label_application_id}",
+      partial: "batches/row",
+      locals: { application: label_application, verification: self }
+    )
+    broadcast_replace_to(
+      batch,
+      target: "batch_progress",
+      partial: "batches/progress",
+      locals: { batch: batch }
+    )
   end
 end

@@ -5,5 +5,12 @@ Rails.application.routes.draw do
     resources :decisions, only: :create
   end
 
+resources :batches, only: %i[new create show] do
+    member do
+      get :export, defaults: { format: :csv }
+      post :retry_failed
+    end
+  end
+
   get "up" => "rails/health#show", as: :rails_health_check
 end

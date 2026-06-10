@@ -1,0 +1,21 @@
+<div id="batch_progress" class="bg-white rounded-xl border border-stone-200 p-5">
+  <% done = batch.done_count %>
+  <div class="flex items-center justify-between mb-2">
+    <p class="font-medium" aria-live="polite"><%= done %> of <%= batch.total_rows %> checked</p>
+    <p class="text-stone-600"><%= batch.progress_percent %>%</p>
+  </div>
+  <div class="h-2.5 rounded-full bg-stone-200 overflow-hidden" role="progressbar"
+       aria-valuenow="<%= batch.progress_percent %>" aria-valuemin="0" aria-valuemax="100">
+    <div class="h-full bg-stone-800 rounded-full transition-all" style="width: <%= batch.progress_percent %>%"></div>
+  </div>
+
+  <% counts = batch.verdict_counts %>
+  <% if counts.any? %>
+    <div class="flex flex-wrap gap-5 mt-4 text-stone-700">
+      <span><span class="text-xl font-semibold text-green-800"><%= counts.values_at("pass", "pass_with_note").compact.sum %></span> passed</span>
+      <span><span class="text-xl font-semibold text-amber-800"><%= counts["needs_review"] || 0 %></span> need review</span>
+      <span><span class="text-xl font-semibold text-red-800"><%= counts["fail"] || 0 %></span> failed</span>
+      <span><span class="text-xl font-semibold"><%= (counts["request_retake"] || 0) + (counts["error"] || 0) %></span> retake / error</span>
+    </div>
+  <% end %>
+</div>
