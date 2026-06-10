@@ -46,7 +46,9 @@ module LabelApplicationsHelper
         verdict: worst&.verdict || "pass",
         verdict_label: worst ? verdict_label(worst.verdict) : "Read",
         note: worst&.note,
-        citation: worst&.citation
+        citation: worst&.citation,
+        expected: worst&.expected,
+        extracted: worst&.extracted || field["text"]
       }
     end
 
@@ -74,7 +76,9 @@ module LabelApplicationsHelper
         verdict: check&.verdict || "pass",
         verdict_label: check ? verdict_label(check.verdict) : "Read",
         note: check&.note || field["text"],
-        citation: check&.citation
+        citation: check&.citation,
+        expected: check&.expected,
+        extracted: field["text"]
       }
     end
 
