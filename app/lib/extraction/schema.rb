@@ -16,18 +16,19 @@ module Extraction
       "additionalProperties" => false,
       "properties" => {
         "text" => { "type" => %w[string null] },
-        # Normalized coordinates: the API may resize the image before the
-        # model sees it, so pixel coordinates would be in an unknown basis.
-        # 0-1000 is resolution-independent. The structured-output API only
-        # supports minItems of 0 or 1, so the four-number arity is asked for
-        # in the description and enforced at render time (bbox_data drops
+        # Pixel coordinates of the image as the model views it; the
+        # top-level image_width/image_height report that basis, so the
+        # data carries its own coordinate system (the API may resize
+        # images, and models ignore instructed coordinate conventions
+        # inconsistently). The structured-output API only supports
+        # minItems of 0 or 1, so the four-number arity is asked for in
+        # the description and enforced at render time (bbox_data drops
         # malformed boxes).
         "bbox" => {
           "type" => %w[array null],
           "items" => { "type" => "number" },
-          "description" => "Exactly four numbers [x, y, width, height] in normalized coordinates " \
-                           "from 0 to 1000, where (0, 0) is the top-left corner and 1000 spans " \
-                           "the full image width or height"
+          "description" => "Exactly four numbers [x, y, width, height] in pixels of the image " \
+                           "as you see it, with (0, 0) at the top-left corner"
         },
         "page" => { "type" => %w[integer null] },
         "confidence" => { "type" => %w[number null] }
@@ -47,6 +48,14 @@ module Extraction
       "properties" => {
         "legible" => { "type" => "boolean" },
         "confidence" => { "type" => "number" },
+        "image_width" => {
+          "type" => "integer",
+          "description" => "Width in pixels of the image as you see it - the basis for every bbox"
+        },
+        "image_height" => {
+          "type" => "integer",
+          "description" => "Height in pixels of the image as you see it - the basis for every bbox"
+        },
         "fields" => {
           "type" => "object",
           "additionalProperties" => false,
@@ -66,18 +75,19 @@ module Extraction
           "required" => %w[prefix_all_caps prefix_bold continuous_paragraph]
         }
       },
-      "required" => %w[legible confidence fields varietals disclosures warning_attributes]
+      "required" => %w[legible confidence image_width image_height fields varietals disclosures warning_attributes]
     }.freeze
 
     PROMPT = <<~PROMPT
       You are reading the artwork of an alcohol beverage label. Extract exactly
       what is printed - do not correct, complete, or normalize anything.
 
-      For each field report the literal text as printed, a bounding box
-      [x, y, width, height] in normalized coordinates (0 to 1000, where
-      (0, 0) is the top-left corner and 1000 spans the full image width or
-      height), the page number (1-based; always 1 for a single image), and
-      your confidence from 0 to 1. Use null for anything not present on the
+      First report image_width and image_height: the pixel dimensions of
+      the image exactly as you see it. Then, for each field, report the
+      literal text as printed, a bounding box [x, y, width, height] in
+      pixels of that same image with (0, 0) at the top-left corner, the
+      page number (1-based; always 1 for a single image), and your
+      confidence from 0 to 1. Use null for anything not present on the
       label.
 
       Field notes:

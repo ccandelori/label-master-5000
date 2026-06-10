@@ -31,11 +31,11 @@ export default class extends Controller {
     this.frameTarget.querySelectorAll("[data-bbox-box]").forEach((el) => el.remove())
     this.closePopover()
 
-    // Bboxes arrive in normalized 0-1000 coordinates (resolution-independent).
-    const scaleX = this.imageTarget.clientWidth / 1000
-    const scaleY = this.imageTarget.clientHeight / 1000
-
     this.boxesValue.filter((box) => box.page === 1).forEach((box) => {
+      // Each box carries the pixel basis the extractor measured against.
+      const [basisW, basisH] = box.basis || [1000, 1000]
+      const scaleX = this.imageTarget.clientWidth / basisW
+      const scaleY = this.imageTarget.clientHeight / basisH
       const [x, y, w, h] = box.bbox
       const el = document.createElement("button")
       el.type = "button"

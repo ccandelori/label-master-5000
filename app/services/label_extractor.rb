@@ -69,8 +69,9 @@ class LabelExtractor
         ]
       } ],
       output_config: {
+        effort: @config.effort,
         format: { type: "json_schema", schema: Extraction::Schema::RESPONSE_SCHEMA }
-      }
+      }.compact
     }
   end
 

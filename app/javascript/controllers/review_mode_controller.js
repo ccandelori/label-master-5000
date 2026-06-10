@@ -301,9 +301,6 @@ export default class extends Controller {
 
     const wsRect = this.workspaceTarget.getBoundingClientRect()
     const imgRect = this.imageTarget.getBoundingClientRect()
-    // Bboxes arrive in normalized 0-1000 coordinates (resolution-independent).
-    const scaleX = imgRect.width / 1000
-    const scaleY = imgRect.height / 1000
     const imgLeft = imgRect.left - wsRect.left
     const imgTop = imgRect.top - wsRect.top
 
@@ -311,8 +308,12 @@ export default class extends Controller {
     const sides = { left: [], right: [] }
 
     boxes.forEach((box) => {
+      // Each box carries the pixel basis the extractor measured against.
+      const [basisW, basisH] = box.basis || [1000, 1000]
+      const scaleX = imgRect.width / basisW
+      const scaleY = imgRect.height / basisH
       const [x, y, w, h] = box.bbox
-      const side = x + w / 2 < 500 ? "left" : "right"
+      const side = x + w / 2 < basisW / 2 ? "left" : "right"
       sides[side].push({
         box,
         targetY: imgTop + (y + h / 2) * scaleY,

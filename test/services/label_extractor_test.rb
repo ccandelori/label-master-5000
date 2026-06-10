@@ -3,7 +3,7 @@
 require "test_helper"
 
 class LabelExtractorTest < ActiveSupport::TestCase
-  Config = Struct.new(:model, :max_tokens, :max_retries, :max_pdf_pages, keyword_init: true)
+  Config = Struct.new(:model, :effort, :max_tokens, :max_retries, :max_pdf_pages, keyword_init: true)
 
   class StubClient
     attr_reader :calls
@@ -23,7 +23,7 @@ class LabelExtractorTest < ActiveSupport::TestCase
   end
 
   def config
-    Config.new(model: "claude-haiku-4-5", max_tokens: 4096, max_retries: 2, max_pdf_pages: 4)
+    Config.new(model: "claude-opus-4-7", effort: "low", max_tokens: 4096, max_retries: 2, max_pdf_pages: 4)
   end
 
   def payload_json
@@ -61,7 +61,7 @@ class LabelExtractorTest < ActiveSupport::TestCase
     assert_equal "fake-png-bytes", Base64.strict_decode64(block[:source][:data])
     assert_equal "json_schema", params.dig(:output_config, :format, :type)
     assert_equal Extraction::Schema::RESPONSE_SCHEMA, params.dig(:output_config, :format, :schema)
-    assert_equal "claude-haiku-4-5", params[:model]
+    assert_equal "claude-opus-4-7", params[:model]
   end
 
   test "PDF extraction sends a native document block" do
@@ -109,7 +109,7 @@ class LabelExtractorTest < ActiveSupport::TestCase
     assert_nil result.facts.warning_prefix_bold
     assert result.facts.warning_continuous_paragraph
     assert_equal [ 120, 80, 400, 60 ], result.raw.dig("fields", "brand_name", "bbox")
-    assert_equal "claude-haiku-4-5", result.model_id
+    assert_equal "claude-opus-4-7", result.model_id
     assert result.latency_ms >= 0
   end
 
