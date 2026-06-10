@@ -1,0 +1,297 @@
+---
+harvested_at: '2026-06-10T15:42:27Z'
+source: TTB public COLA registry
+records:
+- serial_number: 26BLBO
+  brand_name: BIRCH LAKE SPIRITS
+  fanciful_name: BOURBON
+  varietals:
+  appellation: "(715) 456-2486"
+  applicant_name_address: The Brewing Projekt, The Eau Claire Brewing Project LLC,
+    1807 N OXFORD AVE, Eau Claire, WI, 54703, BIRCH LAKE SPIRITS (Used on label)
+  container_embossed_info:
+  source: Domestic
+  product_type: Distilled Spirits
+  class_type_description: BOURBON WHISKY
+  date_issued: 02/25/2026
+  attachments:
+  - filename: bourbon-main.jpg
+    kind: Brand (front) or keg collar
+    local_file: 26055001000716_0.jpg
+    bytes: 1157539
+  - filename: bourbon-top.jpg
+    kind: Neck
+    local_file: 26055001000716_1.jpg
+    bytes: 85918
+  ttbid: '26055001000716'
+- serial_number: '260030'
+  brand_name: STRIPPER
+  fanciful_name: VODKA
+  varietals:
+  appellation: "(701) 361-0917"
+  applicant_name_address: Proof Artisan Distillers, Proof Artisan Distillers, LLC,
+    414 N 4TH AVE, Fargo, ND, 58102
+  container_embossed_info:
+  source: Domestic
+  product_type: Distilled Spirits
+  class_type_description: VODKA 80-89 PROOF
+  date_issued: 04/23/2026
+  attachments:
+  - filename: SV 40 4-20-26 2.png
+    kind: Brand (front) or keg collar
+    local_file: 26110001000607_0.png
+    bytes: 595373
+  ttbid: '26110001000607'
+- serial_number: 26TL01
+  brand_name: TEDDY LOVES
+  fanciful_name: IPA
+  varietals:
+  appellation: "(615) 715-0302"
+  applicant_name_address: The Nations Brewing Co, Roof Dog Beverages LLC, 800 44TH
+    AVE N, Nashville, TN, 37209, FAT BOTTOM BREWING CO. (Used on label)
+  container_embossed_info:
+  source: Domestic
+  product_type: Malt Beverage
+  class_type_description: BEER
+  date_issued: 01/30/2026
+  attachments:
+  - filename: TLIPA Label.png
+    kind: Brand (front) or keg collar
+    local_file: 26029001000269_0.png
+    bytes: 894639
+  ttbid: '26029001000269'
+- serial_number: '260130'
+  brand_name: BROUWERIJ 'TIJ
+  fanciful_name: IPA
+  varietals:
+  appellation: "(816) 701-7283"
+  applicant_name_address: DUVEL MOORTGAT USA, LTD., 657 HIGHWAY 33, COOPERSTOWN, NY,
+    13326
+  container_embossed_info: NET CONTENTS 20 LITERS bevat gerstemout. koel bewaren.
+    kraage niet verwijderen. inhoud = contains barley malt. keep refrigerated. do
+    not remove the collar. contents onverwacht krachtig fris en stevig bier = unexpectedly
+    strong fresh and firm beer ten minste houdbaar tot einde/ rouwselnummer = best
+    before end / batch number
+  source: Imported
+  product_type: Malt Beverage
+  class_type_description: ALE
+  date_issued: 02/04/2026
+  attachments:
+  - filename: IPA Keg Ring.jpg
+    kind: Brand (front) or keg collar
+    local_file: 26030001000570_0.jpg
+    bytes: 276470
+  ttbid: '26030001000570'
+- serial_number: 24DDKG
+  brand_name: DO OR DIE
+  fanciful_name: LAGER
+  varietals:
+  appellation: "(251) 610-2408"
+  applicant_name_address: Round Table Brewery LLC, 55 W RAILROAD AVE, Garnerville,
+    NY, 10923
+  container_embossed_info:
+  source: Domestic
+  product_type: Malt Beverage
+  class_type_description: BEER
+  date_issued: 11/08/2024
+  attachments:
+  - filename: Do or Die keg Collar.jpg
+    kind: Brand (front) or keg collar
+    local_file: 24313001000038_0.jpg
+    bytes: 691923
+  ttbid: '24313001000038'
+- serial_number: '260113'
+  brand_name: HARPOON
+  fanciful_name: ALE
+  varietals:
+  appellation: "(617) 574-9551"
+  applicant_name_address: HARPOON BREWERY, MASS BAY BREWING COMPANY, INC., 306 NORTHERN
+    AVE, BOSTON, MA, 02210, HARPOON BREWERY (Used on label)
+  container_embossed_info:
+  source: Domestic
+  product_type: Malt Beverage
+  class_type_description: ALE
+  date_issued: 04/10/2026
+  attachments:
+  - filename: Harpoon40tAle16ozCan.jpg
+    kind: Brand (front) or keg collar
+    local_file: 26100001000362_0.jpg
+    bytes: 455049
+  ttbid: '26100001000362'
+- serial_number: '260005'
+  brand_name: BAREFOOT
+  fanciful_name:
+  varietals: Pinot Grigio
+  appellation: CALIFORNIA
+  applicant_name_address: GALLO, E. & J. GALLO WINERY, 600 YOSEMITE BLVD, MODESTO,
+    CA, 95354, BAREFOOT WINES (Used on label)
+  container_embossed_info:
+  source: Domestic
+  product_type: Wine
+  class_type_description: TABLE WHITE WINE
+  date_issued: 01/20/2026
+  attachments:
+  - filename: BFC_Chiefs_750mL_Back Label.jpg
+    kind: Brand (front) or keg collar
+    local_file: 26015001000351_0.jpg
+    bytes: 391098
+  - filename: BFC_Chiefs_750mL_Front Label.jpg
+    kind: Back
+    local_file: 26015001000351_1.jpg
+    bytes: 917220
+  ttbid: '26015001000351'
+- serial_number: '260001'
+  brand_name: JOSH CELLARS
+  fanciful_name: RESERVE
+  varietals: Cabernet Sauvignon
+  appellation: NORTH COAST
+  applicant_name_address: DFG Beverage, DFG Beverage, LLC, 13300 BUCKMAN DR, Hopland,
+    CA, 95449, JOSEPH CARR (Used on label)
+  container_embossed_info:
+  source: Domestic
+  product_type: Wine
+  class_type_description: DESSERT /PORT/SHERRY/(COOKING) WINE
+  date_issued: 01/09/2026
+  attachments:
+  - filename: JCR_FY26_Labels_NC_CAB_Back_322x422.jpg
+    kind: Brand (front) or keg collar
+    local_file: 26006001000485_0.jpg
+    bytes: 608529
+  - filename: JCR_FY26_Labels_NC_CAB_Front_395x4_3.jpg
+    kind: Back
+    local_file: 26006001000485_1.jpg
+    bytes: 320553
+  ttbid: '26006001000485'
+- serial_number: 26BRAN
+  brand_name: STELLA ROSA
+  fanciful_name: V.S.
+  varietals:
+  appellation: "(301) 608-0084"
+  applicant_name_address: IL CONTE IMPORTS, SAN ANTONIO WINERY, INC., 723 GIBBONS
+    ST UNIT B, LOS ANGELES, CA, 90031
+  container_embossed_info:
+  source: Imported
+  product_type: Distilled Spirits
+  class_type_description: OTHER FOREIGN BRANDY
+  date_issued: 03/02/2026
+  attachments:
+  - filename: FRONT 62mm x.jpg
+    kind: Brand (front) or keg collar
+    local_file: 26058001000083_0.jpg
+    bytes: 213983
+  - filename: NECK 21mm x.jpg
+    kind: Neck
+    local_file: 26058001000083_1.jpg
+    bytes: 110757
+  - filename: BACK 62mm x 86mm 3.jpg
+    kind: Back
+    local_file: 26058001000083_2.jpg
+    bytes: 494320
+  ttbid: '26058001000083'
+- serial_number: 26R007
+  brand_name: JOHNNIE WALKER
+  fanciful_name:
+  varietals:
+  appellation: "(815) 267-4809"
+  applicant_name_address: DIAGEO AMERICAS SUPPLY, INC., 3 WORLD TRADE CENTER STE 41-C,
+    New York, NY, 10007, DIAGEO (Used on label)
+  container_embossed_info: CONTAINERS WILL BE CODED FOR IDENTIFICATION PURPOSES AND
+    BOTTLING FACILITY.  BOTTLE DEPOSIT INFORMATION MAY/MAY NOT APPEAR ON THE LABEL
+    AND/OR CONTAINER.  CLOSURE AND/OR CONTAINER MAY/MAY NOT CONTAIN BRAND GRAPHICS/LOGOS/EMBOSSING.  KOSHER
+    SYMBOL MAY/MAY NOT APPEAR ON LABEL. THE GRAPHICS, SALUTATIONS, DATES, AND ARTWORK
+    PRESENTED ON THIS LABEL MAY BE CHANGED TO PERSONALIZE THIS LABEL. THE PERSONALIZED
+    INFORMATION MAY/MAY NOT BE ETCHED ON THE BOTTLE.
+  source: Imported
+  product_type: Distilled Spirits
+  class_type_description: SCOTCH WHISKY FB
+  date_issued: 01/14/2026
+  attachments:
+  - filename: 3105531571 Festive Blend Foot 2026.jpg
+    kind: Brand (front) or keg collar
+    local_file: 26014001000091_0.jpg
+    bytes: 165445
+  - filename: 3105533189 Festive Blend Face 2026.jpg
+    kind: Other
+    local_file: 26014001000091_1.jpg
+    bytes: 309885
+  - filename: 3105533209 Festive Blend Side 1 2026.jpg
+    kind: Other
+    local_file: 26014001000091_2.jpg
+    bytes: 123631
+  - filename: 3105533209 Festive Blend Back 2026.jpg
+    kind: Back
+    local_file: 26014001000091_3.jpg
+    bytes: 187434
+  - filename: 3105533209 Festive Blend Side 2 2026.jpg
+    kind: Other
+    local_file: 26014001000091_4.jpg
+    bytes: 125166
+  - filename: 3105533209 Festive Blend Front 2026.jpg
+    kind: Other
+    local_file: 26014001000091_5.jpg
+    bytes: 97615
+  ttbid: '26014001000091'
+- serial_number: 26R010
+  brand_name: GUINNESS
+  fanciful_name: DRAUGHT STOUT
+  varietals:
+  appellation: "(212) 202-1800"
+  applicant_name_address: DIAGEO BEER COMPANY USA, 3 WORLD TRADE CENTER STE 41-B,
+    NEW YORK, NY, 10007
+  container_embossed_info: CONTAINERS WILL BE CODED FOR IDENTIFICATION PURPOSES AND
+    BOTTLING FACILITY.  BOTTLE DEPOSIT INFORMATION MAY/MAY NOT APPEAR ON THE LABEL
+    AND/OR CONTAINER.  CLOSURE AND/OR CONTAINER MAY/MAY NOT CONTAIN BRAND GRAPHICS/LOGOS/EMBOSSING.  KOSHER
+    SYMBOL MAY/MAY NOT APPEAR ON LABEL. THE GRAPHICS, SALUTATIONS, DATES, AND ARTWORK
+    PRESENTED ON THIS LABEL MAY BE CHANGED TO PERSONALIZE THIS LABEL. THE PERSONALIZED
+    INFORMATION MAY/MAY NOT BE ETCHED ON THE BOTTLE.
+  source: Imported
+  product_type: Malt Beverage
+  class_type_description: STOUT
+  date_issued: 01/23/2026
+  attachments:
+  - filename: Yeshi FML.jpg
+    kind: Brand (front) or keg collar
+    local_file: 26022001000221_0.jpg
+    bytes: 924133
+  ttbid: '26022001000221'
+- serial_number: '250114'
+  brand_name: MODELO ESPECIAL
+  fanciful_name:
+  varietals:
+  appellation: "(720) 481-1604"
+  applicant_name_address: Taco Rico Mexican Restaurant, Taco Rico Mexican Restaurant
+    LLC, 3928 WADSWORTH BLVD, Wheat Ridge, CO, 80010
+  container_embossed_info:
+  source: Imported
+  product_type: Malt Beverage
+  class_type_description: BEER
+  date_issued: '09/11/2025'
+  attachments:
+  - filename: modelo especial 710ml.jpg
+    kind: Brand (front) or keg collar
+    local_file: 25252001000907_0.jpg
+    bytes: 166317
+  ttbid: '25252001000907'
+- serial_number: 26R001
+  brand_name: CASAMIGOS
+  fanciful_name: PINEAPPLE & TANGERINE
+  varietals:
+  appellation: "(212) 202-1800"
+  applicant_name_address: DIAGEO AMERICAS SUPPLY, INC., 24440 W 143RD ST, PLAINFIELD,
+    IL, 60544, CASAMIGOS SALES COMPANY (Used on label)
+  container_embossed_info: CONTAINERS WILL BE CODED FOR IDENTIFICATION PURPOSES AND
+    BOTTLING FACILITY. BOTTLE DEPOSIT INFORMATION MAY/MAY NOT APPEAR ON THE LABEL
+    AND/OR CONTAINER. CLOSURE AND/OR CONTAINER MAY/MAY NOT CONTAIN BRAND GRAPHICS/LOGOS/EMBOSSING.
+    KOSHER SYMBOL MAY/MAY NOT APPEAR ON LABEL. THE GRAPHICS, SALUTATIONS, DATES, AND
+    ARTWORK PRESENTED ON THIS LABEL MAY BE CHANGED TO PERSONALIZE THIS LABEL. THE
+    PERSONALIZED INFORMATION MAY/MAY NOT BE ETCHED ON THE BOTTLE.
+  source: Domestic
+  product_type: Distilled Spirits
+  class_type_description: MARGARITA (UNDER 48 PROOF)
+  date_issued: 01/12/2026
+  attachments:
+  - filename: '003105533833_TTB.jpg'
+    kind: Brand (front) or keg collar
+    local_file: 26005001000482_0.jpg
+    bytes: 496988
+  ttbid: '26005001000482'
