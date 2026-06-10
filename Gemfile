@@ -55,3 +55,7 @@ group :test do
   gem "capybara"
   gem "selenium-webdriver"
 end
+
+gem "anthropic", "~> 1.48"
+
+gem "connection_pool", "~> 2.4"
