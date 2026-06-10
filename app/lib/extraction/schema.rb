@@ -92,7 +92,9 @@ module Extraction
 
       Field notes:
       - brand_name: the most prominent product name.
-      - fanciful_name: a secondary product name, if any.
+      - fanciful_name: a secondary product name, if any - a distinctive
+        coined name for the product, not a marketing slogan, tagline, or
+        seasonal-edition phrase. Null when only slogans appear.
       - class_type_designation: the product identity, e.g. "India Pale Ale",
         "Kentucky Straight Bourbon Whiskey", "Table Wine".
       - alcohol_statement: the full statement, e.g. "45% ALC./VOL. (90 PROOF)".

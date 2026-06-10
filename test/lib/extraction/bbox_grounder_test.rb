@@ -126,6 +126,17 @@ class BboxGrounderTest < ActiveSupport::TestCase
     assert_equal frozen_snapshot, input
   end
 
+  test "matches letter-spaced display type read as one word per letter" do
+    letters = "DRAUGHT STOUT".delete(" ").chars.each_with_index.map do |letter, index|
+      word(letter, 100 + index * 30, 400, 24, 30)
+    end
+    result = ground(payload(fields: { "fanciful_name" => field("DRAUGHT STOUT") }), [ page(letters) ])
+
+    grounded = result["fields"]["fanciful_name"]
+    assert_equal "ocr", grounded["bbox_source"]
+    assert_equal [ 100, 400, 354, 30 ], grounded["bbox"]
+  end
+
   test "grounds a long multi-line statement with a stray OCR error" do
     statement = "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy"
     words = statement.split(" ").each_with_index.map do |token, index|

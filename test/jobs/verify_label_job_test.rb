@@ -189,6 +189,28 @@ class VerifyLabelJobTest < ActiveSupport::TestCase
     assert_nil brand["bbox_source"]
   end
 
+  test "fanciful name reconciles to the declared value located by OCR" do
+    app = create_application(fanciful_name: "DRAUGHT STOUT")
+    tagline = { "text" => "Lovely Day for a Guinness", "bbox" => [ 1, 2, 3, 4 ], "page" => 1, "confidence" => 0.85 }
+    words = [
+      Extraction::OcrClient::Word.new(text: "DRAUGHT", x: 300, y: 500, width: 90, height: 30),
+      Extraction::OcrClient::Word.new(text: "STOUT", x: 400, y: 500, width: 70, height: 30)
+    ]
+    page = Extraction::OcrClient::Page.new(number: 1, width: 800, height: 1000, words: words)
+
+    verification = with_ocr(StubOcr.new(pages: [ page ])) do
+      with_extractor(StubExtractor.new(payload: payload("fields" => payload({})["fields"].merge("fanciful_name" => tagline)))) do
+        VerifyLabelJob.perform_now(app.id)
+      end
+    end
+
+    fanciful = verification.extraction.dig("fields", "fanciful_name")
+    assert_equal "DRAUGHT STOUT", fanciful["text"]
+    assert_equal "ocr", fanciful["bbox_source"]
+    check = verification.field_checks.find { |c| c.field == "fanciful_name" }
+    assert_equal "pass", check.verdict
+  end
+
   test "duplicate artwork across applications gets a note" do
     original = create_application(serial_number: "26-1042")
     stub = StubExtractor.new(payload: payload({}))
