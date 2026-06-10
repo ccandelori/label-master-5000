@@ -2,10 +2,12 @@ import { Controller } from "@hotwired/stimulus"
 
 // Review mode: the label front and center on a dark workspace, callouts in
 // the margin columns tied to their bounding boxes by elbowed leader lines,
-// two-button decisions, and immediate advance through the queue.
+// two-button decisions, and immediate advance through the queue. Clicking
+// a callout opens a popover with the full check detail: the application
+// value against what was read off the label, plus note and citation.
 //
 // Keyboard: A approve, R reject, B request better image, Space skip,
-// D open the full record, U undo the last decision (5s window).
+// U undo the last decision (5s window), Esc close popover / exit.
 export default class extends Controller {
   static targets = [
     "workspace", "stage", "svg", "leftColumn", "rightColumn", "image",
@@ -34,6 +36,12 @@ export default class extends Controller {
 
     this.keyHandler = (event) => this.handleKey(event)
     document.addEventListener("keydown", this.keyHandler)
+    this.outsideClickHandler = (event) => {
+      if (this.popover && !this.popover.contains(event.target) && !event.target.closest("[data-callout-index]")) {
+        this.closePopover()
+      }
+    }
+    document.addEventListener("click", this.outsideClickHandler)
 
     this.resizeObserver = new ResizeObserver(() => this.layoutCallouts())
     this.resizeObserver.observe(this.imageTarget)
@@ -49,6 +57,7 @@ export default class extends Controller {
 
   disconnect() {
     document.removeEventListener("keydown", this.keyHandler)
+    document.removeEventListener("click", this.outsideClickHandler)
     this.resizeObserver.disconnect()
     clearTimeout(this.toastTimer)
   }
@@ -111,15 +120,15 @@ export default class extends Controller {
     })
   }
 
-  openDetails() {
-    if (this.current) window.location.assign(this.current.application.show_path)
-  }
-
   handleKey(event) {
     if (event.metaKey || event.ctrlKey || event.altKey) return
     const key = event.key.toLowerCase()
     if (key === "escape") {
-      window.location.assign(this.exitUrlValue)
+      if (this.popover) {
+        this.closePopover()
+      } else {
+        window.location.assign(this.exitUrlValue)
+      }
     } else if (key === " ") {
       event.preventDefault()
       this.skip()
@@ -129,8 +138,6 @@ export default class extends Controller {
       this.reject()
     } else if (key === "b") {
       this.requestRetake()
-    } else if (key === "d") {
-      this.openDetails()
     } else if (key === "u") {
       this.undo()
     }
@@ -288,6 +295,7 @@ export default class extends Controller {
   // --- callout layout ------------------------------------------------------
 
   clearAnnotations() {
+    this.closePopover()
     this.svgTarget.replaceChildren()
     this.leftColumnTarget.replaceChildren()
     this.rightColumnTarget.replaceChildren()
@@ -462,18 +470,98 @@ export default class extends Controller {
 
   calloutHtml(box) {
     const color = this.colorFor(box.verdict)
+    const index = this.current.boxes.indexOf(box)
+    const attrs = `type="button" data-callout-index="${index}" data-action="review-mode#toggleCallout"
+                   aria-expanded="false" aria-haspopup="true"`
     if (box.verdict === "fail" || box.verdict === "needs_review") {
       return `
-        <div class="rounded-lg border bg-stone-900/90 px-3 py-2" style="border-color: ${color}">
+        <button ${attrs} class="text-left rounded-lg border bg-stone-900/90 px-3 py-2 cursor-pointer hover:bg-stone-800/90"
+                style="border-color: ${color}">
           <p class="font-semibold text-sm" style="color: ${color}">${this.escape(box.label)} — ${this.escape(box.verdict_label)}</p>
           ${box.note ? `<p class="text-sm text-stone-300 mt-0.5">${this.escape(box.note)}</p>` : ""}
           ${box.citation ? `<p class="text-xs text-stone-500 mt-0.5">${this.escape(box.citation)}</p>` : ""}
-        </div>`
+        </button>`
     }
     return `
-      <p class="inline-flex items-center gap-1.5 rounded-full border border-stone-700 bg-stone-900/90 px-2.5 py-1 text-sm text-stone-300">
+      <button ${attrs} class="inline-flex items-center gap-1.5 rounded-full border border-stone-700 bg-stone-900/90 px-2.5 py-1 text-sm text-stone-300 cursor-pointer hover:bg-stone-800/90">
         <span style="color: ${color}" aria-hidden="true">✓</span> ${this.escape(box.label)}
-      </p>`
+      </button>`
+  }
+
+  // --- check-detail popover --------------------------------------------------
+
+  toggleCallout(event) {
+    const button = event.currentTarget
+    const index = Number(button.dataset.calloutIndex)
+    if (this.popover && this.popoverIndex === index) {
+      this.closePopover()
+      return
+    }
+
+    this.closePopover()
+    const box = this.current?.boxes[index]
+    if (!box) return
+
+    this.popover = document.createElement("div")
+    this.popover.setAttribute("role", "region")
+    this.popover.setAttribute("aria-label", `${box.label} check detail`)
+    this.popover.className =
+      "absolute z-20 w-80 rounded-xl border border-stone-600 bg-stone-900 shadow-2xl shadow-black/60 px-4 py-3"
+    this.popover.innerHTML = this.popoverHtml(box)
+    this.workspaceTarget.appendChild(this.popover)
+    this.positionPopover(button)
+
+    this.popoverIndex = index
+    this.popoverButton = button
+    button.setAttribute("aria-expanded", "true")
+  }
+
+  closePopover() {
+    if (!this.popover) return
+    this.popover.remove()
+    this.popover = null
+    this.popoverIndex = null
+    this.popoverButton?.setAttribute("aria-expanded", "false")
+    this.popoverButton = null
+  }
+
+  // Beside the callout, toward the artwork, clamped to the workspace.
+  positionPopover(button) {
+    const wsRect = this.workspaceTarget.getBoundingClientRect()
+    const buttonRect = button.getBoundingClientRect()
+    const inLeftColumn = this.leftColumnTarget.contains(button)
+
+    let left = inLeftColumn
+      ? buttonRect.right - wsRect.left + 12
+      : buttonRect.left - wsRect.left - 12 - this.popover.offsetWidth
+    left = Math.min(Math.max(left, 8), wsRect.width - this.popover.offsetWidth - 8)
+
+    let top = buttonRect.top - wsRect.top
+    top = Math.min(Math.max(top, 8), this.workspaceTarget.clientHeight - this.popover.offsetHeight - 8)
+
+    this.popover.style.left = `${left}px`
+    this.popover.style.top = `${top}px`
+  }
+
+  popoverHtml(box) {
+    const color = this.colorFor(box.verdict)
+    const value = (text) => text
+      ? `<dd class="text-sm text-stone-200">${this.escape(text)}</dd>`
+      : `<dd class="text-sm text-stone-500">—</dd>`
+    return `
+      <p class="font-semibold" style="color: ${color}">${this.escape(box.label)} — ${this.escape(box.verdict_label)}</p>
+      <dl class="mt-2 space-y-2">
+        <div>
+          <dt class="text-xs uppercase tracking-wide text-stone-500">Application</dt>
+          ${value(box.expected)}
+        </div>
+        <div>
+          <dt class="text-xs uppercase tracking-wide text-stone-500">On the label</dt>
+          ${value(box.extracted)}
+        </div>
+      </dl>
+      ${box.note ? `<p class="text-sm text-stone-300 mt-2">${this.escape(box.note)}</p>` : ""}
+      ${box.citation ? `<p class="text-xs text-stone-500 mt-2">${this.escape(box.citation)}</p>` : ""}`
   }
 
   colorFor(verdict) {

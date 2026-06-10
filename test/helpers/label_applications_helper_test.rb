@@ -47,6 +47,42 @@ class LabelApplicationsHelperTest < ActionView::TestCase
     assert_equal "fail", box[:verdict]
     assert_equal "Disclosure must appear in capital letters", box[:note]
     assert_equal "27 CFR 4.32a", box[:citation]
+    assert_equal "CONTAINS SULFITES", box[:expected]
+    assert_equal "Contains Sulfites", box[:extracted]
+  end
+
+  test "field boxes carry expected and extracted for the popover" do
+    check = FieldCheck.new(
+      field: "brand_name", verdict: "needs_review", expected: "OLD TOM DISTILLERY",
+      extracted: "OLD TOM", citation: "BAM Vol 2 1-1", note: "Differs from the application"
+    )
+    v = Verification.new(
+      extraction: {
+        "image_width" => 800, "image_height" => 1000,
+        "fields" => { "brand_name" => located("OLD TOM") },
+        "disclosures" => []
+      },
+      field_checks: [ check ]
+    )
+    box = bbox_data(v).first
+
+    assert_equal "OLD TOM DISTILLERY", box[:expected]
+    assert_equal "OLD TOM", box[:extracted]
+  end
+
+  test "field boxes without a check expose the read text as extracted" do
+    v = Verification.new(
+      extraction: {
+        "image_width" => 800, "image_height" => 1000,
+        "fields" => { "vintage" => located("2021") },
+        "disclosures" => []
+      },
+      field_checks: []
+    )
+    box = bbox_data(v).first
+
+    assert_nil box[:expected]
+    assert_equal "2021", box[:extracted]
   end
 
   test "disclosure box without a matching check defaults to a plain read" do
