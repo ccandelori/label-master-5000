@@ -1,0 +1,26 @@
+<tr id="batch_row_<%= application.id %>" class="border-t border-stone-100 align-top">
+  <td class="px-4 py-3 text-stone-500"><%= application.row_number %></td>
+  <td class="px-4 py-3"><%= application.serial_number %></td>
+  <th scope="row" class="px-4 py-3 font-medium"><%= application.brand_name %></th>
+  <td class="px-4 py-3 text-stone-700"><%= application.beverage_type.capitalize %></td>
+  <td class="px-4 py-3">
+    <% if verification %>
+      <%= verdict_chip(verification.overall_verdict) %>
+      <% worst = verification.field_checks.select { |c| c.verdict == "fail" }.first %>
+      <% if worst&.note %>
+        <p class="text-stone-600 mt-1 max-w-md"><%= truncate(worst.note, length: 110) %></p>
+      <% end %>
+    <% else %>
+      <span class="inline-flex items-center gap-1.5 text-stone-500">
+        <span class="inline-block h-2 w-2 rounded-full bg-amber-500 animate-pulse" aria-hidden="true"></span>
+        checking…
+      </span>
+    <% end %>
+  </td>
+  <td class="px-4 py-3 text-stone-500 whitespace-nowrap">
+    <%= verification&.latency_ms ? "#{(verification.latency_ms / 1000.0).round(1)}s" : "—" %>
+  </td>
+  <td class="px-4 py-3 text-right">
+    <%= link_to "Open", label_application_path(application), class: "text-stone-700 underline hover:no-underline" %>
+  </td>
+</tr>

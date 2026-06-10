@@ -24,6 +24,8 @@
         <nav class="flex gap-2 text-base">
           <%= link_to "Verify a label", root_path,
                 class: "px-4 py-2 rounded-lg hover:bg-stone-100 #{'bg-stone-100 font-medium' if controller_name == 'label_applications'}" %>
+          <%= link_to "Batches", new_batch_path,
+                class: "px-4 py-2 rounded-lg hover:bg-stone-100 #{'bg-stone-100 font-medium' if controller_name == 'batches'}" %>
         </nav>
       </div>
     </header>

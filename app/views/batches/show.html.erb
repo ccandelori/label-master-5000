@@ -1,0 +1,51 @@
+<%= turbo_stream_from @batch %>
+
+<div class="flex items-start justify-between flex-wrap gap-3 mb-4">
+  <div>
+    <h1 class="text-2xl font-semibold"><%= @batch.name %></h1>
+    <p class="text-stone-600 mt-1"><%= @batch.total_rows %> labels</p>
+  </div>
+  <div class="flex gap-2">
+    <%= button_to "Retry failed rows", retry_failed_batch_path(@batch),
+          class: "rounded-lg border border-stone-300 bg-white px-4 py-2 font-medium hover:bg-stone-100 cursor-pointer" %>
+    <%= link_to "Export results CSV", export_batch_path(@batch),
+          class: "rounded-lg bg-stone-900 text-white px-4 py-2 font-medium hover:bg-stone-700" %>
+  </div>
+</div>
+
+<%= render "batches/progress", batch: @batch %>
+
+<nav class="flex flex-wrap gap-2 my-4" aria-label="Filter by result">
+  <% filters = [ [ nil, "All" ], [ "fail", "Failed" ], [ "needs_review", "Needs review" ],
+                 [ "pass", "Passed" ], [ "pass_with_note", "Passed with note" ],
+                 [ "request_retake", "Retake" ], [ "error", "Errors" ] ] %>
+  <% filters.each do |value, label| %>
+    <%= link_to label, batch_path(@batch, verdict: value),
+          class: "px-3 py-1.5 rounded-full border #{params[:verdict].presence == value ? 'bg-stone-900 text-white border-stone-900' : 'bg-white border-stone-300 hover:bg-stone-100'}" %>
+  <% end %>
+</nav>
+
+<div class="bg-white rounded-xl border border-stone-200 overflow-hidden">
+  <table class="w-full text-left">
+    <caption class="sr-only">Batch results, one row per label application</caption>
+    <thead>
+      <tr class="border-b border-stone-200 text-stone-600">
+        <th scope="col" class="px-4 py-3 font-medium">Row</th>
+        <th scope="col" class="px-4 py-3 font-medium">Serial</th>
+        <th scope="col" class="px-4 py-3 font-medium">Brand</th>
+        <th scope="col" class="px-4 py-3 font-medium">Type</th>
+        <th scope="col" class="px-4 py-3 font-medium">Result</th>
+        <th scope="col" class="px-4 py-3 font-medium">Time</th>
+        <th scope="col" class="px-4 py-3"><span class="sr-only">Open</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @applications.each do |application| %>
+        <%= render "batches/row", application: application, verification: application.latest_verification %>
+      <% end %>
+    </tbody>
+  </table>
+  <% if @applications.empty? %>
+    <p class="px-4 py-6 text-stone-600">No rows match this filter yet.</p>
+  <% end %>
+</div>
