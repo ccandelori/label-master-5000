@@ -66,12 +66,44 @@ class VerifyLabelJobTest < ActiveSupport::TestCase
     app
   end
 
+  class StubOcr
+    def initialize(pages: [], error: nil)
+      @pages = pages
+      @error = error
+    end
+
+    def read(data:, content_type:)
+      raise @error if @error
+
+      @pages
+    end
+  end
+
+  # Keep the suite off the real tesseract binary: an empty OCR read means
+  # every field falls back to the model's box.
+  setup do
+    @original_ocr_factory = VerifyLabelJob.ocr_factory
+    VerifyLabelJob.ocr_factory = -> { StubOcr.new }
+  end
+
+  teardown do
+    VerifyLabelJob.ocr_factory = @original_ocr_factory
+  end
+
   def with_extractor(stub)
     original = VerifyLabelJob.extractor_factory
     VerifyLabelJob.extractor_factory = -> { stub }
     yield
   ensure
     VerifyLabelJob.extractor_factory = original
+  end
+
+  def with_ocr(stub)
+    original = VerifyLabelJob.ocr_factory
+    VerifyLabelJob.ocr_factory = -> { stub }
+    yield
+  ensure
+    VerifyLabelJob.ocr_factory = original
   end
 
   test "happy path persists a passing verification with extraction payload" do
@@ -121,6 +153,40 @@ class VerifyLabelJobTest < ActiveSupport::TestCase
     assert_predicate second, :fail?
     assert_equal first.extraction, second.extraction
     assert_equal 2, app.verifications.count, "history must be preserved"
+  end
+
+  test "OCR grounding re-anchors matchable boxes and records provenance" do
+    app = create_application({})
+    words = [
+      Extraction::OcrClient::Word.new(text: "OLD", x: 100, y: 80, width: 60, height: 40),
+      Extraction::OcrClient::Word.new(text: "TOM", x: 170, y: 80, width: 70, height: 40),
+      Extraction::OcrClient::Word.new(text: "DISTILLERY", x: 250, y: 80, width: 200, height: 42)
+    ]
+    page = Extraction::OcrClient::Page.new(number: 1, width: 800, height: 1000, words: words)
+
+    verification = with_ocr(StubOcr.new(pages: [ page ])) do
+      with_extractor(StubExtractor.new(payload: payload({}))) { VerifyLabelJob.perform_now(app.id) }
+    end
+
+    brand = verification.extraction.dig("fields", "brand_name")
+    assert_equal [ 100, 80, 350, 42 ], brand["bbox"]
+    assert_equal [ 800, 1000 ], brand["bbox_basis"]
+    assert_equal "ocr", brand["bbox_source"]
+    assert_equal "model", verification.extraction.dig("fields", "government_warning", "bbox_source")
+  end
+
+  test "OCR failure keeps the model's boxes and still completes verification" do
+    app = create_application({})
+    failing_ocr = StubOcr.new(error: Extraction::OcrError.new("tesseract is not installed"))
+
+    verification = with_ocr(failing_ocr) do
+      with_extractor(StubExtractor.new(payload: payload({}))) { VerifyLabelJob.perform_now(app.id) }
+    end
+
+    assert_predicate verification, :pass?
+    brand = verification.extraction.dig("fields", "brand_name")
+    assert_equal [ 1, 2, 3, 4 ], brand["bbox"]
+    assert_nil brand["bbox_source"]
   end
 
   test "duplicate artwork across applications gets a note" do

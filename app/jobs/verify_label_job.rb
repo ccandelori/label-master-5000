@@ -20,6 +20,7 @@ class VerifyLabelJob < ApplicationJob
   # Test seam and deployment seam in one: the factory builds the real
   # connector by default.
   class_attribute :extractor_factory, default: -> { LabelExtractor.build }
+  class_attribute :ocr_factory, default: -> { Extraction::OcrClient.build }
 
   def perform(label_application_id)
     application = LabelApplication.find(label_application_id)
@@ -38,13 +39,12 @@ class VerifyLabelJob < ApplicationJob
         started: started
       )
     else
-      result = extractor_factory.call.extract(
-        data: application.artwork.download,
-        content_type: application.artwork.content_type
-      )
+      data = application.artwork.download
+      content_type = application.artwork.content_type
+      result = extractor_factory.call.extract(data: data, content_type: content_type)
       verification = evaluate_and_persist(
         application: application,
-        raw: result.raw,
+        raw: ground_boxes(raw: result.raw, data: data, content_type: content_type),
         model_id: result.model_id,
         reused: false,
         duplicate_of: nil,
@@ -57,6 +57,23 @@ class VerifyLabelJob < ApplicationJob
   end
 
   private
+
+  # Re-anchors the model's bounding boxes to OCR word geometry. Strictly
+  # best-effort: any OCR failure (missing binary, unreadable artwork) logs
+  # a warning and keeps the model's boxes - it never fails a verification.
+  def ground_boxes(raw:, data:, content_type:)
+    pages = ocr_factory.call.read(data: data, content_type: content_type)
+    Extraction::BboxGrounder.ground(
+      payload: raw,
+      pages: pages,
+      threshold: Rails.application.config.x.extraction.ocr_match_threshold
+    )
+  rescue Extraction::OcrError => e
+    Rails.logger.warn(JSON.generate({
+      event: "ocr_grounding_failed", error: e.message.to_s.first(300)
+    }))
+    raw
+  end
 
   def evaluate_and_persist(application:, raw:, model_id:, reused:, duplicate_of:, started:)
     facts = Extraction::FactsMapper.to_facts(raw)
