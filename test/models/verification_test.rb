@@ -56,4 +56,22 @@ class VerificationTest < ActiveSupport::TestCase
     Verification.create!(label_application: application, overall_verdict: "pass")
     assert_difference("Verification.count", -1) { application.destroy }
   end
+
+  test "a reject decision generates the rejection notice; approve does not" do
+    verification = Verification.create!(
+      label_application: application,
+      overall_verdict: "fail",
+      field_checks: [ sample_check(verdict: "fail") ]
+    )
+
+    verification.record_decision(decision: "reject", note: nil)
+    assert_match(/DRAFT REJECTION NOTICE/, verification.rejection_notice)
+    assert_match(/Government warning/, verification.rejection_notice)
+
+    verification.undo_decision
+    assert_nil verification.rejection_notice
+
+    verification.record_decision(decision: "approve", note: nil)
+    assert_nil verification.rejection_notice
+  end
 end

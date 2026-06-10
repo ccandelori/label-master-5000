@@ -15,6 +15,7 @@ Rails.application.routes.draw do
   resources :label_applications, only: %i[new create show edit update] do
     resource :decision, only: %i[create destroy]
     resource :submission, only: :create
+    resource :rejection_notice, only: :show
   end
 
   resources :batches, only: %i[new create show] do
