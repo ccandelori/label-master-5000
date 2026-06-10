@@ -54,6 +54,31 @@ class LabelApplicationsHelperTest < ActionView::TestCase
     assert_equal "Contains Sulfites", box[:extracted]
   end
 
+  test "field boxes carry every check behind the element, worst first" do
+    text_fail = FieldCheck.new(
+      field: "government_warning_text", verdict: "fail", expected: "GOVERNMENT WARNING: ...",
+      extracted: "OVERNMENT WARNING: ...", citation: "27 CFR 16.21", note: "Wording differs"
+    )
+    prefix_pass = FieldCheck.new(
+      field: "government_warning_prefix", verdict: "pass", expected: "GOVERNMENT WARNING",
+      extracted: "GOVERNMENT WARNING", citation: "27 CFR 16.22", note: nil
+    )
+    v = Verification.new(
+      extraction: {
+        "image_width" => 800, "image_height" => 1000,
+        "fields" => { "government_warning" => located("OVERNMENT WARNING: ...") },
+        "disclosures" => []
+      },
+      field_checks: [ prefix_pass, text_fail ]
+    )
+    box = bbox_data(v).first
+
+    assert_equal %w[government_warning_text government_warning_prefix], box[:checks].map { |c| c[:field] }
+    assert_equal "fail", box[:checks].first[:verdict]
+    assert_equal "Wording differs", box[:checks].first[:note]
+    assert_equal "GOVERNMENT WARNING", box[:checks].last[:expected]
+  end
+
   test "field boxes carry expected and extracted for the popover" do
     check = FieldCheck.new(
       field: "brand_name", verdict: "needs_review", expected: "OLD TOM DISTILLERY",
