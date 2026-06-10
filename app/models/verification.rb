@@ -8,8 +8,12 @@ class Verification < ApplicationRecord
     pass_with_note: "pass_with_note",
     fail: "fail",
     needs_review: "needs_review",
-    request_retake: "request_retake"
+    request_retake: "request_retake",
+    error: "error"
   }, validate: true
+
+  scope :completed, -> { where.not(overall_verdict: "error") }
+  scope :with_extraction, -> { where.not(extraction: nil) }
 
   enum :decision, {
     approve: "approve",
