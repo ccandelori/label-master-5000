@@ -16,3 +16,11 @@ Rails.application.config.x.extraction.max_pdf_pages = Integer(ENV.fetch("EXTRACT
 # illegible) verification ends as request_retake instead of issuing
 # field verdicts from a bad read.
 Rails.application.config.x.extraction.min_confidence = Float(ENV.fetch("EXTRACTION_MIN_CONFIDENCE", "0.5"))
+
+# OCR bounding-box grounding (best-effort; requires the tesseract binary,
+# plus pdftoppm for PDF artwork). The model decides what each field says;
+# OCR re-anchors where it sits. ocr_match_threshold is the minimum fuzzy
+# similarity between field text and an OCR word window for the OCR box to
+# replace the model's estimate; below it the model's box is kept.
+Rails.application.config.x.extraction.ocr_match_threshold = Float(ENV.fetch("EXTRACTION_OCR_MATCH_THRESHOLD", "0.8"))
+Rails.application.config.x.extraction.ocr_dpi = Integer(ENV.fetch("EXTRACTION_OCR_DPI", "200"))

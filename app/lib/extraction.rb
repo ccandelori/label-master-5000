@@ -9,4 +9,9 @@ module Extraction
   # Raised after retries when the model response cannot be parsed into the
   # expected JSON shape.
   class ResponseParseError < ExtractionError; end
+
+  # Raised when OCR cannot produce word boxes for the artwork (missing
+  # binary, rasterization failure, unreadable bytes). Callers treat OCR
+  # grounding as best-effort and fall back to the model's boxes.
+  class OcrError < ExtractionError; end
 end

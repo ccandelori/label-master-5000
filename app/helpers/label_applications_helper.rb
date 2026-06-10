@@ -41,7 +41,7 @@ module LabelApplicationsHelper
         related_fields: Array(EXTRACTION_FIELD_TO_CHECKS[key]),
         label: field_label(key),
         bbox: field["bbox"],
-        basis: basis,
+        basis: field_basis(field) || basis,
         page: field["page"] || 1,
         verdict: worst&.verdict || "pass",
         verdict_label: worst ? verdict_label(worst.verdict) : "Read",
@@ -58,7 +58,7 @@ module LabelApplicationsHelper
         related_fields: [],
         label: "Disclosure",
         bbox: field["bbox"],
-        basis: basis,
+        basis: field_basis(field) || basis,
         page: field["page"] || 1,
         verdict: "pass",
         verdict_label: "Read",
@@ -74,5 +74,15 @@ module LabelApplicationsHelper
   # limits minItems), so malformed boxes are dropped here.
   def valid_bbox?(bbox)
     bbox.is_a?(Array) && bbox.size == 4 && bbox.all? { |n| n.is_a?(Numeric) }
+  end
+
+  # OCR-grounded boxes carry their own coordinate basis (the raster
+  # dimensions of their page); model boxes fall back to the payload-level
+  # basis the extractor self-reported.
+  def field_basis(field)
+    basis = field["bbox_basis"]
+    return nil unless basis.is_a?(Array) && basis.size == 2
+
+    basis.all? { |n| n.is_a?(Numeric) && n.positive? } ? basis : nil
   end
 end
