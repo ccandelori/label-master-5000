@@ -578,11 +578,14 @@ export default class extends Controller {
     const attrs = `type="button" data-callout-index="${index}" data-callout-source="boxes"
                    data-action="review-mode#toggleCallout" aria-expanded="false" aria-haspopup="true"`
     if (box.verdict === "fail" || box.verdict === "needs_review") {
+      const flagged = (box.checks || []).filter((c) => c.verdict === "fail" || c.verdict === "needs_review").length
+      const extra = Math.max(flagged - 1, 0)
       return `
         <button ${attrs} class="text-left rounded-lg border bg-stone-900/90 px-3 py-2 ${this.constructor.AFFORDANCE}"
                 style="border-color: ${color}">
           <p class="font-semibold text-sm" style="color: ${color}">${this.escape(box.label)} — ${this.escape(box.verdict_label)}</p>
           ${box.note ? `<p class="text-sm text-stone-300 mt-0.5">${this.escape(box.note)}</p>` : ""}
+          ${extra ? `<p class="text-xs text-stone-400 mt-0.5">+${extra} more ${extra === 1 ? "issue" : "issues"}</p>` : ""}
           ${box.citation ? `<p class="text-xs text-stone-500 mt-0.5">${this.escape(box.citation)}</p>` : ""}
         </button>`
     }
@@ -612,7 +615,7 @@ export default class extends Controller {
     this.popover.setAttribute("role", "region")
     this.popover.setAttribute("aria-label", `${box.label} check detail`)
     this.popover.className =
-      "absolute z-20 w-80 rounded-xl border border-stone-600 bg-stone-900 shadow-2xl shadow-black/60 px-4 py-3"
+      "absolute z-20 w-80 rounded-xl border border-stone-600 bg-stone-900 shadow-2xl shadow-black/60 px-4 py-3 overflow-y-auto"
     this.popover.innerHTML = this.popoverHtml(box)
     this.workspaceTarget.appendChild(this.popover)
     this.positionPopover(button)
@@ -631,11 +634,15 @@ export default class extends Controller {
     this.popoverButton = null
   }
 
-  // Beside the callout, toward the artwork, clamped to the workspace.
+  // Beside the callout, toward the artwork, clamped to the workspace. A
+  // popover taller than the workspace (a multi-check element with long
+  // statutory texts) caps its height and scrolls internally; the floor
+  // clamp runs last so the top can never go negative.
   positionPopover(button) {
     const wsRect = this.workspaceTarget.getBoundingClientRect()
     const buttonRect = button.getBoundingClientRect()
     const inLeftColumn = this.leftColumnTarget.contains(button)
+    this.popover.style.maxHeight = `${this.workspaceTarget.clientHeight - 16}px`
 
     let left = inLeftColumn
       ? buttonRect.right - wsRect.left + 12
@@ -643,31 +650,44 @@ export default class extends Controller {
     left = Math.min(Math.max(left, 8), wsRect.width - this.popover.offsetWidth - 8)
 
     let top = buttonRect.top - wsRect.top
-    top = Math.min(Math.max(top, 8), this.workspaceTarget.clientHeight - this.popover.offsetHeight - 8)
+    top = Math.max(Math.min(top, this.workspaceTarget.clientHeight - this.popover.offsetHeight - 8), 8)
 
     this.popover.style.left = `${left}px`
     this.popover.style.top = `${top}px`
   }
 
+  // One located element can answer several checks; the popover renders
+  // each, worst first, so the chip rollup reconciles with the verdict
+  // counts beside the decision buttons.
   popoverHtml(box) {
     const color = this.colorFor(box.verdict)
+    const checks = box.checks || [ box ]
+    const sections = checks.map((check) => this.popoverCheckHtml(check, checks.length > 1)).join("")
+    return `
+      <p class="font-semibold" style="color: ${color}">${this.escape(box.label)} — ${this.escape(box.verdict_label)}</p>
+      <div class="mt-2 divide-y divide-stone-700/60">${sections}</div>`
+  }
+
+  popoverCheckHtml(check, labeled) {
     const value = (text) => text
       ? `<dd class="text-sm text-stone-200">${this.escape(text)}</dd>`
       : `<dd class="text-sm text-stone-500">—</dd>`
     return `
-      <p class="font-semibold" style="color: ${color}">${this.escape(box.label)} — ${this.escape(box.verdict_label)}</p>
-      <dl class="mt-2 space-y-2">
-        <div>
-          <dt class="text-xs uppercase tracking-wide text-stone-500">Application</dt>
-          ${value(box.expected)}
-        </div>
-        <div>
-          <dt class="text-xs uppercase tracking-wide text-stone-500">On the label</dt>
-          ${value(box.extracted)}
-        </div>
-      </dl>
-      ${box.note ? `<p class="text-sm text-stone-300 mt-2">${this.escape(box.note)}</p>` : ""}
-      ${box.citation ? `<p class="text-xs text-stone-500 mt-2">${this.escape(box.citation)}</p>` : ""}`
+      <div class="py-2 first:pt-0 last:pb-0">
+        ${labeled ? `<p class="text-sm font-medium" style="color: ${this.colorFor(check.verdict)}">${this.escape(check.label)} — ${this.escape(check.verdict_label)}</p>` : ""}
+        <dl class="mt-1 space-y-2">
+          <div>
+            <dt class="text-xs uppercase tracking-wide text-stone-500">Application</dt>
+            ${value(check.expected)}
+          </div>
+          <div>
+            <dt class="text-xs uppercase tracking-wide text-stone-500">On the label</dt>
+            ${value(check.extracted)}
+          </div>
+        </dl>
+        ${check.note ? `<p class="text-sm text-stone-300 mt-2">${this.escape(check.note)}</p>` : ""}
+        ${check.citation ? `<p class="text-xs text-stone-500 mt-2">${this.escape(check.citation)}</p>` : ""}
+      </div>`
   }
 
   colorFor(verdict) {

@@ -54,7 +54,13 @@ module LabelApplicationsHelper
         note: worst.note,
         citation: worst.citation,
         expected: worst.expected,
-        extracted: worst.extracted || field["text"]
+        extracted: worst.extracted || field["text"],
+        # Every check behind this element, worst first - one located
+        # element can carry several verdicts (the government warning box
+        # answers wording, prefix, bold, and paragraph checks), and the
+        # popover accounts for each so the chip tally reconciles with
+        # the verdict counts.
+        checks: checks.sort_by { |c| -c.severity }.map { |c| check_detail(c) }
       }
     end
 
@@ -86,11 +92,25 @@ module LabelApplicationsHelper
         note: check.note || field["text"],
         citation: check.citation,
         expected: check.expected,
-        extracted: field["text"]
+        extracted: field["text"],
+        checks: [ check_detail(check) ]
       }
     end
 
     boxes
+  end
+
+  def check_detail(check)
+    {
+      field: check.field,
+      label: field_label(check.field),
+      verdict: check.verdict,
+      verdict_label: verdict_label(check.verdict),
+      note: check.note,
+      citation: check.citation,
+      expected: check.expected,
+      extracted: check.extracted
+    }
   end
 
   # The schema cannot enforce four-number arity (the structured-output API
