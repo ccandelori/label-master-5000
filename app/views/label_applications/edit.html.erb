@@ -1,0 +1,7 @@
+<h1 class="text-2xl font-semibold mb-2">Edit application <%= @application.serial_number %></h1>
+<p class="text-stone-600 mb-6 max-w-2xl">
+  Saving re-checks the label against the same artwork. The original reading is
+  reused, so the re-check is instant and the earlier result stays in the history.
+</p>
+
+<%= render "form", application: @application %>

@@ -22,6 +22,15 @@ class LabelApplication < ApplicationRecord
     verifications.order(created_at: :desc).first
   end
 
+  # Form-friendly representation of the varietals array.
+  def varietals_list
+    varietals.join(", ")
+  end
+
+  def varietals_list=(value)
+    self.varietals = value.to_s.split(",").map(&:strip).reject(&:empty?)
+  end
+
   # Formula data (TTB F 5100.51) is optional; when present the rules engine
   # runs its stricter tier. Presence of any formula field counts.
   def formula_provided?

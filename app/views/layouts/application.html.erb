@@ -1,29 +1,40 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <title><%= content_for(:title) || "Label Verifier" %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="mobile-web-app-capable" content="yes">
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
 
     <%= yield :head %>
 
-    <%# Enable PWA manifest for installable apps (make sure to enable in config/routes.rb too!) %>
-    <%#= tag.link rel: "manifest", href: pwa_manifest_path(format: :json) %>
-
     <link rel="icon" href="/icon.png" type="image/png">
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="/icon.png">
 
-    <%# Includes all stylesheet files in app/assets/stylesheets %>
     <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
     <%= javascript_importmap_tags %>
   </head>
 
-  <body>
-    <main class="container mx-auto mt-28 px-5 flex">
+  <body class="bg-stone-100 text-stone-900 text-base">
+    <header class="bg-white border-b border-stone-200">
+      <div class="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between">
+        <%= link_to root_path, class: "flex items-center gap-2 text-lg font-semibold text-stone-900" do %>
+          <span aria-hidden="true">☑</span> Label Verifier
+        <% end %>
+        <nav class="flex gap-2 text-base">
+          <%= link_to "Verify a label", root_path,
+                class: "px-4 py-2 rounded-lg hover:bg-stone-100 #{'bg-stone-100 font-medium' if controller_name == 'label_applications'}" %>
+        </nav>
+      </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-5 py-8">
+      <% if notice.present? %>
+        <p class="mb-6 rounded-lg bg-blue-50 text-blue-900 px-4 py-3" role="status"><%= notice %></p>
+      <% end %>
+      <% if alert.present? %>
+        <p class="mb-6 rounded-lg bg-red-50 text-red-900 px-4 py-3" role="alert"><%= alert %></p>
+      <% end %>
       <%= yield %>
     </main>
   </body>
