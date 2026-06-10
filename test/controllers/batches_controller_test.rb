@@ -119,6 +119,19 @@ class BatchesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "batch uploads create pre-review records that bulk-submit to TTB" do
+    batch = create_clean_batch
+    assert batch.label_applications.all?(&:pre_review?)
+
+    post batch_submission_path(batch)
+    assert_redirected_to batch_path(batch)
+    assert_match(/Submitted 2 applications/, flash[:notice])
+    assert batch.label_applications.reload.all?(&:submitted?)
+
+    post batch_submission_path(batch)
+    assert_match(/already been submitted/, flash[:alert])
+  end
+
   test "export includes verdicts and cited findings" do
     batch = create_clean_batch
     batch.label_applications.last.latest_verification.record_decision(decision: "approve", note: nil)

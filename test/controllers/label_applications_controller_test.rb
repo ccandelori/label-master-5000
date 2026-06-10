@@ -26,6 +26,7 @@ class LabelApplicationsControllerTest < ActionDispatch::IntegrationTest
     application = LabelApplication.last
     assert_redirected_to label_application_path(application)
     assert_equal "26-1042", application.serial_number
+    assert application.pre_review?, "form-created applications start in the pre-review sandbox"
   end
 
   test "missing required fields re-render the form" do

@@ -9,7 +9,11 @@
     <%= button_to "Retry failed rows", retry_failed_batch_path(@batch),
           class: "rounded-lg border border-stone-300 bg-white px-4 py-2 font-medium hover:bg-stone-100 cursor-pointer" %>
     <%= link_to "Export results CSV", export_batch_path(@batch),
-          class: "rounded-lg bg-stone-900 text-white px-4 py-2 font-medium hover:bg-stone-700" %>
+          class: "rounded-lg border border-stone-300 bg-white px-4 py-2 font-medium hover:bg-stone-100" %>
+    <% if @batch.label_applications.pre_review.exists? %>
+      <%= button_to "Submit batch to TTB", batch_submission_path(@batch),
+            class: "rounded-lg bg-stone-900 text-white px-4 py-2 font-medium hover:bg-stone-700 cursor-pointer" %>
+    <% end %>
   </div>
 </div>
 

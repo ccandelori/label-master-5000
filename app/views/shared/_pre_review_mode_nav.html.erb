@@ -1,0 +1,8 @@
+<nav class="inline-flex rounded-lg border border-stone-300 bg-white p-1 mb-6" aria-label="Pre-review mode">
+  <% modes = [ [ "Single label", new_label_application_path, :single ], [ "Batch (CSV)", new_batch_path, :batch ] ] %>
+  <% modes.each do |label, path, mode| %>
+    <%= link_to label, path,
+          class: "px-4 py-1.5 rounded-md font-medium #{mode == active ? 'bg-stone-900 text-white' : 'text-stone-700 hover:bg-stone-100'}",
+          aria: { current: mode == active ? "page" : nil } %>
+  <% end %>
+</nav>
