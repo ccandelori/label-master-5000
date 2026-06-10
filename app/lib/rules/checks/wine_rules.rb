@@ -1,0 +1,137 @@
+# frozen_string_literal: true
+
+module Rules
+  module Checks
+    # Wine-only cross-field rules: vintage and varietal each require an
+    # appellation, and label values must match the application's wine fields.
+    module WineRules
+      module_function
+
+      def checks(application, facts, rules)
+        result = []
+        result << vintage_requires_appellation(facts, rules)
+        result << varietal_requires_appellation(facts, rules)
+        result << semi_generic_requires_appellation(facts, rules)
+        result << vintage_match(application, facts)
+        result << appellation_match(application, facts)
+        result << varietals_match(application, facts)
+        result.compact
+      end
+
+      def vintage_requires_appellation(facts, rules)
+        return nil if facts.vintage_year.nil?
+        return nil unless facts.appellation.to_s.strip.empty?
+
+        rule = presence_rule(rules, "vintage_requires_appellation")
+        FieldCheck.new(
+          field: "vintage_appellation", verdict: "fail",
+          expected: "An appellation of origin in direct conjunction with the designation",
+          extracted: "Vintage #{facts.vintage_year} without an appellation",
+          citation: rule["citation"], note: rule["note"]
+        )
+      end
+
+      def varietal_requires_appellation(facts, rules)
+        return nil if Array(facts.varietals).empty?
+        return nil unless facts.appellation.to_s.strip.empty?
+
+        rule = presence_rule(rules, "varietal_requires_appellation")
+        FieldCheck.new(
+          field: "varietal_appellation", verdict: "fail",
+          expected: "An appellation of origin",
+          extracted: "Varietal designation (#{facts.varietals.join(', ')}) without an appellation",
+          citation: rule["citation"], note: rule["note"]
+        )
+      end
+
+      def semi_generic_requires_appellation(facts, rules)
+        designation = Parsing::TextNormalizer.normalize(facts.class_type_designation)
+        return nil if designation.empty?
+
+        entry = rules.dig("designations", "entries").find do |e|
+          e["kind"] == "semi_generic" &&
+            e["names"].any? { |n| designation.include?(Parsing::TextNormalizer.normalize(n)) }
+        end
+        return nil if entry.nil?
+        return nil unless facts.appellation.to_s.strip.empty?
+
+        rule = presence_rule(rules, "semi_generic_requires_appellation")
+        FieldCheck.new(
+          field: "semi_generic_appellation", verdict: "fail",
+          expected: "An appellation of origin with a semi-generic designation",
+          extracted: facts.class_type_designation,
+          citation: rule["citation"], note: rule["note"]
+        )
+      end
+
+      def vintage_match(application, facts)
+        expected = application.vintage_year
+        return nil if expected.nil? && facts.vintage_year.nil?
+
+        citation = "TTB F 5100.31 (proposed) item 15; 27 CFR 4.27"
+        if expected.nil?
+          FieldCheck.new(field: "vintage_date", verdict: "needs_review", expected: nil,
+                         extracted: facts.vintage_year.to_s, citation: citation,
+                         note: "Label shows a vintage the application does not declare")
+        elsif facts.vintage_year.nil?
+          FieldCheck.new(field: "vintage_date", verdict: "fail", expected: expected.to_s,
+                         extracted: nil, citation: citation,
+                         note: "Application declares a vintage that is not on the label")
+        elsif expected == facts.vintage_year
+          FieldCheck.new(field: "vintage_date", verdict: "pass", expected: expected.to_s,
+                         extracted: facts.vintage_year.to_s, citation: citation, note: nil)
+        else
+          FieldCheck.new(field: "vintage_date", verdict: "fail", expected: expected.to_s,
+                         extracted: facts.vintage_year.to_s, citation: citation,
+                         note: "Vintage on the label does not match the application")
+        end
+      end
+
+      def appellation_match(application, facts)
+        expected = application.appellation
+        return nil if expected.to_s.strip.empty? && facts.appellation.to_s.strip.empty?
+
+        citation = "TTB F 5100.31 item 11; 27 CFR 4.25"
+        if expected.to_s.strip.empty?
+          FieldCheck.new(field: "appellation", verdict: "needs_review", expected: nil,
+                         extracted: facts.appellation, citation: citation,
+                         note: "Label shows an appellation the application does not declare")
+        elsif facts.appellation.to_s.strip.empty?
+          FieldCheck.new(field: "appellation", verdict: "fail", expected: expected,
+                         extracted: nil, citation: citation,
+                         note: "Application declares an appellation that is not on the label")
+        else
+          Identity.match_verdict(field: "appellation", expected: expected,
+                                 extracted: facts.appellation, citation: citation)
+        end
+      end
+
+      def varietals_match(application, facts)
+        expected = Array(application.varietals).reject { |v| v.to_s.strip.empty? }
+        extracted = Array(facts.varietals).reject { |v| v.to_s.strip.empty? }
+        return nil if expected.empty? && extracted.empty?
+
+        citation = "TTB F 5100.31 item 10; 27 CFR 4.23"
+        unlisted = extracted.reject { |v| expected.any? { |e| Parsing::TextNormalizer.equivalent?(e, v) } }
+        missing = expected.reject { |e| extracted.any? { |v| Parsing::TextNormalizer.equivalent?(e, v) } }
+
+        if unlisted.empty? && missing.empty?
+          FieldCheck.new(field: "varietals", verdict: "pass", expected: expected.join(", "),
+                         extracted: extracted.join(", "), citation: citation, note: nil)
+        elsif unlisted.any?
+          FieldCheck.new(field: "varietals", verdict: "fail", expected: expected.join(", "),
+                         extracted: extracted.join(", "), citation: citation,
+                         note: "Label varietals not listed on the application: #{unlisted.join(', ')}")
+        else
+          FieldCheck.new(field: "varietals", verdict: "needs_review", expected: expected.join(", "),
+                         extracted: extracted.join(", "), citation: citation,
+                         note: "Application lists varietals not found on the label: #{missing.join(', ')}")
+        end
+      end
+
+      def presence_rule(rules, key)
+        Array(rules["presence_rules"]).find { |r| r["key"] == key } || {}
+      end
+    end
+  end
+end
