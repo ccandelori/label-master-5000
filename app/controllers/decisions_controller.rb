@@ -1,20 +1,48 @@
 # frozen_string_literal: true
 
 class DecisionsController < ApplicationController
-  def create
-    application = LabelApplication.find(params[:label_application_id])
+  before_action :set_application
 
-    if application.pre_review?
-      return redirect_to application,
-                         alert: "Decisions are recorded on submitted applications only - this one is still in pre-review."
+  def create
+    if @application.pre_review?
+      return respond_with_failure("Decisions are recorded on submitted applications only - this one is still in pre-review.")
     end
 
-    verification = application.verifications.find(params.expect(decision: [ :verification_id ])[:verification_id])
+    verification = @application.verifications.find(params.expect(decision: [ :verification_id ])[:verification_id])
     decision_params = params.expect(decision: [ :verification_id, :decision, :note ])
 
     verification.record_decision(decision: decision_params[:decision], note: decision_params[:note].presence)
-    redirect_to application, notice: "Decision recorded."
+    respond_to do |format|
+      format.html { redirect_back_or_to @application, notice: "Decision recorded." }
+      format.json { render json: { ok: true, verification_id: verification.id } }
+    end
   rescue ArgumentError
-    redirect_to application, alert: "Unknown decision."
+    respond_with_failure("Unknown decision.")
+  end
+
+  # Undo: clears the decision on a verification, returning the application
+  # to the undecided queue. The review-mode toast calls this within its
+  # five-second window; the record page offers it any time.
+  def destroy
+    verification = @application.verifications.find(params.expect(:verification_id))
+    verification.undo_decision
+
+    respond_to do |format|
+      format.html { redirect_back_or_to @application, notice: "Decision undone." }
+      format.json { render json: { ok: true, verification_id: verification.id } }
+    end
+  end
+
+  private
+
+  def set_application
+    @application = LabelApplication.find(params[:label_application_id])
+  end
+
+  def respond_with_failure(message)
+    respond_to do |format|
+      format.html { redirect_back_or_to @application, alert: message }
+      format.json { render json: { ok: false, error: message }, status: :unprocessable_entity }
+    end
   end
 end

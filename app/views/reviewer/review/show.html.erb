@@ -1,0 +1,76 @@
+<div class="h-full flex flex-col"
+     data-controller="review-mode"
+     data-review-mode-initial-value="<%= (@payload || {}).to_json %>"
+     data-review-mode-next-url-value="<%= reviewer_review_next_path %>">
+
+  <%# Quiet top bar: the only persistent chrome in review mode. %>
+  <header class="flex items-center justify-between px-5 py-3 text-sm text-stone-400">
+    <%= link_to "← Exit review mode", reviewer_queue_path,
+          class: "hover:text-stone-200 underline underline-offset-2" %>
+    <p data-review-mode-target="progress"></p>
+    <p class="hidden sm:block" aria-hidden="true">
+      <kbd class="px-1.5 py-0.5 rounded bg-stone-800">A</kbd> approve ·
+      <kbd class="px-1.5 py-0.5 rounded bg-stone-800">R</kbd> reject ·
+      <kbd class="px-1.5 py-0.5 rounded bg-stone-800">B</kbd> better image ·
+      <kbd class="px-1.5 py-0.5 rounded bg-stone-800">Space</kbd> skip ·
+      <kbd class="px-1.5 py-0.5 rounded bg-stone-800">D</kbd> details ·
+      <kbd class="px-1.5 py-0.5 rounded bg-stone-800">U</kbd> undo
+    </p>
+  </header>
+
+  <%# Live announcements and the findings mirror for screen readers. %>
+  <div class="sr-only" aria-live="polite" data-review-mode-target="srStatus"></div>
+  <div class="sr-only" data-review-mode-target="srFindings" aria-label="Findings for the current label"></div>
+
+  <%# The workspace: margin columns, artwork center, SVG leader lines over it all. %>
+  <div class="relative flex-1 min-h-0" data-review-mode-target="workspace">
+    <svg class="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true"
+         data-review-mode-target="svg"></svg>
+
+    <div class="h-full flex items-stretch gap-4 px-5 transition-opacity duration-150"
+         data-review-mode-target="stage">
+      <div class="relative w-72 shrink-0 hidden lg:block" data-review-mode-target="leftColumn"></div>
+      <div class="flex-1 min-w-0 flex flex-col items-center justify-center gap-3">
+        <div class="text-center" data-review-mode-target="caption"></div>
+        <img class="max-h-[70vh] max-w-full rounded shadow-2xl shadow-black/60 bg-white"
+             alt="" data-review-mode-target="image">
+        <div class="hidden max-w-xl w-full" data-review-mode-target="fallback"></div>
+      </div>
+      <div class="relative w-72 shrink-0 hidden lg:block" data-review-mode-target="rightColumn"></div>
+    </div>
+
+    <%# Queue-clear state. %>
+    <div class="hidden h-full flex-col items-center justify-center text-center" data-review-mode-target="empty">
+      <p class="text-2xl font-semibold mb-2">Queue clear.</p>
+      <p class="text-stone-400 mb-6">Every submitted application has a decision.</p>
+      <%= link_to "Back to the queue", reviewer_queue_path,
+            class: "rounded-lg bg-stone-100 text-stone-900 px-5 py-2.5 font-medium hover:bg-white" %>
+    </div>
+  </div>
+
+  <%# Decision controls. %>
+  <footer class="flex items-center justify-center gap-4 px-5 py-5" data-review-mode-target="controls">
+    <button type="button" data-action="review-mode#approve"
+            class="rounded-xl bg-green-600 text-white px-10 py-4 text-xl font-semibold hover:bg-green-500 cursor-pointer">
+      ✓ Approve
+    </button>
+    <button type="button" data-action="review-mode#reject"
+            class="rounded-xl bg-red-600 text-white px-10 py-4 text-xl font-semibold hover:bg-red-500 cursor-pointer">
+      ✗ Reject
+    </button>
+    <button type="button" data-action="review-mode#requestRetake"
+            class="rounded-lg text-stone-400 px-4 py-2 hover:text-stone-200 cursor-pointer">
+      Request a better image
+    </button>
+  </footer>
+
+  <%# Undo toast. %>
+  <div class="hidden fixed bottom-24 left-1/2 -translate-x-1/2 rounded-xl bg-stone-800 border border-stone-700 px-5 py-3 shadow-xl flex items-center gap-4"
+       data-review-mode-target="toast" role="status">
+    <span data-review-mode-target="toastMessage"></span>
+    <button type="button" data-action="review-mode#undo"
+            class="font-semibold underline underline-offset-2 hover:text-white cursor-pointer">
+      Undo (U)
+    </button>
+  </div>
+</div>
