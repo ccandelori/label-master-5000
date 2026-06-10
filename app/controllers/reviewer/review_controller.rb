@@ -7,9 +7,11 @@ module Reviewer
   class ReviewController < ApplicationController
     layout "review_mode"
 
+    # ?start=<application id> pins the opening item (the queue's per-row
+    # Review action); the feed continues worst-first from there.
     def show
       @area = :reviewer
-      @payload = next_payload(skip: [])
+      @payload = start_payload || next_payload(skip: [])
     end
 
     # The next undecided submitted application, worst-first then oldest.
@@ -26,6 +28,16 @@ module Reviewer
     end
 
     private
+
+    def start_payload
+      return nil if params[:start].blank?
+
+      entries = reviewable_entries
+      entry = entries.find { |e| e.application.id == params[:start].to_i }
+      return nil if entry.nil?
+
+      build_payload(entry, remaining: entries.size)
+    end
 
     def reviewable_entries
       scope = LabelApplication.submitted.includes(:verifications, artwork_attachment: :blob)

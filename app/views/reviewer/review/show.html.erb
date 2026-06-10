@@ -1,20 +1,22 @@
 <div class="h-full flex flex-col"
      data-controller="review-mode"
      data-review-mode-initial-value="<%= (@payload || {}).to_json %>"
-     data-review-mode-next-url-value="<%= reviewer_review_next_path %>">
+     data-review-mode-next-url-value="<%= reviewer_review_next_path %>"
+     data-review-mode-exit-url-value="<%= reviewer_queue_path %>">
 
   <%# Quiet top bar: the only persistent chrome in review mode. %>
   <header class="flex items-center justify-between px-5 py-3 text-sm text-stone-400">
     <%= link_to "← Exit review mode", reviewer_queue_path,
           class: "hover:text-stone-200 underline underline-offset-2" %>
     <p data-review-mode-target="progress"></p>
-    <p class="hidden sm:block" aria-hidden="true">
-      <kbd class="px-1.5 py-0.5 rounded bg-stone-800">A</kbd> approve ·
-      <kbd class="px-1.5 py-0.5 rounded bg-stone-800">R</kbd> reject ·
-      <kbd class="px-1.5 py-0.5 rounded bg-stone-800">B</kbd> better image ·
-      <kbd class="px-1.5 py-0.5 rounded bg-stone-800">Space</kbd> skip ·
-      <kbd class="px-1.5 py-0.5 rounded bg-stone-800">D</kbd> details ·
-      <kbd class="px-1.5 py-0.5 rounded bg-stone-800">U</kbd> undo
+    <p class="hidden sm:block text-base text-stone-300" aria-hidden="true">
+      <kbd class="px-2 py-1 rounded bg-stone-800">A</kbd> approve ·
+      <kbd class="px-2 py-1 rounded bg-stone-800">R</kbd> reject ·
+      <kbd class="px-2 py-1 rounded bg-stone-800">B</kbd> better image ·
+      <kbd class="px-2 py-1 rounded bg-stone-800">Space</kbd> skip ·
+      <kbd class="px-2 py-1 rounded bg-stone-800">D</kbd> details ·
+      <kbd class="px-2 py-1 rounded bg-stone-800">U</kbd> undo ·
+      <kbd class="px-2 py-1 rounded bg-stone-800">Esc</kbd> exit
     </p>
   </header>
 
@@ -48,16 +50,19 @@
     </div>
   </div>
 
-  <%# Decision controls. %>
-  <footer class="flex items-center justify-center gap-4 px-5 py-5" data-review-mode-target="controls">
-    <button type="button" data-action="review-mode#approve"
-            class="rounded-xl bg-green-600 text-white px-10 py-4 text-xl font-semibold hover:bg-green-500 cursor-pointer">
-      ✓ Approve
-    </button>
-    <button type="button" data-action="review-mode#reject"
-            class="rounded-xl bg-red-600 text-white px-10 py-4 text-xl font-semibold hover:bg-red-500 cursor-pointer">
-      ✗ Reject
-    </button>
+  <%# Decision controls: the two decisions centered under the label, the
+      quiet retake request beneath them. %>
+  <footer class="flex flex-col items-center gap-2 px-5 pt-4 pb-5" data-review-mode-target="controls">
+    <div class="flex items-center justify-center gap-4">
+      <button type="button" data-action="review-mode#approve"
+              class="rounded-xl bg-green-600 text-white px-10 py-4 text-xl font-semibold hover:bg-green-500 cursor-pointer">
+        ✓ Approve
+      </button>
+      <button type="button" data-action="review-mode#reject"
+              class="rounded-xl bg-red-600 text-white px-10 py-4 text-xl font-semibold hover:bg-red-500 cursor-pointer">
+        ✗ Reject
+      </button>
+    </div>
     <button type="button" data-action="review-mode#requestRetake"
             class="rounded-lg text-stone-400 px-4 py-2 hover:text-stone-200 cursor-pointer">
       Request a better image

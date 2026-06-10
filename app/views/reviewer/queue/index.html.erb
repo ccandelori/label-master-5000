@@ -79,17 +79,31 @@
               <% end %>
             </td>
             <td class="px-4 py-3 text-right whitespace-nowrap">
-              <% if @tab == "ready_to_approve" %>
+              <% case @tab %>
+              <% when "ready_to_approve" %>
                 <%= button_to "✓ Approve", label_application_decision_path(application),
                       params: { decision: { verification_id: verification.id, decision: "approve" } },
                       form_class: "inline-block mr-2",
                       class: "rounded-lg border border-green-700 text-green-900 bg-green-50 px-3 py-1.5 font-medium hover:bg-green-100 cursor-pointer" %>
+                <%= link_to "Review", reviewer_review_path(start: application.id),
+                      class: "rounded-lg bg-stone-900 text-white px-3 py-1.5 font-medium hover:bg-stone-700 mr-2" %>
+                <%= link_to "Details", application, class: "text-stone-700 underline underline-offset-2 hover:text-stone-900" %>
+              <% when "needs_attention" %>
+                <%= link_to "Review", reviewer_review_path(start: application.id),
+                      class: "rounded-lg bg-stone-900 text-white px-3 py-1.5 font-medium hover:bg-stone-700 mr-2" %>
+                <%= link_to "Details", application, class: "text-stone-700 underline underline-offset-2 hover:text-stone-900" %>
+              <% when "unchecked" %>
+                <%= button_to "Run check", label_application_check_path(application),
+                      form_class: "inline-block mr-2",
+                      class: "rounded-lg border border-stone-400 px-3 py-1.5 font-medium hover:bg-stone-100 cursor-pointer" %>
+                <%= link_to "Details", application, class: "text-stone-700 underline underline-offset-2 hover:text-stone-900" %>
+              <% else %>
+                <% if verification.rejection_notice.present? %>
+                  <%= link_to "Notice", label_application_rejection_notice_path(application, download: 1),
+                        class: "font-medium text-stone-900 underline underline-offset-2 hover:text-stone-600 mr-3" %>
+                <% end %>
+                <%= link_to "Details", application, class: "font-medium text-stone-900 underline underline-offset-2 hover:text-stone-600" %>
               <% end %>
-              <% if @tab == "decided" && verification.rejection_notice.present? %>
-                <%= link_to "Notice", label_application_rejection_notice_path(application, download: 1),
-                      class: "font-medium text-stone-900 underline underline-offset-2 hover:text-stone-600 mr-3" %>
-              <% end %>
-              <%= link_to "Open", application, class: "font-medium text-stone-900 underline underline-offset-2 hover:text-stone-600" %>
             </td>
           </tr>
         <% end %>

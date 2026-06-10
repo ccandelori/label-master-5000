@@ -12,7 +12,7 @@ export default class extends Controller {
     "caption", "fallback", "empty", "controls", "progress",
     "toast", "toastMessage", "srStatus", "srFindings"
   ]
-  static values = { initial: Object, nextUrl: String }
+  static values = { initial: Object, nextUrl: String, exitUrl: String }
 
   static LINE_COLORS = {
     fail: "#f87171",
@@ -118,7 +118,9 @@ export default class extends Controller {
   handleKey(event) {
     if (event.metaKey || event.ctrlKey || event.altKey) return
     const key = event.key.toLowerCase()
-    if (key === " ") {
+    if (key === "escape") {
+      window.location.assign(this.exitUrlValue)
+    } else if (key === " ") {
       event.preventDefault()
       this.skip()
     } else if (key === "a") {
