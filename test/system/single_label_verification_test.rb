@@ -45,11 +45,11 @@ class SingleLabelVerificationTest < ApplicationSystemTestCase
     end
   end
 
-  test "agent submits a label, sees cited verdicts, and records a decision" do
+  test "manufacturer pre-checks a label, submits to TTB, and an agent decides" do
     original = VerifyLabelJob.extractor_factory
     VerifyLabelJob.extractor_factory = -> { StubExtractor.new(stub_payload) }
 
-    visit root_path
+    visit new_label_application_path
     fill_in "Serial number", with: "26-1042"
     select "Distilled spirits", from: "Type of product"
     fill_in "Brand name", with: "OLD TOM DISTILLERY"
@@ -70,9 +70,21 @@ class SingleLabelVerificationTest < ApplicationSystemTestCase
     assert_text "27 CFR 16.22"
     assert_match(/checked in \d+(\.\d+)?s/, page.text)
 
+    # Pre-review sandbox: fix-guidance and the promotion bridge, no decisions.
+    assert_text "Fix the failed checks above before filing"
+    assert_no_text "Your decision:"
+
+    click_on "Submit to TTB"
+    assert_text "now in the reviewer queue"
+
+    # The filed application reads as reviewer work and accepts a decision.
     click_on "✗ Reject"
     assert_text "Decision recorded"
     assert_text "Your decision: Reject"
+
+    # And it appears in the queue.
+    visit reviewer_queue_path
+    assert_text "OLD TOM DISTILLERY"
   ensure
     VerifyLabelJob.extractor_factory = original
   end

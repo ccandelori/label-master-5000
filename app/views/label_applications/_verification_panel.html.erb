@@ -27,7 +27,10 @@
       reading. No field verdicts were issued — request a better image rather
       than judging from a bad read.
     </p>
-    <%= render "label_applications/decision_form", application: application, verification: verification %>
+    <div class="mt-4">
+      <%= render(application.submitted? ? "label_applications/decision_form" : "label_applications/pre_review_actions",
+            application: application, verification: verification) %>
+    </div>
   </section>
 
 <% else %>
@@ -49,7 +52,9 @@
             All checks passed<%= " (with notes)" if verification.pass_with_note? %>.
           <% end %>
         </p>
-        <p class="text-stone-600">The tool recommends — you decide.</p>
+        <p class="text-stone-600">
+          <%= application.submitted? ? "The tool recommends — you decide." : "A pre-review check, not a TTB decision." %>
+        </p>
       </div>
       <span class="text-stone-500 whitespace-nowrap">
         <%= verification.extraction_reused? ? "reading reused · " : "" %>checked in <%= ((verification.latency_ms || 0) / 1000.0).round(1) %>s
@@ -97,6 +102,7 @@
       </div>
     </div>
 
-    <%= render "label_applications/decision_form", application: application, verification: verification %>
+    <%= render(application.submitted? ? "label_applications/decision_form" : "label_applications/pre_review_actions",
+          application: application, verification: verification) %>
   </section>
 <% end %>

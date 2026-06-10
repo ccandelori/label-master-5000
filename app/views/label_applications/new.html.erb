@@ -1,8 +1,12 @@
-<h1 class="text-2xl font-semibold mb-2">Check a label against its application</h1>
+<h1 class="text-2xl font-semibold mb-2">Pre-check your label before you file</h1>
 <p class="text-stone-600 mb-6 max-w-2xl">
-  Enter the application details, attach the label artwork, and get a
-  field-by-field verdict with the Beverage Alcohol Manual rule behind each one.
+  Enter the application details as you would file them, attach the label
+  artwork, and get a field-by-field check with the Beverage Alcohol Manual
+  rule behind each finding — so you can fix problems before TTB sees them.
+  When it is clean, submit it straight to the reviewer queue.
 </p>
+
+<%= render "shared/pre_review_mode_nav", active: :single %>
 
 <%= render "form", application: @application %>
 

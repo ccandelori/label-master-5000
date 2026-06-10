@@ -10,6 +10,11 @@ class LabelApplication < ApplicationRecord
 
   enum :beverage_type, { malt: "malt", wine: "wine", spirits: "spirits" }
 
+  # pre_review records live in the manufacturer sandbox; submitted records
+  # have been filed (here: via the "Submit to TTB" bridge, simulating a
+  # COLAs Online filing) and are what the reviewer queue consumes.
+  enum :channel, { pre_review: "pre_review", submitted: "submitted" }
+
   validates :serial_number, :beverage_type, :brand_name, :applicant_name_address, :net_contents, presence: true
   validates :country_of_origin, presence: { message: "is required for imported products" }, if: :imported?
   validates :alcohol_content, :actual_alcohol_content,

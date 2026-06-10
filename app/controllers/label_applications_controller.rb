@@ -2,6 +2,7 @@
 
 class LabelApplicationsController < ApplicationController
   before_action :set_application, only: %i[show edit update]
+  before_action :set_area
 
   def new
     @application = LabelApplication.new
@@ -42,6 +43,12 @@ class LabelApplicationsController < ApplicationController
 
   def set_application
     @application = LabelApplication.find(params[:id])
+  end
+
+  # The form pages are always manufacturer territory; a record's own page
+  # follows its channel, so a submitted application reads as reviewer work.
+  def set_area
+    @area = @application&.submitted? ? :reviewer : :pre_review
   end
 
   def application_params

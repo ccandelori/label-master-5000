@@ -32,6 +32,7 @@ manifest["records"].each_with_index do |record, index|
   front = record["attachments"].find { |a| a["kind"].to_s.include?("Brand") } || record["attachments"].first
 
   application = batch.label_applications.build(
+    channel: "submitted",
     row_number: index + 1,
     serial_number: record["serial_number"] || record["ttbid"],
     beverage_type: PRODUCT_TYPES.fetch(record["product_type"]),
@@ -70,6 +71,7 @@ end
 degraded = registry_dir.join("images/bad_photo_demo.jpg")
 if degraded.exist?
   application = batch.label_applications.create!(
+    channel: "submitted",
     row_number: batch.total_rows,
     serial_number: "DEMO-RETAKE",
     beverage_type: "malt",

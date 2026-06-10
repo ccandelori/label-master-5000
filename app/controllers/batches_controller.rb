@@ -4,6 +4,7 @@ require "csv"
 
 class BatchesController < ApplicationController
   before_action :set_batch, only: %i[show export retry_failed]
+  before_action { @area = :pre_review }
 
   def new
     @batch = Batch.new

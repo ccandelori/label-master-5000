@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_06_10_144516) do
+ActiveRecord::Schema[8.0].define(version: 2026_06_10_175815) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -76,7 +76,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_06_10_144516) do
     t.boolean "contains_added_coloring"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "channel", default: "pre_review", null: false
     t.index ["batch_id"], name: "index_label_applications_on_batch_id"
+    t.index ["channel"], name: "index_label_applications_on_channel"
     t.index ["serial_number"], name: "index_label_applications_on_serial_number"
   end
 

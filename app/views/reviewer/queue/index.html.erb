@@ -1,0 +1,55 @@
+<% content_for :title, "Review queue" %>
+
+<div class="mb-6">
+  <h1 class="text-2xl font-semibold">Review queue</h1>
+  <p class="text-stone-600 mt-1 max-w-2xl">
+    Applications submitted to TTB, checked field by field against the label
+    artwork. Open one to see the cited findings and record your decision.
+  </p>
+</div>
+
+<% if @applications.empty? %>
+  <section class="bg-white rounded-xl border border-stone-200 p-8 text-center">
+    <p class="text-lg font-medium mb-1">The queue is empty.</p>
+    <p class="text-stone-600">Submitted applications appear here as they are filed.</p>
+  </section>
+<% else %>
+  <div class="bg-white rounded-xl border border-stone-200 overflow-hidden">
+    <table class="w-full text-left">
+      <caption class="sr-only">Submitted applications awaiting review</caption>
+      <thead>
+        <tr class="border-b border-stone-200 text-stone-600">
+          <th scope="col" class="px-4 py-3 font-medium">Serial</th>
+          <th scope="col" class="px-4 py-3 font-medium">Brand</th>
+          <th scope="col" class="px-4 py-3 font-medium">Type</th>
+          <th scope="col" class="px-4 py-3 font-medium">Check result</th>
+          <th scope="col" class="px-4 py-3 font-medium">Decision</th>
+          <th scope="col" class="px-4 py-3"><span class="sr-only">Open</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @applications.each do |application| %>
+          <% verification = application.latest_verification %>
+          <tr class="border-t border-stone-100">
+            <td class="px-4 py-3 font-medium"><%= application.serial_number %></td>
+            <td class="px-4 py-3"><%= application.brand_name %></td>
+            <td class="px-4 py-3 text-stone-700"><%= application.beverage_type.capitalize %></td>
+            <td class="px-4 py-3">
+              <% if verification %>
+                <%= verdict_chip(verification.overall_verdict) %>
+              <% else %>
+                <span class="text-stone-500">Checking…</span>
+              <% end %>
+            </td>
+            <td class="px-4 py-3 text-stone-700">
+              <%= verification&.decision ? verification.decision.humanize : "—" %>
+            </td>
+            <td class="px-4 py-3 text-right">
+              <%= link_to "Open", application, class: "font-medium text-stone-900 underline underline-offset-2 hover:text-stone-600" %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% end %>

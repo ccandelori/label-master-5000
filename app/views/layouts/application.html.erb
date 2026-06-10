@@ -21,16 +21,18 @@
         <%= link_to root_path, class: "flex items-center gap-2 text-lg font-semibold text-stone-900" do %>
           <span aria-hidden="true">☑</span> Label Verifier
         <% end %>
-        <nav class="flex gap-2 text-base">
-          <%= link_to "Verify a label", root_path,
-                class: "px-4 py-2 rounded-lg hover:bg-stone-100 #{'bg-stone-100 font-medium' if controller_name == 'label_applications'}" %>
-          <%= link_to "Batches", new_batch_path,
-                class: "px-4 py-2 rounded-lg hover:bg-stone-100 #{'bg-stone-100 font-medium' if controller_name == 'batches'}" %>
+        <nav class="flex gap-2 text-base" aria-label="Site areas">
+          <%= nav_link "Reviewer", reviewer_queue_path, area: :reviewer %>
+          <%= nav_link "Pre-review", new_label_application_path, area: :pre_review %>
+          <%= nav_link "Rules reference", rules_path, area: :rules %>
         </nav>
       </div>
     </header>
 
     <main class="max-w-5xl mx-auto px-5 py-8">
+      <% if current_area %>
+        <p class="mb-4"><%= area_tag(current_area) %></p>
+      <% end %>
       <% if notice.present? %>
         <p class="mb-6 rounded-lg bg-blue-50 text-blue-900 px-4 py-3" role="status"><%= notice %></p>
       <% end %>

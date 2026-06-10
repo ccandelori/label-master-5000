@@ -1,0 +1,19 @@
+<div class="bg-white rounded-xl border border-stone-200 p-5 flex flex-wrap items-center gap-4">
+  <p class="flex-1 min-w-64 text-stone-700">
+    <% case verification.overall_verdict %>
+    <% when "fail" %>
+      Fix the failed checks above before filing — each one cites the rule it
+      breaks, so your designer knows exactly what to change.
+    <% when "needs_review" %>
+      The flagged items are judgment calls a reviewing agent will weigh. File
+      when you are confident, or adjust the label first.
+    <% when "request_retake" %>
+      Retake the photo and re-check before filing — an unreadable image will
+      stall your application at TTB.
+    <% else %>
+      This label is ready to file.
+    <% end %>
+  </p>
+  <%= button_to "Submit to TTB", label_application_submission_path(application),
+        class: "rounded-lg bg-stone-900 text-white px-5 py-2.5 font-medium hover:bg-stone-700 cursor-pointer" %>
+</div>
