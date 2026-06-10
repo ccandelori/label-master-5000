@@ -39,8 +39,12 @@ module Extraction
       text.to_s.strip.empty? ? nil : text.strip
     end
 
+    # The model reports one entry per printed occurrence, so a statement
+    # repeated on the label (front and back panel, say) arrives twice;
+    # the rules care about what is declared, not how many times.
     def texts_of(fields)
       Array(fields).filter_map { |f| text_of(f) }
+                   .uniq { |text| Parsing::TextNormalizer.normalize(text) }
     end
 
     def vintage_year(field)
