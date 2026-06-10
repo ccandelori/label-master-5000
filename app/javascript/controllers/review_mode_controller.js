@@ -301,7 +301,9 @@ export default class extends Controller {
 
     const wsRect = this.workspaceTarget.getBoundingClientRect()
     const imgRect = this.imageTarget.getBoundingClientRect()
-    const scale = imgRect.width / this.imageTarget.naturalWidth
+    // Bboxes arrive in normalized 0-1000 coordinates (resolution-independent).
+    const scaleX = imgRect.width / 1000
+    const scaleY = imgRect.height / 1000
     const imgLeft = imgRect.left - wsRect.left
     const imgTop = imgRect.top - wsRect.top
 
@@ -310,16 +312,15 @@ export default class extends Controller {
 
     boxes.forEach((box) => {
       const [x, y, w, h] = box.bbox
-      const centerX = x + w / 2
-      const side = centerX < this.imageTarget.naturalWidth / 2 ? "left" : "right"
+      const side = x + w / 2 < 500 ? "left" : "right"
       sides[side].push({
         box,
-        targetY: imgTop + (y + h / 2) * scale,
+        targetY: imgTop + (y + h / 2) * scaleY,
         edges: {
-          left: imgLeft + x * scale,
-          right: imgLeft + (x + w) * scale
+          left: imgLeft + x * scaleX,
+          right: imgLeft + (x + w) * scaleX
         },
-        rect: { x: imgLeft + x * scale, y: imgTop + y * scale, w: w * scale, h: h * scale }
+        rect: { x: imgLeft + x * scaleX, y: imgTop + y * scaleY, w: w * scaleX, h: h * scaleY }
       })
     })
 
@@ -426,19 +427,22 @@ export default class extends Controller {
 
     // Lines start at the rendered callout's own edge, not the column's -
     // chips are narrower than the column and would otherwise leave a gap.
-    placed.forEach(({ item, el, top, height }) => {
+    placed.forEach(({ item, el, top, height }, index) => {
       const content = el.firstElementChild
       const contentRect = (content || el).getBoundingClientRect()
       const startX = (side === "left" ? contentRect.right : contentRect.left) - wsRect.left
       const startY = top + height / 2
       const endX = side === "left" ? item.edges.left : item.edges.right
       const endY = item.targetY
-      this.drawLeaderLine(startX, startY, endX, endY, this.colorFor(item.box.verdict))
+      this.drawLeaderLine(startX, startY, endX, endY, this.colorFor(item.box.verdict), index)
     })
   }
 
-  drawLeaderLine(startX, startY, endX, endY, color) {
-    const midX = (startX + endX) / 2
+  drawLeaderLine(startX, startY, endX, endY, color, index) {
+    // Stagger the elbow per callout so same-side lines don't share one
+    // vertical channel.
+    const fraction = 0.3 + 0.12 * (index % 5)
+    const midX = startX + (endX - startX) * fraction
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path")
     path.setAttribute("d", `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX} ${endY}`)
     path.setAttribute("fill", "none")
