@@ -321,9 +321,55 @@ export default class extends Controller {
       })
     })
 
-    this.drawBoxOutlines([ ...sides.left, ...sides.right ])
+    const allItems = [ ...sides.left, ...sides.right ]
+    this.drawSpotlight(allItems, {
+      x: imgLeft, y: imgTop, w: imgRect.width, h: imgRect.height
+    })
+    this.drawBoxOutlines(allItems)
     this.placeColumn(sides.left, this.leftColumnTarget, "left", wsRect)
     this.placeColumn(sides.right, this.rightColumnTarget, "right", wsRect)
+  }
+
+  // Dims the artwork slightly everywhere except inside the bounding boxes,
+  // so the annotated regions read as spotlit.
+  drawSpotlight(items, image) {
+    if (items.length === 0) return
+
+    const svgNS = "http://www.w3.org/2000/svg"
+    const defs = document.createElementNS(svgNS, "defs")
+    const mask = document.createElementNS(svgNS, "mask")
+    mask.setAttribute("id", "bbox-spotlight")
+
+    const visible = document.createElementNS(svgNS, "rect")
+    visible.setAttribute("x", image.x)
+    visible.setAttribute("y", image.y)
+    visible.setAttribute("width", image.w)
+    visible.setAttribute("height", image.h)
+    visible.setAttribute("fill", "white")
+    mask.appendChild(visible)
+
+    items.forEach(({ rect }) => {
+      const hole = document.createElementNS(svgNS, "rect")
+      hole.setAttribute("x", rect.x)
+      hole.setAttribute("y", rect.y)
+      hole.setAttribute("width", Math.max(rect.w, 6))
+      hole.setAttribute("height", Math.max(rect.h, 6))
+      hole.setAttribute("rx", "3")
+      hole.setAttribute("fill", "black")
+      mask.appendChild(hole)
+    })
+    defs.appendChild(mask)
+    this.svgTarget.appendChild(defs)
+
+    const dim = document.createElementNS(svgNS, "rect")
+    dim.setAttribute("x", image.x)
+    dim.setAttribute("y", image.y)
+    dim.setAttribute("width", image.w)
+    dim.setAttribute("height", image.h)
+    dim.setAttribute("fill", "black")
+    dim.setAttribute("opacity", "0.35")
+    dim.setAttribute("mask", "url(#bbox-spotlight)")
+    this.svgTarget.appendChild(dim)
   }
 
   drawBoxOutlines(items) {
