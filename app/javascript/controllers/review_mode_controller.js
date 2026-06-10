@@ -473,9 +473,12 @@ export default class extends Controller {
     const index = this.current.boxes.indexOf(box)
     const attrs = `type="button" data-callout-index="${index}" data-action="review-mode#toggleCallout"
                    aria-expanded="false" aria-haspopup="true"`
+    // The hover grows the chip a touch and lifts its surface: a quiet cue
+    // that callouts are clickable, not just annotations.
+    const affordance = "cursor-pointer transition duration-150 hover:scale-[1.03] hover:bg-stone-700/90 hover:shadow-lg hover:shadow-black/40"
     if (box.verdict === "fail" || box.verdict === "needs_review") {
       return `
-        <button ${attrs} class="text-left rounded-lg border bg-stone-900/90 px-3 py-2 cursor-pointer hover:bg-stone-800/90"
+        <button ${attrs} class="text-left rounded-lg border bg-stone-900/90 px-3 py-2 ${affordance}"
                 style="border-color: ${color}">
           <p class="font-semibold text-sm" style="color: ${color}">${this.escape(box.label)} — ${this.escape(box.verdict_label)}</p>
           ${box.note ? `<p class="text-sm text-stone-300 mt-0.5">${this.escape(box.note)}</p>` : ""}
@@ -483,7 +486,7 @@ export default class extends Controller {
         </button>`
     }
     return `
-      <button ${attrs} class="inline-flex items-center gap-1.5 rounded-full border border-stone-700 bg-stone-900/90 px-2.5 py-1 text-sm text-stone-300 cursor-pointer hover:bg-stone-800/90">
+      <button ${attrs} class="inline-flex items-center gap-1.5 rounded-full border border-stone-700 bg-stone-900/90 px-2.5 py-1 text-sm text-stone-300 hover:border-stone-500 hover:text-stone-100 ${affordance}">
         <span style="color: ${color}" aria-hidden="true">✓</span> ${this.escape(box.label)}
       </button>`
   }
