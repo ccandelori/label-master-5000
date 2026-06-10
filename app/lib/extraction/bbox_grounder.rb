@@ -17,8 +17,8 @@ module Extraction
     # short window's words carry OCR character errors.
     OVERLAP_PREFILTER = 0.5
     PREFILTER_MIN_TOKENS = 8
-    # Candidate windows range over the target's token count +/- this
-    # fraction, absorbing OCR word splits and merges.
+    # Candidate windows range over the target's character length +/- this
+    # fraction, absorbing OCR word splits, merges, and stray marks.
     SIZE_SLACK = 0.3
 
     module_function
@@ -61,43 +61,43 @@ module Extraction
       )
     end
 
-    # Slides windows of near-target size over the OCR word sequence and
-    # returns the words of the best-scoring window at or above threshold,
-    # or nil. Words that normalize to nothing (stray punctuation) are
+    # Slides windows over the OCR word sequence and returns the words of
+    # the best-scoring window at or above threshold, or nil. Windows are
+    # sized by character length, not word count, and similarity compares
+    # space-stripped strings: letter-spaced display type ("D R A U G H T")
+    # arrives from OCR as one word per letter and must still match its
+    # target. Words that normalize to nothing (stray punctuation) are
     # excluded from the sequence so they neither pad nor split windows.
     def best_match(target_tokens, words, threshold)
       indexed = words.filter_map do |word|
         normalized = normalize(word.text)
-        [ word, normalized ] unless normalized.empty?
+        [ word, normalized.delete(" ") ] unless normalized.empty?
       end
       return nil if indexed.empty?
 
-      target = target_tokens.join(" ")
+      target_compact = target_tokens.join
+      min_length = (target_compact.length * (1 - SIZE_SLACK)).floor
+      max_length = (target_compact.length * (1 + SIZE_SLACK)).ceil
       target_tally = target_tokens.tally
-      size = target_tokens.size
-      min_size = [ 1, (size * (1 - SIZE_SLACK)).floor ].max
-      max_size = [ (size * (1 + SIZE_SLACK)).ceil, indexed.size ].min
+      prefilter = target_tokens.size > PREFILTER_MIN_TOKENS
 
       best_words = nil
       best_score = -1.0
 
-      (min_size..max_size).each do |window_size|
-        (0..indexed.size - window_size).each do |start|
-          window = indexed[start, window_size]
-          window_tokens = window.flat_map { |_, normalized| normalized.split(" ") }
-          if size > PREFILTER_MIN_TOKENS && overlap(window_tokens, target_tally) < OVERLAP_PREFILTER
-            next
-          end
+      (0...indexed.size).each do |start|
+        length = 0
+        (start...indexed.size).each do |stop|
+          length += indexed[stop].last.length
+          break if length > max_length
+          next if length < min_length
 
-          candidate = window_tokens.join(" ")
-          # Length difference alone lower-bounds the edit distance, so a
-          # window too different in length cannot reach the threshold.
-          next if length_bound(target, candidate) < threshold
+          window = indexed[start..stop]
+          next if prefilter && overlap(window.map(&:last), target_tally) < OVERLAP_PREFILTER
 
-          score = similarity(target, candidate)
+          score = similarity(target_compact, window.map(&:last).join)
           if score > best_score
             best_score = score
-            best_words = window.map { |word, _| word }
+            best_words = window.map(&:first)
           end
         end
       end
@@ -127,14 +127,6 @@ module Extraction
     # punctuation and styling differences cannot break a match.
     def normalize(text)
       text.to_s.upcase.gsub(/[^A-Z0-9%]+/, " ").strip
-    end
-
-    # The best similarity two strings of these lengths could achieve.
-    def length_bound(a, b)
-      max_length = [ a.length, b.length ].max
-      return 1.0 if max_length.zero?
-
-      1.0 - (a.length - b.length).abs.fdiv(max_length)
     end
 
     # Normalized Levenshtein similarity in 0..1.

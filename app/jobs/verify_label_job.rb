@@ -32,7 +32,12 @@ class VerifyLabelJob < ApplicationJob
     if reused
       verification = evaluate_and_persist(
         application: application,
-        raw: reused.extraction,
+        raw: refine_extraction(
+          raw: reused.extraction,
+          data: application.artwork.download,
+          content_type: application.artwork.content_type,
+          application: application
+        ),
         model_id: reused.model_id,
         reused: true,
         duplicate_of: reused.label_application_id == application.id ? nil : reused.label_application,
@@ -44,7 +49,7 @@ class VerifyLabelJob < ApplicationJob
       result = extractor_factory.call.extract(data: data, content_type: content_type)
       verification = evaluate_and_persist(
         application: application,
-        raw: ground_boxes(raw: result.raw, data: data, content_type: content_type),
+        raw: refine_extraction(raw: result.raw, data: data, content_type: content_type, application: application),
         model_id: result.model_id,
         reused: false,
         duplicate_of: nil,
@@ -58,19 +63,26 @@ class VerifyLabelJob < ApplicationJob
 
   private
 
-  # Re-anchors the model's bounding boxes to OCR word geometry. Strictly
-  # best-effort: any OCR failure (missing binary, unreadable artwork) logs
-  # a warning and keeps the model's boxes - it never fails a verification.
-  def ground_boxes(raw:, data:, content_type:)
+  # OCR-dependent refinement: re-anchors boxes to word geometry, then
+  # reconciles the fanciful name against the application's declared value.
+  # Strictly best-effort: any OCR failure (missing binary, unreadable
+  # artwork) logs a warning and returns the payload unchanged - it never
+  # fails a verification. Runs on reused extractions too: OCR is local
+  # and cheap, and reconciliation depends on the application, which can
+  # differ across duplicate artwork.
+  def refine_extraction(raw:, data:, content_type:, application:)
+    threshold = Rails.application.config.x.extraction.ocr_match_threshold
     pages = ocr_factory.call.read(data: data, content_type: content_type)
-    Extraction::BboxGrounder.ground(
-      payload: raw,
+    grounded = Extraction::BboxGrounder.ground(payload: raw, pages: pages, threshold: threshold)
+    Extraction::FieldReconciler.reconcile_fanciful_name(
+      payload: grounded,
       pages: pages,
-      threshold: Rails.application.config.x.extraction.ocr_match_threshold
+      expected: application.fanciful_name,
+      threshold: threshold
     )
   rescue Extraction::OcrError => e
     Rails.logger.warn(JSON.generate({
-      event: "ocr_grounding_failed", error: e.message.to_s.first(300)
+      event: "extraction_refinement_failed", error: e.message.to_s.first(300)
     }))
     raw
   end
