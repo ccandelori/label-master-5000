@@ -16,11 +16,13 @@ module Extraction
       "additionalProperties" => false,
       "properties" => {
         "text" => { "type" => %w[string null] },
+        # The structured-output API only supports minItems of 0 or 1, so the
+        # four-number arity is asked for in the description and enforced at
+        # render time (bbox_data drops malformed boxes).
         "bbox" => {
           "type" => %w[array null],
           "items" => { "type" => "number" },
-          "minItems" => 4,
-          "maxItems" => 4
+          "description" => "Exactly four numbers: [x, y, width, height] in image pixels"
         },
         "page" => { "type" => %w[integer null] },
         "confidence" => { "type" => %w[number null] }
@@ -28,8 +30,14 @@ module Extraction
       "required" => %w[text bbox page confidence]
     }.freeze
 
+    # One shared $defs entry instead of inlining FIELD_SCHEMA thirteen
+    # times: the API compiles the schema to a grammar and rejects overly
+    # large ones ("compiled grammar is too large").
+    FIELD_REF = { "$ref" => "#/$defs/located_field" }.freeze
+
     RESPONSE_SCHEMA = {
       "type" => "object",
+      "$defs" => { "located_field" => FIELD_SCHEMA },
       "additionalProperties" => false,
       "properties" => {
         "legible" => { "type" => "boolean" },
@@ -37,11 +45,11 @@ module Extraction
         "fields" => {
           "type" => "object",
           "additionalProperties" => false,
-          "properties" => FIELD_KEYS.index_with { FIELD_SCHEMA },
+          "properties" => FIELD_KEYS.index_with { FIELD_REF },
           "required" => FIELD_KEYS
         },
-        "varietals" => { "type" => "array", "items" => FIELD_SCHEMA },
-        "disclosures" => { "type" => "array", "items" => FIELD_SCHEMA },
+        "varietals" => { "type" => "array", "items" => FIELD_REF },
+        "disclosures" => { "type" => "array", "items" => FIELD_REF },
         "warning_attributes" => {
           "type" => "object",
           "additionalProperties" => false,

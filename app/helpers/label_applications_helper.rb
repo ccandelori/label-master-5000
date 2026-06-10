@@ -29,7 +29,7 @@ module LabelApplicationsHelper
     boxes = []
 
     (payload["fields"] || {}).each do |key, field|
-      next if field.nil? || field["bbox"].nil?
+      next if field.nil? || !valid_bbox?(field["bbox"])
 
       checks = Array(EXTRACTION_FIELD_TO_CHECKS[key]).filter_map { |f| checks_by_field[f] }
       worst = checks.max_by(&:severity)
@@ -47,7 +47,7 @@ module LabelApplicationsHelper
     end
 
     Array(payload["disclosures"]).each_with_index do |field, index|
-      next if field.nil? || field["bbox"].nil?
+      next if field.nil? || !valid_bbox?(field["bbox"])
 
       boxes << {
         field: "disclosure_#{index}",
@@ -63,5 +63,11 @@ module LabelApplicationsHelper
     end
 
     boxes
+  end
+
+  # The schema cannot enforce four-number arity (the structured-output API
+  # limits minItems), so malformed boxes are dropped here.
+  def valid_bbox?(bbox)
+    bbox.is_a?(Array) && bbox.size == 4 && bbox.all? { |n| n.is_a?(Numeric) }
   end
 end
