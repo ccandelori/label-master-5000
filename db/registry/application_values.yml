@@ -1,0 +1,45 @@
+# Application values transcribed by eye from the harvested label artwork.
+# The public registry's printable COLA form (TTB F 5100.31) does not carry
+# alcohol content or net contents - on real applications those live on the
+# label itself - so for demo/calibration purposes these were read from the
+# images in db/registry/images and recorded here.
+"26055001000716":   # Birch Lake bourbon
+  alcohol_content: 40.0
+  net_contents: "1 Liter"
+"26110001000607":   # Stripper vodka
+  alcohol_content: 40.0
+  net_contents: "750ml"
+"26029001000269":   # Teddy Loves IPA
+  alcohol_content: 7.0
+  net_contents: "12 fl oz"
+"26030001000570":   # Brouwerij 't IJ keg collar - label states liters only
+  alcohol_content: 6.5
+  net_contents: "20 Liter"
+"24313001000038":   # Do or Die lager keg collar
+  alcohol_content: 5.1
+  net_contents: "15.5 gallons"
+"26100001000362":   # Harpoon ale
+  alcohol_content: 5.0
+  net_contents: "1 Pint (16 fl oz)"
+"26015001000351":   # Barefoot Pinot Grigio - no ABV stated on the label
+  alcohol_content: null
+  net_contents: "750mL"
+"26006001000485":   # Josh Cellars Reserve cabernet
+  alcohol_content: 14.5
+  net_contents: "750ML"
+  vintage_year: 2024
+"26058001000083":   # Stella Rosa brandy (Spain, bottled in Italy)
+  alcohol_content: 42.0
+  net_contents: "750 ML"
+"26014001000091":   # Johnnie Walker Festive Blend
+  alcohol_content: 40.8
+  net_contents: "750mL"
+"26022001000221":   # Guinness Draught stout
+  alcohol_content: 4.1
+  net_contents: "14.9 fl oz"
+"25252001000907":   # Modelo Especial - label states metric only
+  alcohol_content: 4.5
+  net_contents: "710ml"
+"26005001000482":   # Casamigos margarita cocktail can
+  alcohol_content: 10.0
+  net_contents: "200 mL"
