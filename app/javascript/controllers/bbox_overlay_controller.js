@@ -31,8 +31,9 @@ export default class extends Controller {
     this.frameTarget.querySelectorAll("[data-bbox-box]").forEach((el) => el.remove())
     this.closePopover()
 
-    const scaleX = this.imageTarget.clientWidth / this.imageTarget.naturalWidth
-    const scaleY = this.imageTarget.clientHeight / this.imageTarget.naturalHeight
+    // Bboxes arrive in normalized 0-1000 coordinates (resolution-independent).
+    const scaleX = this.imageTarget.clientWidth / 1000
+    const scaleY = this.imageTarget.clientHeight / 1000
 
     this.boxesValue.filter((box) => box.page === 1).forEach((box) => {
       const [x, y, w, h] = box.bbox

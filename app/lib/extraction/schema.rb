@@ -16,13 +16,18 @@ module Extraction
       "additionalProperties" => false,
       "properties" => {
         "text" => { "type" => %w[string null] },
-        # The structured-output API only supports minItems of 0 or 1, so the
-        # four-number arity is asked for in the description and enforced at
-        # render time (bbox_data drops malformed boxes).
+        # Normalized coordinates: the API may resize the image before the
+        # model sees it, so pixel coordinates would be in an unknown basis.
+        # 0-1000 is resolution-independent. The structured-output API only
+        # supports minItems of 0 or 1, so the four-number arity is asked for
+        # in the description and enforced at render time (bbox_data drops
+        # malformed boxes).
         "bbox" => {
           "type" => %w[array null],
           "items" => { "type" => "number" },
-          "description" => "Exactly four numbers: [x, y, width, height] in image pixels"
+          "description" => "Exactly four numbers [x, y, width, height] in normalized coordinates " \
+                           "from 0 to 1000, where (0, 0) is the top-left corner and 1000 spans " \
+                           "the full image width or height"
         },
         "page" => { "type" => %w[integer null] },
         "confidence" => { "type" => %w[number null] }
@@ -68,10 +73,12 @@ module Extraction
       You are reading the artwork of an alcohol beverage label. Extract exactly
       what is printed - do not correct, complete, or normalize anything.
 
-      For each field report the literal text as printed, a pixel bounding box
-      [x, y, width, height] for where it appears, the page number (1-based;
-      always 1 for a single image), and your confidence from 0 to 1. Use null
-      for anything not present on the label.
+      For each field report the literal text as printed, a bounding box
+      [x, y, width, height] in normalized coordinates (0 to 1000, where
+      (0, 0) is the top-left corner and 1000 spans the full image width or
+      height), the page number (1-based; always 1 for a single image), and
+      your confidence from 0 to 1. Use null for anything not present on the
+      label.
 
       Field notes:
       - brand_name: the most prominent product name.

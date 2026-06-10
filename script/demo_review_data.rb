@@ -14,31 +14,33 @@
 # (Idempotent: skips applications that already have a verification.)
 
 DEMO_RECORDS = {
-  # Birch Lake bourbon wraparound, 1566x823. Clean label: caps-and-bold
-  # warning, metric standard of fill, conforming alcohol statement.
+  # Boxes are in the extraction pipeline's normalized 0-1000 coordinate
+  # space (fractions of image width/height), placed by eye per label.
+  # Birch Lake bourbon wraparound. Clean label: caps-and-bold warning,
+  # metric standard of fill, conforming alcohol statement.
   "26055001000716" => {
     overall: "pass",
     boxes: {
-      brand: [ 600, 32, 332, 230 ],
-      alcohol: [ 75, 600, 210, 26 ],
-      net: [ 608, 718, 128, 34 ],
-      warning: [ 50, 392, 262, 200 ]
+      brand: [ 383, 39, 212, 279 ],
+      alcohol: [ 48, 729, 134, 32 ],
+      net: [ 388, 872, 82, 41 ],
+      warning: [ 32, 476, 167, 243 ]
     },
     checks: {
       net_verdict: "pass", net_note: nil, net_citation: nil,
       warning_verdict: "pass", warning_note: nil, warning_citation: nil
     }
   },
-  # Stripper vodka, 840x660; the warning runs vertically up the right edge.
+  # Stripper vodka; the warning runs vertically up the right edge.
   # The caps prefix is present, but bold weight is genuinely hard to judge
   # on the rotated side panel - a real judgment call for the reviewer.
   "26110001000607" => {
     overall: "needs_review",
     boxes: {
-      brand: [ 288, 29, 336, 79 ],
-      alcohol: [ 495, 556, 162, 22 ],
-      net: [ 543, 574, 62, 20 ],
-      warning: [ 716, 392, 68, 268 ]
+      brand: [ 343, 44, 400, 120 ],
+      alcohol: [ 589, 842, 193, 33 ],
+      net: [ 646, 870, 74, 30 ],
+      warning: [ 852, 594, 81, 406 ]
     },
     checks: {
       net_verdict: "pass", net_note: nil, net_citation: nil,
@@ -47,14 +49,14 @@ DEMO_RECORDS = {
       warning_citation: "27 CFR 16.22"
     }
   },
-  # Teddy Loves IPA, 1161x522. Clean label; alcohol is the 7% roundel.
+  # Teddy Loves IPA. Clean label; alcohol is the 7% roundel.
   "26029001000269" => {
     overall: "pass",
     boxes: {
-      brand: [ 452, 328, 250, 80 ],
-      alcohol: [ 370, 238, 55, 55 ],
-      net: [ 545, 498, 72, 20 ],
-      warning: [ 7, 318, 198, 178 ]
+      brand: [ 389, 628, 215, 153 ],
+      alcohol: [ 319, 456, 47, 105 ],
+      net: [ 469, 954, 62, 38 ],
+      warning: [ 6, 609, 171, 341 ]
     },
     checks: {
       net_verdict: "pass", net_note: nil, net_citation: nil,
