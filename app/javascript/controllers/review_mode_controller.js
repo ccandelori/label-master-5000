@@ -43,8 +43,13 @@ export default class extends Controller {
     }
     document.addEventListener("click", this.outsideClickHandler)
 
+    // Watch the workspace as well as the image: a window resize can move
+    // the margin columns without changing the image's rendered size, and
+    // leader lines and the spotlight mask are drawn in workspace
+    // coordinates.
     this.resizeObserver = new ResizeObserver(() => this.layoutCallouts())
     this.resizeObserver.observe(this.imageTarget)
+    this.resizeObserver.observe(this.workspaceTarget)
     this.imageTarget.addEventListener("load", () => this.layoutCallouts())
 
     if (this.current) {
