@@ -1,0 +1,280 @@
+# Distilled spirits labeling rules.
+# Source of truth: BAM Vol 2 (TTB P 5130.2, 04/2007), parsed from
+# documentation/label_requirements/complete-distilled-spirit-beverage-alcohol-manual.pdf.
+commodity: spirits
+
+alcohol_content:
+  citation: "BAM Vol 2 1-2 to 1-3"
+  required: true
+  permitted_forms:
+    - "__% ALCOHOL BY VOLUME"
+    - "BOTTLED AT __% ALCOHOL BY VOLUME (products containing solid material)"
+  proof:
+    optional: true
+    must_equal_twice_abv: true
+    note: "If shown, proof must appear with the ABV statement on the front, set off by parentheses, brackets or similar"
+  tolerance_percentage_points:
+    citation: "BAM Vol 2 1-3"
+    note: "The 2007 BAM allows only a bottling-loss allowance, not a symmetric tolerance"
+    bottling_loss_standard: 0.15
+    bottling_loss_solids_over_600mg_per_100ml: 0.25
+    bottling_loss_50ml_and_100ml_containers: 0.25
+  discrepancy:
+    note: "Current 27 CFR 5.65 allows plus or minus 0.3 percentage points; the BAM value governs the verdict and the note reports the divergence"
+    current_regulation: "27 CFR 5.65"
+    current_tolerance_percentage_points: 0.3
+
+net_contents:
+  citation: "BAM Vol 2 1-7, 6-1"
+  required_system: metric
+  standards_of_fill_ml: [1750, 1000, 750, 375, 200, 100, 50]
+  can_standards_of_fill_ml: [355, 200, 100, 50]
+  discrepancy:
+    note: "Current 27 CFR 5.203 additionally authorizes 700 mL, 720 mL, 900 mL and 1.8 L (and later amendments add further sizes); the BAM list governs the verdict and the note reports the divergence"
+    current_regulation: "27 CFR 5.203"
+    additional_sizes_ml: [700, 720, 900, 1800]
+
+designations:
+  citation: "BAM Vol 2 4-2 to 4-15"
+  entries:
+    - names: ["Neutral Spirits", "Alcohol", "Vodka", "Grain Spirits"]
+      kind: class_or_type
+      sufficient: true
+      min_bottling_abv: 40.0
+      commodity_statement: required
+    - names: ["Gin", "Distilled Gin", "Compounded Gin", "Redistilled Gin"]
+      kind: class_or_type
+      sufficient: true
+      min_bottling_abv: 40.0
+      commodity_statement: required
+      note: "Compounded gin may not be described as 'Distilled'"
+    - names: ["Bourbon Whisky", "Straight Bourbon Whisky", "Whisky Distilled From Bourbon Mash",
+              "Bourbon Whiskey", "Straight Bourbon Whiskey"]
+      kind: type
+      sufficient: true
+      min_bottling_abv: 40.0
+      us_only: true
+      state_of_distillation_rule: true
+    - names: ["Rye Whisky", "Wheat Whisky", "Malt Whisky", "Rye Malt Whisky", "Corn Whisky",
+              "Straight Rye Whisky", "Straight Wheat Whisky", "Straight Malt Whisky",
+              "Straight Rye Malt Whisky", "Straight Corn Whisky", "Straight Whisky",
+              "Whisky Distilled From Rye Mash", "Whisky Distilled From Wheat Mash",
+              "Whisky Distilled From Malt Mash", "Whisky Distilled From Rye Malt Mash",
+              "Rye Whiskey", "Wheat Whiskey", "Malt Whiskey", "Corn Whiskey",
+              "Straight Rye Whiskey", "Straight Whiskey"]
+      kind: type
+      sufficient: true
+      min_bottling_abv: 40.0
+      state_of_distillation_rule: true
+      origin_rule:
+        produced_in: "United States"
+        qualifier_when_elsewhere: "Must include 'American Type' or 'Produced/Distilled/Blended in ___'"
+    - names: ["Light Whisky", "Blended Light Whisky", "Light Whisky - A Blend"]
+      kind: type
+      sufficient: true
+      min_bottling_abv: 40.0
+    - names: ["Blended Whisky", "Whisky - A Blend", "Blended Bourbon Whisky",
+              "Bourbon Whisky - A Blend", "Blended Rye Whisky", "Blended Wheat Whisky",
+              "Blended Malt Whisky", "Blended Rye Malt Whisky", "Blended Corn Whisky",
+              "Spirit Whisky", "Blended Whiskey", "Blended Bourbon Whiskey"]
+      kind: type
+      sufficient: true
+      min_bottling_abv: 40.0
+      commodity_statement: required
+      state_of_distillation_rule: true
+    - names: ["A Blend of Straight Whiskies", "Blended Straight Whiskies",
+              "A Blend of Straight Bourbon Whiskies", "Blended Straight Bourbon Whiskies",
+              "A Blend of Straight Rye Whiskies", "A Blend of Straight Wheat Whiskies",
+              "A Blend of Straight Malt Whiskies", "A Blend of Straight Rye Malt Whiskies",
+              "A Blend of Straight Corn Whiskies"]
+      kind: type
+      sufficient: true
+      min_bottling_abv: 40.0
+    - names: ["Whisky", "Whiskey"]
+      kind: class
+      sufficient: conditional
+      min_bottling_abv: 40.0
+      note: "Sufficient alone only for blends of two or more specific whisky types, or a specific type treated with coloring/flavoring/blending materials not customarily used"
+    - names: ["Scotch Whisky", "Blended Scotch Whisky", "Scotch Whisky - A Blend"]
+      kind: type
+      sufficient: true
+      min_bottling_abv: 40.0
+      origin_rule:
+        produced_in: "Scotland"
+    - names: ["Irish Whisky", "Blended Irish Whisky", "Irish Whiskey", "Blended Irish Whiskey"]
+      kind: type
+      sufficient: true
+      min_bottling_abv: 40.0
+      origin_rule:
+        produced_in: "Ireland or Northern Ireland"
+    - names: ["Canadian Whisky", "Blended Canadian Whisky", "Canadian Whisky - A Blend"]
+      kind: type
+      sufficient: true
+      min_bottling_abv: 40.0
+      origin_rule:
+        produced_in: "Canada"
+    - names: ["Rum"]
+      kind: class
+      sufficient: true
+      min_bottling_abv: 40.0
+    - names: ["Tequila"]
+      kind: class
+      sufficient: true
+      min_bottling_abv: 40.0
+      origin_rule:
+        produced_in: "Mexico"
+    - names: ["Mescal", "Mezcal"]
+      kind: class
+      sufficient: true
+      min_bottling_abv: 40.0
+      origin_rule:
+        produced_in: "Mexico"
+    - names: ["Brandy"]
+      kind: class
+      sufficient: true
+      min_bottling_abv: 40.0
+      note: "Sufficient only for grape brandy; other fruit brandies must be identified, e.g. 'Peach Brandy'"
+    - names: ["Fruit Brandy", "Apple Brandy", "Applejack", "Kirschwasser", "Slivovitz",
+              "Immature Brandy", "Pisco", "Raisin Brandy", "Lees Brandy", "Pomace Brandy",
+              "Marc Brandy", "Grappa", "Grappa Brandy", "Residue Brandy", "Neutral Brandy",
+              "Substandard Brandy", "Blended Applejack", "Applejack - A Blend", "Dried Fruit Brandy"]
+      kind: type
+      sufficient: true
+      min_bottling_abv: 40.0
+    - names: ["Cognac", "Armagnac", "Calvados"]
+      kind: type
+      sufficient: true
+      min_bottling_abv: 40.0
+      origin_rule:
+        produced_in: "France"
+    - names: ["Liqueur", "Cordial", "Sloe Gin", "Amaretto", "Kummel", "Ouzo", "Anise",
+              "Anisette", "Peppermint Schnapps", "Triple Sec", "Curacao",
+              "Rye Liqueur", "Rye Cordial", "Bourbon Liqueur", "Bourbon Cordial",
+              "Rum Liqueur", "Rum Cordial", "Gin Liqueur", "Gin Cordial",
+              "Brandy Liqueur", "Brandy Cordial", "Arak", "Arack", "Raki"]
+      kind: class_or_type
+      sufficient: true
+      min_bottling_abv: 30.0
+    - names: ["Rock and Rye", "Rock and Bourbon", "Rock and Brandy", "Rock and Rum"]
+      kind: type
+      sufficient: true
+      min_bottling_abv: 24.0
+      bottled_at_form: true
+    - names: ["Sambuca"]
+      kind: type
+      sufficient: true
+      min_bottling_abv: 30.0
+      origin_rule:
+        produced_in: "Italy"
+        qualifier_when_elsewhere: "Must include 'type', 'American', or other adjective indicating true place of production"
+    - names: ["Goldwasser"]
+      kind: type
+      sufficient: true
+      min_bottling_abv: 30.0
+      origin_rule:
+        produced_in: "Germany"
+        qualifier_when_elsewhere: "Must include 'type', 'American', or other adjective indicating true place of production"
+    - names: ["Creme de Menthe", "Creme de Cacao", "Creme de Almond", "Creme de Cassis",
+              "Creme de Banana", "Creme de Peach"]
+      kind: type
+      sufficient: true
+      min_bottling_abv: 30.0
+      note: "Creme de ___ family: predominant flavor becomes part of the designation"
+    - names: ["Flavored Brandy", "Flavored Gin", "Flavored Rum", "Flavored Vodka", "Flavored Whisky"]
+      kind: class
+      sufficient: conditional
+      min_bottling_abv: 30.0
+      composition_rule: "The predominant flavor must appear as part of the designation, e.g. 'Apricot Flavored Brandy'"
+    - names: ["Advocaat", "Aquavit", "Bitters"]
+      kind: class
+      sufficient: true
+    - names: ["Distilled Spirits Specialty"]
+      kind: class
+      sufficient: false
+      composition_rule: "Distinctive or fanciful name plus a truthful statement of composition, e.g. 'Spiced Rum, Rum With Spice Flavor'"
+  cocktails:
+    citation: "BAM Vol 2 4-12 to 4-13"
+    note: "Recognized cocktail names require a declaration of the distilled spirits component, e.g. 'Screwdriver Made With Vodka'"
+    names: ["Apricot Sour", "Black Russian", "Bloody Mary", "Alexander", "Daiquiri", "Egg Nog",
+            "Gimlet", "Vodka Gimlet", "Grasshopper", "Mai Tai", "Manhattan", "Margarita",
+            "Martini", "Vodka Martini", "Mint Julep", "Old Fashioned", "Pink Squirrel",
+            "Screwdriver", "Sloe Gin Fizz", "Tom Collins", "Wallbanger", "Whisky Sour",
+            "White Russian"]
+
+commodity_statement:
+  citation: "BAM Vol 2 1-12 to 1-13"
+  group_1:
+    note: "Statement must disclose percentage and commodity: '__% NEUTRAL SPIRITS DISTILLED FROM ___'"
+    classes: ["Neutral Spirits produced by redistillation", "Vodka produced by redistillation",
+              "Grain Spirits produced by redistillation", "Blended Whisky", "Blended Bourbon Whisky",
+              "Blended Wheat Whisky", "Blended Rye Whisky", "Blended Malt Whisky",
+              "Blended Rye Malt Whisky", "Blended Corn Whisky", "Spirit Whisky",
+              "Compounded Gin", "Redistilled Gin", "Blended Applejack"]
+  group_2:
+    note: "Statement must disclose the commodity: 'DISTILLED FROM ___'"
+    classes: ["Neutral Spirits produced by original distillation", "Vodka produced by original distillation",
+              "Grain Spirits produced by original distillation", "Distilled Gin"]
+
+state_of_distillation:
+  citation: "BAM Vol 2 1-15 to 1-16"
+  note: "US whisky types must identify the state of distillation when it differs from the name-and-address state or the address is not on the front"
+  applies_to: ["Bourbon Whisky", "Rye Whisky", "Wheat Whisky", "Malt Whisky", "Rye Malt Whisky",
+               "Corn Whisky", "Straight Bourbon Whisky", "Straight Rye Whisky", "Straight Wheat Whisky",
+               "Straight Malt Whisky", "Straight Rye Malt Whisky", "Straight Corn Whisky",
+               "Straight Whisky", "Whisky Distilled From Bourbon Mash", "Whisky Distilled From Rye Mash",
+               "Whisky Distilled From Wheat Mash", "Whisky Distilled From Malt Mash",
+               "Whisky Distilled From Rye Malt Mash"]
+
+age_statements:
+  citation: "BAM Vol 2 1-14 to 1-15"
+  note: "Required for whiskies aged under 4 years and grape lees/pomace/marc brandy aged under 2 years; age is not determinable from artwork, so checks are presence-triggered only"
+  presence_triggers:
+    - "Distillation date on the label requires an accompanying statement of age"
+    - "Miscellaneous age references require a specific statement of age on the same side"
+
+name_and_address:
+  citation: "BAM Vol 2 1-4 to 1-6"
+  domestic_phrases: ["BOTTLED BY", "PACKED BY", "FILLED BY", "DISTILLED BY", "BLENDED BY",
+                     "MADE BY", "PREPARED BY", "MANUFACTURED BY", "PRODUCED BY",
+                     "DISTILLED AND BOTTLED BY", "BLENDED AND BOTTLED BY"]
+  import_phrases: ["IMPORTED BY", "SOLE AGENT", "SOLE U.S. AGENT", "IMPORTED AND BOTTLED BY",
+                   "IMPORTED BY AND BOTTLED FOR"]
+  address_form: "City and state identical to the basic permit"
+
+country_of_origin:
+  citation: "BAM Vol 2 1-6"
+  required_when: imported
+  permitted_forms:
+    - "PRODUCT OF ___"
+    - "PRODUCE OF ___"
+    - "PRODUCED IN ___"
+    - "PRODUCED AND BOTTLED IN ___"
+    - "PRODUCED BY ___"
+    - "___ BRANDY (country with class designation)"
+
+disclosures:
+  - key: fd_c_yellow_5
+    citation: "BAM Vol 2 1-10"
+    required_text: ["CONTAINS FD&C YELLOW #5"]
+    trigger: "Product contains FD&C Yellow #5"
+  - key: saccharin
+    citation: "BAM Vol 2 1-10"
+    required_text:
+      - "USE OF THIS PRODUCT MAY BE HAZARDOUS TO YOUR HEALTH. THIS PRODUCT CONTAINS SACCHARIN WHICH HAS BEEN DETERMINED TO CAUSE CANCER IN LABORATORY ANIMALS."
+    trigger: "Product contains saccharin"
+  - key: sulfites
+    citation: "BAM Vol 2 1-11"
+    required_text: ["CONTAINS SULFITES", "CONTAINS A SULFITING AGENT", "CONTAINS SULFITING AGENTS"]
+    named_agent_allowed: true
+    trigger: "10 or more ppm sulfur dioxide"
+  - key: coloring
+    citation: "BAM Vol 2 1-8"
+    required_text: ["ARTIFICIALLY COLORED", "CERTIFIED COLOR ADDED", "COLORED WITH CARAMEL",
+                    "CARAMEL AND CERTIFIED COLOR ADDED"]
+    pattern_allowed: "COLORED WITH ___"
+    trigger: "Coloring material added (FD&C Yellow #5 always requires its specific disclosure)"
+  - key: wood_treatment
+    citation: "BAM Vol 2 1-9"
+    required_text: []
+    pattern_allowed: "COLORED AND FLAVORED WITH WOOD ___"
+    trigger: "Whisky or brandy treated with wood other than oak container contact"
