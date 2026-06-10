@@ -3,7 +3,11 @@
 # Vision-extraction configuration. The model is configuration, not code:
 # swap tiers (or point at an agency-authorized endpoint) without touching
 # the connector.
-Rails.application.config.x.extraction.model = ENV.fetch("EXTRACTION_MODEL", "claude-haiku-4-5")
+# Opus 4.7: smaller tiers read label text fine but place bounding boxes
+# poorly; Opus-tier vision localizes precisely (verified by cropping its
+# claimed regions from real labels).
+Rails.application.config.x.extraction.model = ENV.fetch("EXTRACTION_MODEL", "claude-opus-4-7")
+Rails.application.config.x.extraction.effort = ENV.fetch("EXTRACTION_EFFORT", "low")
 Rails.application.config.x.extraction.max_tokens = Integer(ENV.fetch("EXTRACTION_MAX_TOKENS", "4096"))
 Rails.application.config.x.extraction.max_retries = Integer(ENV.fetch("EXTRACTION_MAX_RETRIES", "2"))
 Rails.application.config.x.extraction.max_pdf_pages = Integer(ENV.fetch("EXTRACTION_MAX_PDF_PAGES", "4"))

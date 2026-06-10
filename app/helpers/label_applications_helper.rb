@@ -26,6 +26,9 @@ module LabelApplicationsHelper
   def bbox_data(verification)
     checks_by_field = verification.field_checks.index_by(&:field)
     payload = verification.extraction || {}
+    # The coordinate basis the extractor reported its boxes in (the pixel
+    # dimensions of the image as the model viewed it).
+    basis = [ payload["image_width"] || 1000, payload["image_height"] || 1000 ]
     boxes = []
 
     (payload["fields"] || {}).each do |key, field|
@@ -38,6 +41,7 @@ module LabelApplicationsHelper
         related_fields: Array(EXTRACTION_FIELD_TO_CHECKS[key]),
         label: field_label(key),
         bbox: field["bbox"],
+        basis: basis,
         page: field["page"] || 1,
         verdict: worst&.verdict || "pass",
         verdict_label: worst ? verdict_label(worst.verdict) : "Read",
@@ -54,6 +58,7 @@ module LabelApplicationsHelper
         related_fields: [],
         label: "Disclosure",
         bbox: field["bbox"],
+        basis: basis,
         page: field["page"] || 1,
         verdict: "pass",
         verdict_label: "Read",

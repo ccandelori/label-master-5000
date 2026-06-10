@@ -92,7 +92,8 @@ DEMO_RECORDS.each do |ttbid, record|
   ]
 
   boxes = record[:boxes]
-  extraction = { "fields" => {
+  # Demo boxes are permille values, declared as a 1000x1000 pixel basis.
+  extraction = { "image_width" => 1000, "image_height" => 1000, "fields" => {
     "brand_name" => { "text" => application.brand_name, "bbox" => boxes[:brand], "page" => 1 },
     "alcohol_statement" => { "text" => "#{application.alcohol_content}% ALC/VOL", "bbox" => boxes[:alcohol], "page" => 1 },
     "net_contents" => { "text" => application.net_contents, "bbox" => boxes[:net], "page" => 1 },
