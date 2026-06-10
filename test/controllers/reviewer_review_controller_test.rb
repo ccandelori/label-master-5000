@@ -72,6 +72,21 @@ class ReviewerReviewControllerTest < ActionDispatch::IntegrationTest
     assert_match(/capital letters/, finding["note"])
   end
 
+  test "start pins the opening item regardless of severity order" do
+    failing = create_application(serial: "26-WORST", brand: "WORST FIRST")
+    add_verification(failing, verdict: "fail")
+    passing = create_application(serial: "26-PINNED", brand: "PINNED PASS")
+    add_verification(passing, verdict: "pass")
+
+    get reviewer_review_path(start: passing.id)
+    assert_response :success
+    assert_match(/26-PINNED/, response.body)
+
+    # An unknown or unreviewable start falls back to worst-first.
+    get reviewer_review_path(start: 999_999)
+    assert_match(/26-WORST/, response.body)
+  end
+
   test "next_item skips deferred ids and decided or pre-review records" do
     first = create_application(serial: "26-1", brand: "FIRST")
     add_verification(first, verdict: "fail")

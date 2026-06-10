@@ -46,7 +46,7 @@ class ReviewerQueueTest < ApplicationSystemTestCase
 
     # Reject the failure from its record page.
     click_on "Needs attention"
-    click_on "Open"
+    click_on "Details"
     assert_text "GOVERNMENT WARNING must appear in capital letters"
     click_on "✗ Reject"
     assert_text "Decision recorded"

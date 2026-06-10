@@ -16,6 +16,7 @@ Rails.application.routes.draw do
     resource :decision, only: %i[create destroy]
     resource :submission, only: :create
     resource :rejection_notice, only: :show
+    resource :check, only: :create
   end
 
   resources :batches, only: %i[new create show] do
