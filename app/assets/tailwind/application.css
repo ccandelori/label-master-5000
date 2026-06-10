@@ -1,1 +1,86 @@
 @import "tailwindcss";
+
+/* Review-mode design tokens. Paper-warm neutrals (hue 85) tinted toward
+   the printed-label domain; verdict colors tuned per scheme so text on
+   tints holds AA/AAA. Light is the day default (reviewers read fine print
+   against artwork in office light); dark follows the OS. */
+:root {
+  --rv-surface: oklch(96.5% 0.006 85);
+  --rv-panel: oklch(94% 0.008 85);
+  --rv-raised: oklch(98.5% 0.004 85);
+  --rv-line: oklch(88% 0.01 85);
+  --rv-line-strong: oklch(78% 0.012 85);
+  --rv-ink: oklch(24% 0.012 85);
+  --rv-ink-muted: oklch(41% 0.012 85);
+  --rv-ink-faint: oklch(50% 0.012 85);
+  --rv-fail: oklch(46% 0.16 27);
+  --rv-fail-tint: oklch(93% 0.03 27);
+  --rv-warn: oklch(45% 0.105 75);
+  --rv-warn-tint: oklch(93% 0.04 85);
+  --rv-pass: oklch(44% 0.115 152);
+  --rv-pass-tint: oklch(93.5% 0.035 152);
+  --rv-focus: oklch(46% 0.13 245);
+  --rv-on-strong: oklch(98.5% 0.004 85);
+  --rv-dim: oklch(25% 0.012 85 / 0.22);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --rv-surface: oklch(19% 0.009 85);
+    --rv-panel: oklch(22.5% 0.011 85);
+    --rv-raised: oklch(26.5% 0.012 85);
+    --rv-line: oklch(33% 0.012 85);
+    --rv-line-strong: oklch(44% 0.013 85);
+    --rv-ink: oklch(93% 0.008 85);
+    --rv-ink-muted: oklch(75% 0.012 85);
+    --rv-ink-faint: oklch(64% 0.012 85);
+    --rv-fail: oklch(73% 0.14 27);
+    --rv-fail-tint: oklch(27% 0.05 27);
+    --rv-warn: oklch(78% 0.115 85);
+    --rv-warn-tint: oklch(27.5% 0.045 85);
+    --rv-pass: oklch(75% 0.12 152);
+    --rv-pass-tint: oklch(26.5% 0.045 152);
+    --rv-focus: oklch(74% 0.11 245);
+    --rv-on-strong: oklch(17% 0.01 85);
+    --rv-dim: oklch(5% 0.005 85 / 0.5);
+  }
+}
+
+@theme inline {
+  --color-surface: var(--rv-surface);
+  --color-panel: var(--rv-panel);
+  --color-raised: var(--rv-raised);
+  --color-line: var(--rv-line);
+  --color-line-strong: var(--rv-line-strong);
+  --color-ink: var(--rv-ink);
+  --color-ink-muted: var(--rv-ink-muted);
+  --color-ink-faint: var(--rv-ink-faint);
+  --color-fail: var(--rv-fail);
+  --color-fail-tint: var(--rv-fail-tint);
+  --color-warn: var(--rv-warn);
+  --color-warn-tint: var(--rv-warn-tint);
+  --color-pass: var(--rv-pass);
+  --color-pass-tint: var(--rv-pass-tint);
+  --color-focus: var(--rv-focus);
+  --color-on-strong: var(--rv-on-strong);
+}
+
+/* SVG annotation layer: presentation attributes cannot carry var(), so
+   the overlay's parts are styled here. */
+.rv-dim {
+  fill: var(--rv-dim);
+}
+
+.rv-box {
+  fill: none;
+  stroke-width: 2;
+  transition: opacity 150ms cubic-bezier(0.22, 1, 0.36, 1), stroke-width 150ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rv-box[data-faded="true"] {
+  opacity: 0.3;
+}
+
+.rv-box[data-active="true"] {
+  stroke-width: 3.5;
+}
