@@ -11,7 +11,7 @@ import { Controller } from "@hotwired/stimulus"
 export default class extends Controller {
   static targets = [
     "workspace", "stage", "svg", "leftColumn", "rightColumn", "image",
-    "caption", "fallback", "empty", "controls", "progress",
+    "caption", "fallback", "empty", "controls", "progress", "summary",
     "toast", "toastMessage", "srStatus", "srFindings"
   ]
   static values = { initial: Object, nextUrl: String, exitUrl: String }
@@ -23,6 +23,9 @@ export default class extends Controller {
     pass: "#4ade80",
     default: "#a8a29e"
   }
+
+  // Shared hover affordance: callouts and absence cards are buttons.
+  static AFFORDANCE = "cursor-pointer transition duration-150 hover:scale-[1.03] hover:bg-stone-700/90 hover:shadow-lg hover:shadow-black/40"
 
   connect() {
     this.current = this.initialValue.application ? this.initialValue : null
@@ -69,7 +72,28 @@ export default class extends Controller {
 
   // --- decisions -----------------------------------------------------------
 
-  approve() { this.decide("approve", "Approved") }
+  // Approving over failed checks takes a second press: the absence rail
+  // and counts make fails visible, this makes them deliberate.
+  approve() {
+    if (!this.current || this.advancing) return
+    const fails = this.current.summary?.fails || 0
+    if (fails > 0 && !this.approveArmed) {
+      this.approveArmed = true
+      clearTimeout(this.approveArmTimer)
+      this.approveArmTimer = setTimeout(() => {
+        this.approveArmed = false
+        if (this.current) this.renderSummary(this.current)
+      }, 4000)
+      const message = `${fails} ${fails === 1 ? "check" : "checks"} failed — press Approve again to confirm`
+      this.summaryTarget.innerHTML = `<span class="text-red-400 font-medium">${this.escape(message)}</span>`
+      this.announce(message)
+      return
+    }
+    this.approveArmed = false
+    clearTimeout(this.approveArmTimer)
+    this.decide("approve", "Approved")
+  }
+
   reject() { this.decide("reject", "Rejected") }
   requestRetake() { this.decide("retake_requested", "Better image requested for") }
 
@@ -221,8 +245,12 @@ export default class extends Controller {
     this.stageTarget.classList.remove("hidden")
     this.controlsTarget.classList.remove("invisible")
 
+    this.approveArmed = false
+    clearTimeout(this.approveArmTimer)
+
     const app = payload.application
     this.progressTarget.textContent = `${payload.remaining} in queue`
+    this.renderSummary(payload)
     this.captionTarget.innerHTML = `
       <p class="text-lg font-semibold">${this.escape(app.brand_name)}</p>
       <p class="text-sm text-stone-400">
@@ -274,6 +302,21 @@ export default class extends Controller {
     this.fallbackTarget.classList.toggle("space-y-2", pieces.length > 0)
   }
 
+  // The verdict tally beside the decision buttons: the answer to "did I
+  // miss a finding the artwork annotations could not show?"
+  renderSummary(payload) {
+    if (payload.verification?.overall_verdict === "request_retake") {
+      this.summaryTarget.textContent = ""
+      return
+    }
+    const s = payload.summary || {}
+    const parts = []
+    if (s.fails) parts.push(`<span style="color: ${this.colorFor("fail")}">${s.fails} failed</span>`)
+    if (s.needs_review) parts.push(`<span style="color: ${this.colorFor("needs_review")}">${s.needs_review} need${s.needs_review === 1 ? "s" : ""} review</span>`)
+    parts.push(`<span>${s.passes || 0} passed</span>`)
+    this.summaryTarget.innerHTML = parts.join(" · ")
+  }
+
   renderScreenReaderMirror(payload) {
     const s = payload.summary
     this.announce(
@@ -293,6 +336,7 @@ export default class extends Controller {
     this.emptyTarget.classList.remove("hidden")
     this.emptyTarget.classList.add("flex")
     this.progressTarget.textContent = ""
+    this.summaryTarget.textContent = ""
     this.clearAnnotations()
     this.announce("Queue clear. Every submitted application has a decision.")
   }
@@ -346,8 +390,42 @@ export default class extends Controller {
       x: imgLeft, y: imgTop, w: imgRect.width, h: imgRect.height
     })
     this.drawBoxOutlines(allItems)
-    this.placeColumn(sides.left, this.leftColumnTarget, "left", wsRect)
-    this.placeColumn(sides.right, this.rightColumnTarget, "right", wsRect)
+
+    // Findings with no located box - an element the application declares
+    // that was never found on the label - have no geometry to anchor to.
+    // They stack as "not found" cards at the top of the lighter column.
+    const locatedFields = new Set(this.current.boxes.flatMap((b) => [ b.field, ...(b.related_fields || []) ]))
+    const absent = (this.current.findings || []).filter((f) => !locatedFields.has(f.field))
+    const railSide = sides.left.length <= sides.right.length ? "left" : "right"
+    const railColumn = railSide === "left" ? this.leftColumnTarget : this.rightColumnTarget
+    const railCursor = this.renderAbsenceRail(absent, railColumn, railSide)
+
+    this.placeColumn(sides.left, this.leftColumnTarget, "left", wsRect, railSide === "left" ? railCursor : 0)
+    this.placeColumn(sides.right, this.rightColumnTarget, "right", wsRect, railSide === "right" ? railCursor : 0)
+  }
+
+  renderAbsenceRail(findings, column, side) {
+    let cursor = 0
+    findings.forEach((finding) => {
+      const index = this.current.findings.indexOf(finding)
+      const color = this.colorFor(finding.verdict)
+      const wrapper = document.createElement("div")
+      wrapper.className = `absolute inset-x-0 flex ${side === "left" ? "justify-end" : "justify-start"}`
+      wrapper.innerHTML = `
+        <button type="button" data-callout-index="${index}" data-callout-source="findings"
+                data-action="review-mode#toggleCallout" aria-expanded="false" aria-haspopup="true"
+                class="text-left rounded-lg border border-dashed bg-stone-900/90 px-3 py-2 ${this.constructor.AFFORDANCE}"
+                style="border-color: ${color}">
+          <p class="text-xs uppercase tracking-wide text-stone-500">Not found on the label</p>
+          <p class="font-semibold text-sm" style="color: ${color}">${this.escape(finding.label)} — ${this.escape(finding.verdict_label)}</p>
+          ${finding.note ? `<p class="text-sm text-stone-300 mt-0.5">${this.escape(finding.note)}</p>` : ""}
+          ${finding.citation ? `<p class="text-xs text-stone-500 mt-0.5">${this.escape(finding.citation)}</p>` : ""}
+        </button>`
+      wrapper.style.top = `${cursor}px`
+      column.appendChild(wrapper)
+      cursor += wrapper.offsetHeight + 16
+    })
+    return cursor
   }
 
   // Side assignment follows each box's half of the label, which piles
@@ -425,8 +503,9 @@ export default class extends Controller {
   }
 
   // Greedy vertical slotting: callouts keep their box's vertical order and
-  // never overlap; each line elbows from the card to its box edge.
-  placeColumn(items, column, side, wsRect) {
+  // never overlap; each line elbows from the card to its box edge. The
+  // cursor starts below any absence cards already in the column.
+  placeColumn(items, column, side, wsRect, startCursor) {
     items.sort((a, b) => a.targetY - b.targetY)
 
     // Callouts hug the artwork side of their column so leader lines stay short.
@@ -439,7 +518,7 @@ export default class extends Controller {
       return el
     })
 
-    let cursor = 0
+    let cursor = startCursor
     const placed = items.map((item, index) => {
       const el = elements[index]
       const height = el.offsetHeight
@@ -454,7 +533,7 @@ export default class extends Controller {
     const overflow = cursor - 16 - this.workspaceTarget.clientHeight
     if (overflow > 0) {
       placed.forEach((p) => {
-        p.top = Math.max(p.top - overflow, 0)
+        p.top = Math.max(p.top - overflow, startCursor)
         p.el.style.top = `${p.top}px`
       })
     }
@@ -496,14 +575,11 @@ export default class extends Controller {
   calloutHtml(box) {
     const color = this.colorFor(box.verdict)
     const index = this.current.boxes.indexOf(box)
-    const attrs = `type="button" data-callout-index="${index}" data-action="review-mode#toggleCallout"
-                   aria-expanded="false" aria-haspopup="true"`
-    // The hover grows the chip a touch and lifts its surface: a quiet cue
-    // that callouts are clickable, not just annotations.
-    const affordance = "cursor-pointer transition duration-150 hover:scale-[1.03] hover:bg-stone-700/90 hover:shadow-lg hover:shadow-black/40"
+    const attrs = `type="button" data-callout-index="${index}" data-callout-source="boxes"
+                   data-action="review-mode#toggleCallout" aria-expanded="false" aria-haspopup="true"`
     if (box.verdict === "fail" || box.verdict === "needs_review") {
       return `
-        <button ${attrs} class="text-left rounded-lg border bg-stone-900/90 px-3 py-2 ${affordance}"
+        <button ${attrs} class="text-left rounded-lg border bg-stone-900/90 px-3 py-2 ${this.constructor.AFFORDANCE}"
                 style="border-color: ${color}">
           <p class="font-semibold text-sm" style="color: ${color}">${this.escape(box.label)} — ${this.escape(box.verdict_label)}</p>
           ${box.note ? `<p class="text-sm text-stone-300 mt-0.5">${this.escape(box.note)}</p>` : ""}
@@ -511,7 +587,7 @@ export default class extends Controller {
         </button>`
     }
     return `
-      <button ${attrs} class="inline-flex items-center gap-1.5 rounded-full border border-stone-700 bg-stone-900/90 px-2.5 py-1 text-sm text-stone-300 hover:border-stone-500 hover:text-stone-100 ${affordance}">
+      <button ${attrs} class="inline-flex items-center gap-1.5 rounded-full border border-stone-700 bg-stone-900/90 px-2.5 py-1 text-sm text-stone-300 hover:border-stone-500 hover:text-stone-100 ${this.constructor.AFFORDANCE}">
         <span style="color: ${color}" aria-hidden="true">✓</span> ${this.escape(box.label)}
       </button>`
   }
@@ -521,13 +597,15 @@ export default class extends Controller {
   toggleCallout(event) {
     const button = event.currentTarget
     const index = Number(button.dataset.calloutIndex)
-    if (this.popover && this.popoverIndex === index) {
+    const source = button.dataset.calloutSource || "boxes"
+    const key = `${source}:${index}`
+    if (this.popover && this.popoverKey === key) {
       this.closePopover()
       return
     }
 
     this.closePopover()
-    const box = this.current?.boxes[index]
+    const box = this.current?.[source]?.[index]
     if (!box) return
 
     this.popover = document.createElement("div")
@@ -539,7 +617,7 @@ export default class extends Controller {
     this.workspaceTarget.appendChild(this.popover)
     this.positionPopover(button)
 
-    this.popoverIndex = index
+    this.popoverKey = key
     this.popoverButton = button
     button.setAttribute("aria-expanded", "true")
   }
@@ -548,7 +626,7 @@ export default class extends Controller {
     if (!this.popover) return
     this.popover.remove()
     this.popover = null
-    this.popoverIndex = null
+    this.popoverKey = null
     this.popoverButton?.setAttribute("aria-expanded", "false")
     this.popoverButton = null
   }

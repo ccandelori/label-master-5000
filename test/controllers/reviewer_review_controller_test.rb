@@ -70,6 +70,8 @@ class ReviewerReviewControllerTest < ActionDispatch::IntegrationTest
     finding = payload["findings"].first
     assert_equal "fail", finding["verdict"]
     assert_match(/capital letters/, finding["note"])
+    assert_equal "GOVERNMENT WARNING", finding["expected"]
+    assert_equal "Government Warning", finding["extracted"]
   end
 
   test "start pins the opening item regardless of severity order" do
