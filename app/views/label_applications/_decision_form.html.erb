@@ -1,0 +1,25 @@
+<div class="bg-white rounded-xl border border-stone-200 p-5">
+  <% if verification.decision.present? %>
+    <p class="text-lg">
+      <span class="font-semibold">Your decision:</span>
+      <%= verification.decision.humanize %>
+      <span class="text-stone-500">(<%= verification.decided_at.strftime("%b %-d, %H:%M") %>)</span>
+      <% if verification.decision_note.present? %>
+        <span class="block text-stone-600 mt-1">"<%= verification.decision_note %>"</span>
+      <% end %>
+    </p>
+  <% else %>
+    <%= form_with url: label_application_decisions_path(application), scope: :decision, class: "flex flex-wrap items-center gap-3" do |f| %>
+      <%= f.hidden_field :verification_id, value: verification.id %>
+      <span class="font-semibold mr-1">Your decision:</span>
+      <%= f.button "✓ Approve", name: "decision[decision]", value: "approve",
+            class: "rounded-lg border border-stone-300 px-4 py-2 font-medium hover:bg-green-50 cursor-pointer" %>
+      <%= f.button "✗ Reject", name: "decision[decision]", value: "reject",
+            class: "rounded-lg border border-stone-300 px-4 py-2 font-medium hover:bg-red-50 cursor-pointer" %>
+      <%= f.button "Request a better image", name: "decision[decision]", value: "retake_requested",
+            class: "rounded-lg border border-stone-300 px-4 py-2 font-medium hover:bg-amber-50 cursor-pointer" %>
+      <%= f.text_field :note, placeholder: "Add a note (optional)",
+            class: "flex-1 min-w-44 rounded-lg border-stone-300" %>
+    <% end %>
+  <% end %>
+</div>

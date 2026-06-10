@@ -3,6 +3,10 @@
 class Verification < ApplicationRecord
   belongs_to :label_application
 
+  # Live update for anyone watching the application page when a background
+  # verification completes.
+  after_create_commit :broadcast_result
+
   enum :overall_verdict, {
     pass: "pass",
     pass_with_note: "pass_with_note",
@@ -33,5 +37,16 @@ class Verification < ApplicationRecord
 
   def record_decision(decision:, note:)
     update!(decision: decision, decision_note: note, decided_at: Time.current)
+  end
+
+  private
+
+  def broadcast_result
+    broadcast_replace_to(
+      label_application,
+      target: "verification_panel",
+      partial: "label_applications/verification_panel",
+      locals: { application: label_application, verification: self }
+    )
   end
 end
