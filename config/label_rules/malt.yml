@@ -1,0 +1,154 @@
+# Malt beverage labeling rules.
+# Source of truth: BAM Vol 3 (TTB P 5130.3, 04/2007), parsed from
+# documentation/label_requirements/complete-malt-beverage-alcohol-manual.pdf.
+commodity: malt
+
+alcohol_content:
+  citation: "BAM Vol 3 1-7 to 1-8"
+  required: false
+  required_note: "Optional unless required or prohibited by state law"
+  tolerance_percentage_points: 0.3
+  expressed_to_nearest: 0.1
+  permitted_forms:
+    - "ALCOHOL __% BY VOLUME"
+    - "ALCOHOL BY VOLUME __%"
+    - "__% ALCOHOL BY VOLUME"
+    - "__% ALCOHOL/VOLUME"
+  special_terms:
+    citation: "BAM Vol 3 1-7"
+    terms:
+      - term: "low alcohol"
+        max_abv_exclusive: 2.5
+      - term: "reduced alcohol"
+        max_abv_exclusive: 2.5
+      - term: "non-alcoholic"
+        max_abv_exclusive: 0.5
+        companion_statement: "CONTAINS LESS THAN 0.5% ALC BY VOL"
+      - term: "alcohol free"
+        exact_abv: 0.0
+  hard_floors:
+    citation: "BAM Vol 3 1-8"
+    note: "Regardless of tolerance, a beverage labeled 0.5% or more may not contain less than 0.5%"
+
+net_contents:
+  citation: "BAM Vol 3 1-5 to 1-6, 5-1"
+  required_system: us_customary
+  metric_supplement_allowed: true
+  standards_of_fill: none
+  form_of_statement:
+    citation: "BAM Vol 3 5-1"
+    note: "Required American-measure expression depends on container volume"
+    buckets:
+      - max_ml_exclusive: 473.176
+        expression: "fluid ounces or fractions of a pint"
+      - exact_ml: 473.176
+        expression: "1 pint"
+      - min_ml_exclusive: 473.176
+        max_ml_exclusive: 946.353
+        expression: "pints and fluid ounces, or fractions of a quart"
+      - exact_ml: 946.353
+        expression: "1 quart"
+      - min_ml_exclusive: 946.353
+        max_ml_exclusive: 3785.412
+        expression: "quarts, pints and fluid ounces, or fractions of a gallon"
+      - exact_ml: 3785.412
+        expression: "1 gallon"
+      - min_ml_exclusive: 3785.412
+        expression: "gallons and fractions thereof"
+
+designations:
+  citation: "BAM Vol 3 4-2 to 4-5"
+  generic: "Malt Beverage"
+  entries:
+    - names: ["Ale", "Beer", "Lager", "Lager Beer", "Malt Liquor", "Porter", "Stout"]
+      kind: class
+      sufficient: true
+      min_abv: 0.5
+    - names: ["Cereal Beverage", "Near Beer"]
+      kind: class
+      sufficient: true
+      max_abv_exclusive: 0.5
+    - names: ["Amber Ale", "Amber Lager", "Barley Wine Ale", "Barley Wine Style Ale", "Bitter Ale",
+              "Bock Beer", "Brown Ale", "Cream Ale", "Cream Stout", "Dry Beer", "Export Ale",
+              "Export Beer", "Golden Ale", "Golden Lager", "Ice Beer", "Imperial Stout",
+              "India Pale Ale", "Pale Ale", "Rye Beer", "Stock Ale", "Wheat Beer"]
+      kind: type
+      sufficient: true
+      min_abv: 0.5
+    - names: ["Draft Beer", "Draught Beer"]
+      kind: type
+      sufficient: true
+      min_abv: 0.5
+      note: "Pasteurized beer may be described as draft only in containers of one gallon or larger dispensed by tap"
+    - names: ["Bavarian", "Dortmund", "Dortmunder", "Kulmbacher", "Munich", "Munchner",
+              "Salvator", "Wein", "Weiner", "Wurtzburger"]
+      kind: type
+      sufficient: true
+      min_abv: 0.5
+      origin_rule:
+        produced_in: "Germany"
+        qualifier_when_elsewhere: "Must include 'type', 'American', or a statement of true place of production"
+    - names: ["Vienna"]
+      kind: type
+      sufficient: true
+      min_abv: 0.5
+      origin_rule:
+        produced_in: "Austria"
+        qualifier_when_elsewhere: "Must include 'type', 'American', or a statement of true place of production"
+    - names: ["Pilsen", "Pilsener", "Pilsner", "Pils"]
+      kind: type
+      sufficient: true
+      min_abv: 0.5
+      origin_rule:
+        produced_in: "Czech Republic or United States"
+        qualifier_when_elsewhere: "Must include 'type' or other adjective indicating true place of production"
+    - names: ["Black and Tan", "Half and Half"]
+      kind: type
+      sufficient: false
+      composition_rule: "Designation must name the two component classes; Black and Tan must show percentages when either class is under 40% by volume"
+    - names: ["Malt Beverage Specialty"]
+      kind: class
+      sufficient: false
+      composition_rule: "Distinctive or fanciful name with a statement of composition is sufficient, e.g. 'Honey Ale, Ale Brewed With Honey'"
+
+name_and_address:
+  citation: "BAM Vol 3 1-2 to 1-4"
+  domestic_phrases: ["BREWED AND BOTTLED BY", "BREWED AND PACKED BY", "BREWED BY", "BOTTLED BY", "PACKED BY"]
+  domestic_note: "BOTTLED BY for containers of 1 gallon or less; PACKED BY for over 1 gallon"
+  import_phrases: ["IMPORTED BY", "SOLE AGENT", "SOLE U.S. AGENT"]
+  address_form: "City and state of bottling/packing location or principal place of business"
+
+country_of_origin:
+  citation: "BAM Vol 3 1-12; 19 CFR Part 134"
+  required_when: imported
+  permitted_forms:
+    - "PRODUCT OF ___"
+    - "PRODUCE OF ___"
+    - "PRODUCED IN ___"
+    - "BREWED IN ___"
+    - "PRODUCED AND BOTTLED IN ___"
+    - "BREWED AND BOTTLED IN ___"
+    - "PRODUCED BY ___"
+    - "BREWED BY ___ (with address)"
+    - "___ ALE (country with class designation)"
+
+disclosures:
+  - key: fd_c_yellow_5
+    citation: "BAM Vol 3 1-9"
+    required_text: ["CONTAINS FD&C YELLOW #5"]
+    trigger: "Product contains FD&C Yellow #5"
+  - key: saccharin
+    citation: "BAM Vol 3 1-9"
+    required_text:
+      - "USE OF THIS PRODUCT MAY BE HAZARDOUS TO YOUR HEALTH. THIS PRODUCT CONTAINS SACCHARIN WHICH HAS BEEN DETERMINED TO CAUSE CANCER IN LABORATORY ANIMALS."
+    trigger: "Product contains saccharin"
+  - key: sulfites
+    citation: "BAM Vol 3 1-10"
+    required_text: ["CONTAINS SULFITES", "CONTAINS A SULFITING AGENT", "CONTAINS SULFITING AGENTS"]
+    named_agent_allowed: true
+    trigger: "10 or more ppm sulfur dioxide"
+  - key: aspartame
+    citation: "BAM Vol 3 1-10"
+    required_text: ["PHENYLKETONURICS: CONTAINS PHENYLALANINE."]
+    all_caps_required: true
+    trigger: "Product contains aspartame"

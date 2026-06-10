@@ -1,0 +1,245 @@
+# Wine labeling rules.
+# Source of truth: BAM Vol 1 (TTB-G-2018-7, 08/2018), parsed from
+# documentation/label_requirements/complete-wine-beverage-alcohol-manual.pdf.
+commodity: wine
+
+coverage:
+  citation: "BAM Vol 1 Introduction"
+  note: "Wines under 7% ABV are outside 27 CFR Part 4 (FDA labeling rules apply); Part 4 checks return not_applicable"
+  min_abv_for_part_4: 7.0
+
+alcohol_content:
+  citation: "BAM Vol 1 1-3 to 1-5"
+  required: true
+  required_exception: "Optional at or under 14% ABV when the brand label carries the designation 'Table Wine' or 'Light Wine'"
+  tolerance_percentage_points:
+    at_or_under_14: 1.5
+    over_14: 1.0
+  range_statements:
+    max_spread_at_or_under_14: 3.0
+    max_spread_over_14: 2.0
+  tax_class_boundary:
+    citation: "BAM Vol 1 1-5"
+    boundary_abv: 14.0
+    note: "Tolerance never excuses crossing the table/dessert class boundary"
+  permitted_forms:
+    - "ALCOHOL __% BY VOLUME"
+    - "__% ALCOHOL BY VOLUME"
+    - "ALCOHOL __% TO __% BY VOLUME"
+    - "__% TO __% ALCOHOL BY VOLUME"
+
+net_contents:
+  citation: "BAM Vol 1 7-1 to 7-3"
+  required_system: metric
+  standards_of_fill_ml: [3000, 1500, 1000, 750, 500, 375, 187, 100, 50]
+  even_liters_range_ml:
+    min: 4000
+    max: 17000
+  exemptions: ["sake", "containers of 18 liters or more", "bottled before 1979-01-01"]
+  us_equivalent_allowed: true
+  discrepancy:
+    note: "Current 27 CFR 4.72 authorizes additional fill sizes beyond this 2018 BAM list; BAM governs the verdict and the note reports the divergence"
+    current_regulation: "27 CFR 4.72"
+
+designations:
+  citation: "BAM Vol 1 5-1 to 5-15"
+  entries:
+    - names: ["Table Wine", "Light Wine"]
+      kind: type
+      sufficient: true
+      min_abv: 7.0
+      max_abv: 14.0
+      satisfies_abv_statement: true
+      commodity_qualifier_rule: "Non-grape table/light wine must name the commodity, e.g. 'Cherry Table Wine'"
+    - names: ["Dessert Wine"]
+      kind: type
+      sufficient: true
+      min_abv_exclusive: 14.0
+      max_abv: 24.0
+      commodity_qualifier_rule: "Non-grape dessert wine must name the commodity, e.g. 'Pineapple Dessert Wine'"
+    - names: ["Red Wine", "White Wine", "Rose Wine", "Pink Wine", "Amber Wine"]
+      kind: type
+      sufficient: true
+      color_word_rule: "The color word alone is insufficient; it must be followed by 'Wine'"
+    - names: ["Grape Wine", "Citrus Wine", "Fruit Wine", "Berry Wine", "Sparkling Wine",
+              "Carbonated Wine", "Crackling Wine", "Petillant Wine", "Frizzante Wine",
+              "Cremant Wine", "Perlant Wine", "Reciotto Wine", "Aperitif Wine", "Vermouth",
+              "Cider", "Apple Wine", "Perry", "Pear Wine", "Mead", "Honey Wine", "Sake",
+              "Rice Wine", "Raisin Wine", "Muscadine", "Muscat", "Moscato", "Muscatel",
+              "Light Muscatel", "Scuppernong"]
+      kind: class_or_type
+      sufficient: true
+    - names: ["Champagne"]
+      kind: semi_generic
+      sufficient: true
+      requires_appellation: true
+      origin_rule:
+        produced_in: "France"
+        note: "Semi-generic; usable for other origins only with appellation and grandfathering under 26 USC 5388(c)"
+    - names: ["Burgundy", "Chablis", "Chianti", "Claret", "Malaga", "Marsala", "Moselle",
+              "Rhine Wine", "Hock", "Sauterne", "Haut Sauterne", "Tokay", "Sherry",
+              "Light Sherry", "Madeira", "Light Madeira", "Port", "Light Port",
+              "Angelica", "Light Angelica", "Retsina"]
+      kind: semi_generic
+      sufficient: true
+      requires_appellation: true
+    - names: ["Aloxe-Corton", "Alsace", "Vin d'Alsace", "Anjou", "Barsac", "Batard-Montrachet",
+              "Beaujolais", "Beaujolais Villages", "Beaune", "Bonnes Mares", "Bordeaux",
+              "Bordeaux Blanc", "Bordeaux Rouge", "Bourgogne", "Brouilly", "Chambertin",
+              "Chambolle-Musigny", "Charmes-Chambertin", "Chassagne-Montrachet", "Chateau Lafite",
+              "Chateau Margaux", "Chateau Yquem", "Chateauneuf-du-Pape", "Chenas",
+              "Chevalier-Montrachet", "Chiroubles", "Clos de la Roche", "Clos de Vougeot",
+              "Corton", "Corton-Charlemagne", "Cote de Beaune", "Cote de Beaune-Villages",
+              "Cote de Brouilly", "Cote de Nuits", "Cote de Nuits-Villages", "Cote Rotie",
+              "Coteaux du Layon", "Cotes du Rhone", "Echezeaux", "Entre-Deux-Mers", "Fleurie",
+              "Gevrey-Chambertin", "Grands Echezeaux", "Graves", "Haut Medoc", "Hermitage",
+              "La Tache", "Loire", "Macon", "Margaux", "Medoc", "Mercurey", "Meursault",
+              "Montrachet", "Morgon", "Moulin-a-Vent", "Muscadet", "Musigny", "Nuits",
+              "Nuits-Saint-Georges", "Pauillac", "Pomerol", "Pommard", "Pouilly-Fuisse",
+              "Pouilly Fume", "Puligny-Montrachet", "Rhone", "Richebourg", "Romanee-Conti",
+              "Romanee Saint-Vivant", "Rose d'Anjou", "Saint-Amour", "Saint-Emilion",
+              "Saint-Estephe", "Saint-Julien", "Sancerre", "Santenay", "Saumur", "Savigny",
+              "Savigny-les-Beaunes", "Tavel", "Touraine", "Volnay", "Vosne-Romanee", "Vouvray"]
+      kind: foreign_nongeneric
+      sufficient: true
+      origin_rule:
+        produced_in: "France"
+        note: "Distinctive designation of a specific French grape wine (27 CFR 4.24, Part 12)"
+    - names: ["Asti Spumante", "Barbaresco", "Barbera d'Alba", "Barbera d'Asti", "Bardolino",
+              "Barolo", "Brunello di Montalcino", "Dolcetto d'Alba", "Frascati", "Gattinara",
+              "Lacryma Christi", "Nebbiolo d'Alba", "Orvieto", "Soave", "Valpolicella",
+              "Vino Nobile de Montepulciano"]
+      kind: foreign_nongeneric
+      sufficient: true
+      origin_rule:
+        produced_in: "Italy"
+        note: "Distinctive designation of a specific Italian grape wine"
+    - names: ["Bernkasteler Doctor", "Bernkasteler Doktor", "Deidesheimer", "Dexheimer Doktor",
+              "Erbacher Marcobrunn", "Forster", "Forster Jesuitengarten", "Graacher Himmelreich",
+              "Liebfraumilch", "Liebfrauenmilch", "Mosel", "Mosel-Saar-Ruwer",
+              "Ockfener Bockstein", "Piesporter Goldtropfchen", "Piesporter Michelsberg",
+              "Piesporter Treppchen", "Rudesheimer", "Scharzhofberger", "Schloss Johannisberger",
+              "Schloss Vollrads", "Wehlener Sonnenuhr", "Zeller Schwarze Katz"]
+      kind: foreign_nongeneric
+      sufficient: true
+      origin_rule:
+        produced_in: "Germany"
+        note: "Distinctive designation of a specific German grape wine"
+    - names: ["Dao", "Oporto", "Porto", "Vinho Do Porto"]
+      kind: foreign_nongeneric
+      sufficient: true
+      origin_rule:
+        produced_in: "Portugal"
+        note: "Distinctive designation of a specific Portuguese grape wine"
+    - names: ["Lagrima", "Rioja"]
+      kind: foreign_nongeneric
+      sufficient: true
+      origin_rule:
+        produced_in: "Spain"
+        note: "Distinctive designation of a specific Spanish grape wine"
+    - names: ["Substandard Wine", "Other Than Standard Wine", "Imitation Wine"]
+      kind: class
+      sufficient: false
+      composition_rule: "Must name the specific class or type it would otherwise belong to"
+    - names: ["Wine Specialty"]
+      kind: class
+      sufficient: false
+      composition_rule: "Requires a truthful and adequate statement of composition on the brand label"
+  varietal_rule:
+    citation: "BAM Vol 1 5-9 to 5-10; 27 CFR 4.23"
+    note: "A grape variety name is an open-set type designation; it requires an appellation of origin. Multi-varietal designations must show percentages totaling 100"
+  abv_class_constraints:
+    citation: "BAM Vol 1 5-2, 5-8 to 5-10"
+    constraints:
+    - designation: "Table Wine"
+      min: 7.0
+      max: 14.0
+    - designation: "Light Wine"
+      min: 7.0
+      max: 14.0
+    - designation: "Dessert Wine"
+      min_exclusive: 14.0
+      max: 24.0
+    - designation: "Sherry"
+      min: 17.0
+      max: 24.0
+    - designation: "Light Sherry"
+      min_exclusive: 14.0
+      max_exclusive: 17.0
+    - designation: "Madeira"
+      min: 18.0
+      max: 24.0
+    - designation: "Port"
+      min: 18.0
+      max: 24.0
+    - designation: "Angelica"
+      min: 18.0
+      max: 24.0
+    - designation: "Muscatel"
+      min: 18.0
+      max: 24.0
+    - designation: "Light Madeira"
+      min_exclusive: 14.0
+      max_exclusive: 18.0
+    - designation: "Light Port"
+      min_exclusive: 14.0
+      max_exclusive: 18.0
+    - designation: "Light Angelica"
+      min_exclusive: 14.0
+      max_exclusive: 18.0
+    - designation: "Light Muscatel"
+      min_exclusive: 14.0
+      max_exclusive: 18.0
+    - designation: "Vermouth"
+      min: 15.0
+
+presence_rules:
+  - key: vintage_requires_appellation
+    citation: "BAM Vol 1 9-5; 27 CFR 4.27"
+    note: "A vintage date on the label requires an appellation of origin in direct conjunction with the class/type designation"
+  - key: varietal_requires_appellation
+    citation: "BAM Vol 1 9-1; 27 CFR 4.23"
+    note: "A varietal designation requires an appellation of origin"
+  - key: semi_generic_requires_appellation
+    citation: "BAM Vol 1 5-14; 26 USC 5388(c)"
+    note: "Semi-generic designations require an appellation of origin"
+
+name_and_address:
+  citation: "BAM Vol 1 1-7 to 1-9, 6-1 to 6-3"
+  domestic_phrases: ["BOTTLED BY", "PACKED BY"]
+  domestic_note: "BOTTLED BY for containers of 4 liters or less; PACKED BY for more than 4 liters"
+  operation_phrases: ["PRODUCED AND BOTTLED BY", "MADE AND BOTTLED BY", "BLENDED AND BOTTLED BY",
+                      "CELLARED AND BOTTLED BY", "VINTED AND BOTTLED BY", "PREPARED AND BOTTLED BY",
+                      "PRODUCED BY", "MADE BY", "BLENDED BY", "CELLARED BY", "VINTED BY", "PREPARED BY"]
+  import_phrases: ["IMPORTED BY", "SOLE U.S. AGENT", "IMPORTED AND BOTTLED BY", "IMPORTED BY AND BOTTLED FOR"]
+  address_form: "City and state from the basic permit; street address may be omitted"
+
+country_of_origin:
+  citation: "BAM Vol 1 1-15; 19 CFR 134.11"
+  required_when: imported
+  permitted_forms:
+    - "PRODUCT OF ___"
+    - "PRODUCE OF ___"
+
+sulfite_policy:
+  citation: "BAM Vol 1 1-12 to 1-13"
+  note: "TTB will not approve a wine label without a sulfite statement unless a TTB laboratory analysis shows under 10 ppm; absence is therefore needs_review, never silent pass"
+  missing_statement_verdict: needs_review
+
+disclosures:
+  - key: sulfites
+    citation: "BAM Vol 1 1-12"
+    required_text: ["CONTAINS SULFITES", "CONTAINS A SULFITING AGENT", "CONTAINS SULFITING AGENTS",
+                    "CONTAINS NATURALLY OCCURING SULFITES",
+                    "NO SULFITES ADDED, CONTAINS ONLY NATURALLY OCCURING SULFITES"]
+    named_agent_allowed: true
+    trigger: "10 or more ppm sulfur dioxide"
+  - key: fd_c_yellow_5
+    citation: "BAM Vol 1 1-10"
+    required_text: ["CONTAINS FD&C YELLOW NO. 5", "CONTAINS FD&C YELLOW #5"]
+    trigger: "Product contains FD&C Yellow No. 5"
+  - key: cochineal_carmine
+    citation: "BAM Vol 1 1-11"
+    required_text: ["CONTAINS COCHINEAL EXTRACT", "CONTAINS CARMINE",
+                    "CONTAINS COCHINEAL EXTRACT AND CARMINE"]
+    trigger: "Product contains cochineal extract or carmine"

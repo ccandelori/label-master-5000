@@ -1,0 +1,31 @@
+# Health warning statement rules shared by all three commodities.
+# Source of truth: Beverage Alcohol Manuals (malt Vol 3 2007, spirits Vol 2
+# 2007, wine Vol 1 2018), which all quote 27 CFR 16.21-16.22 identically.
+health_warning:
+  citation: "27 CFR 16.21; BAM Vol 1 1-14, Vol 2 1-17, Vol 3 1-11"
+  applies_when: "Alcohol beverages with 0.5% or more alcohol by volume, bottled on or after 1989-11-18"
+  statutory_text: >-
+    GOVERNMENT WARNING: (1) According to the Surgeon General, women should
+    not drink alcoholic beverages during pregnancy because of the risk of
+    birth defects. (2) Consumption of alcoholic beverages impairs your
+    ability to drive a car or operate machinery, and may cause health
+    problems.
+  format:
+    citation: "27 CFR 16.22; BAM Vol 1 3-1, Vol 2 1-17, Vol 3 1-11"
+    prefix: "GOVERNMENT WARNING:"
+    prefix_capitals_and_bold: true
+    remainder_not_bold: true
+    continuous_paragraph: true
+    separate_from_other_information: true
+  # Physical legibility rules are recorded for reference but are out of
+  # scope for verification from artwork (cannot measure millimeters or
+  # characters per inch from an uncalibrated image).
+  out_of_scope_physical:
+    minimum_type_size_mm:
+      over_3000_ml: 3
+      over_237_ml_to_3000_ml: 2
+      up_to_237_ml: 1
+    max_characters_per_inch:
+       1mm: 40
+       2mm: 25
+       3mm: 12
