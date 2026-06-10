@@ -85,8 +85,9 @@ module Reviewer
       }
     end
 
-    # The flagged checks, worst first - drives the screen-reader mirror and
-    # the no-artwork fallback list.
+    # The flagged checks, worst first - drives the screen-reader mirror,
+    # the no-artwork fallback list, and the absence rail for findings
+    # with no located box.
     def findings_for(checks)
       checks.select { |c| %w[fail needs_review].include?(c.verdict) }
             .sort_by { |c| -c.severity }
@@ -97,7 +98,9 @@ module Reviewer
           verdict: check.verdict,
           verdict_label: helpers.verdict_label(check.verdict),
           note: check.note,
-          citation: check.citation
+          citation: check.citation,
+          expected: check.expected,
+          extracted: check.extracted
         }
       end
     end

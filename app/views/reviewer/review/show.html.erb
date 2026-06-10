@@ -52,6 +52,9 @@
   <%# Decision controls: the two decisions centered under the label, the
       quiet retake request beneath them. %>
   <footer class="flex flex-col items-center gap-2 px-5 pt-4 pb-5" data-review-mode-target="controls">
+    <%# Verdict counts at the decision moment - the answer to "did I miss
+        a finding the artwork annotations could not show?" %>
+    <p class="text-sm text-stone-400" aria-live="polite" data-review-mode-target="summary"></p>
     <div class="flex items-center justify-center gap-4">
       <button type="button" data-action="review-mode#approve"
               class="rounded-xl bg-green-600 text-white px-10 py-4 text-xl font-semibold hover:bg-green-500 cursor-pointer">
