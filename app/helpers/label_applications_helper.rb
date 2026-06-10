@@ -50,20 +50,31 @@ module LabelApplicationsHelper
       }
     end
 
+    # One box per unique disclosure text: the model reports each printed
+    # occurrence separately, and repeats would stack identical chips.
+    # Each box carries the verdict of its disclosure_* check when one
+    # matched this text, so a failing disclosure colors its chip.
+    disclosure_checks = verification.field_checks.select { |c| c.field.start_with?("disclosure_") }
+    seen_disclosures = Set.new
+
     Array(payload["disclosures"]).each_with_index do |field, index|
       next if field.nil? || !valid_bbox?(field["bbox"])
+      next unless seen_disclosures.add?(Parsing::TextNormalizer.normalize(field["text"]))
 
+      check = disclosure_checks.find do |c|
+        Parsing::TextNormalizer.equivalent?(c.extracted, field["text"])
+      end
       boxes << {
-        field: "disclosure_#{index}",
-        related_fields: [],
+        field: check&.field || "disclosure_#{index}",
+        related_fields: check ? [ check.field ] : [],
         label: "Disclosure",
         bbox: field["bbox"],
         basis: field_basis(field) || basis,
         page: field["page"] || 1,
-        verdict: "pass",
-        verdict_label: "Read",
-        note: field["text"],
-        citation: nil
+        verdict: check&.verdict || "pass",
+        verdict_label: check ? verdict_label(check.verdict) : "Read",
+        note: check&.note || field["text"],
+        citation: check&.citation
       }
     end
 
