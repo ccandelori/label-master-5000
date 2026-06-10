@@ -19,7 +19,7 @@ class DecisionsControllerTest < ActionDispatch::IntegrationTest
   test "decisions are recorded on submitted applications" do
     application, verification = create_verified_application(channel: "submitted")
 
-    post label_application_decisions_path(application),
+    post label_application_decision_path(application),
          params: { decision: { verification_id: verification.id, decision: "approve", note: "" } }
 
     assert_redirected_to label_application_path(application)
@@ -29,7 +29,7 @@ class DecisionsControllerTest < ActionDispatch::IntegrationTest
   test "decisions are rejected for pre-review applications" do
     application, verification = create_verified_application(channel: "pre_review")
 
-    post label_application_decisions_path(application),
+    post label_application_decision_path(application),
          params: { decision: { verification_id: verification.id, decision: "approve", note: "" } }
 
     assert_redirected_to label_application_path(application)

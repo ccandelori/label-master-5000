@@ -1,35 +1,64 @@
 <% content_for :title, "Review queue" %>
 
-<div class="mb-6">
-  <h1 class="text-2xl font-semibold">Review queue</h1>
-  <p class="text-stone-600 mt-1 max-w-2xl">
-    Applications submitted to TTB, checked field by field against the label
-    artwork. Open one to see the cited findings and record your decision.
-  </p>
+<div class="flex items-start justify-between flex-wrap gap-3 mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold">Review queue</h1>
+    <p class="text-stone-600 mt-1 max-w-2xl">
+      Applications submitted to TTB, checked field by field against the label
+      artwork. Worst findings first; open a record for the full detail, or
+      work the queue in review mode.
+    </p>
+  </div>
+  <%= link_to "Enter review mode", reviewer_review_path,
+        class: "rounded-lg bg-stone-900 text-white px-5 py-2.5 font-medium hover:bg-stone-700" %>
 </div>
 
-<% if @applications.empty? %>
+<div class="flex items-center justify-between flex-wrap gap-3 mb-4">
+  <nav class="inline-flex rounded-lg border border-stone-300 bg-white p-1" aria-label="Queue view">
+    <% ReviewerQueue::TABS.each do |tab| %>
+      <%= link_to reviewer_queue_path(tab: tab, q: @query.presence),
+            class: "px-4 py-1.5 rounded-md font-medium #{tab == @tab ? 'bg-stone-900 text-white' : 'text-stone-700 hover:bg-stone-100'}",
+            aria: { current: tab == @tab ? "page" : nil } do %>
+        <%= ReviewerQueue::TAB_LABELS.fetch(tab) %>
+        <span class="<%= tab == @tab ? 'text-stone-300' : 'text-stone-500' %>"><%= @tabs.fetch(tab).size %></span>
+      <% end %>
+    <% end %>
+  </nav>
+
+  <%= form_with url: reviewer_queue_path, method: :get, class: "flex gap-2" do |f| %>
+    <%= f.hidden_field :tab, value: @tab %>
+    <%= f.label :q, "Search by serial or brand", class: "sr-only" %>
+    <%= f.search_field :q, value: @query, placeholder: "Serial or brand…",
+          class: "rounded-lg border-stone-300 w-56" %>
+    <%= f.submit "Search", class: "rounded-lg border border-stone-300 bg-white px-4 py-2 font-medium hover:bg-stone-100 cursor-pointer" %>
+  <% end %>
+</div>
+
+<% if @entries.empty? %>
   <section class="bg-white rounded-xl border border-stone-200 p-8 text-center">
-    <p class="text-lg font-medium mb-1">The queue is empty.</p>
-    <p class="text-stone-600">Submitted applications appear here as they are filed.</p>
+    <p class="text-lg font-medium mb-1">Nothing in <%= ReviewerQueue::TAB_LABELS.fetch(@tab).downcase %>.</p>
+    <p class="text-stone-600">
+      <%= @query.present? ? "No matches for “#{@query}” here." : "Submitted applications appear as they are filed and checked." %>
+    </p>
   </section>
 <% else %>
   <div class="bg-white rounded-xl border border-stone-200 overflow-hidden">
     <table class="w-full text-left">
-      <caption class="sr-only">Submitted applications awaiting review</caption>
+      <caption class="sr-only">Submitted applications - <%= ReviewerQueue::TAB_LABELS.fetch(@tab) %></caption>
       <thead>
         <tr class="border-b border-stone-200 text-stone-600">
           <th scope="col" class="px-4 py-3 font-medium">Serial</th>
           <th scope="col" class="px-4 py-3 font-medium">Brand</th>
           <th scope="col" class="px-4 py-3 font-medium">Type</th>
           <th scope="col" class="px-4 py-3 font-medium">Check result</th>
-          <th scope="col" class="px-4 py-3 font-medium">Decision</th>
-          <th scope="col" class="px-4 py-3"><span class="sr-only">Open</span></th>
+          <th scope="col" class="px-4 py-3 font-medium"><%= @tab == "decided" ? "Decision" : "Submitted" %></th>
+          <th scope="col" class="px-4 py-3 text-right"><span class="sr-only">Actions</span></th>
         </tr>
       </thead>
       <tbody>
-        <% @applications.each do |application| %>
-          <% verification = application.latest_verification %>
+        <% @entries.each do |entry| %>
+          <% application = entry.application %>
+          <% verification = entry.verification %>
           <tr class="border-t border-stone-100">
             <td class="px-4 py-3 font-medium"><%= application.serial_number %></td>
             <td class="px-4 py-3"><%= application.brand_name %></td>
@@ -42,9 +71,20 @@
               <% end %>
             </td>
             <td class="px-4 py-3 text-stone-700">
-              <%= verification&.decision ? verification.decision.humanize : "—" %>
+              <% if @tab == "decided" %>
+                <%= verification.decision.humanize %>
+                <span class="text-stone-500"><%= verification.decided_at&.strftime("%b %-d, %H:%M") %></span>
+              <% else %>
+                <%= application.created_at.strftime("%b %-d, %H:%M") %>
+              <% end %>
             </td>
-            <td class="px-4 py-3 text-right">
+            <td class="px-4 py-3 text-right whitespace-nowrap">
+              <% if @tab == "ready_to_approve" %>
+                <%= button_to "✓ Approve", label_application_decision_path(application),
+                      params: { decision: { verification_id: verification.id, decision: "approve" } },
+                      form_class: "inline-block mr-2",
+                      class: "rounded-lg border border-green-700 text-green-900 bg-green-50 px-3 py-1.5 font-medium hover:bg-green-100 cursor-pointer" %>
+              <% end %>
               <%= link_to "Open", application, class: "font-medium text-stone-900 underline underline-offset-2 hover:text-stone-600" %>
             </td>
           </tr>

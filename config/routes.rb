@@ -6,12 +6,14 @@ Rails.application.routes.draw do
 
   namespace :reviewer do
     get "queue", to: "queue#index", as: :queue
+    get "review", to: "review#show", as: :review
+    get "review/next", to: "review#next_item", as: :review_next, defaults: { format: :json }
   end
 
   get "rules", to: "rules#index"
 
   resources :label_applications, only: %i[new create show edit update] do
-    resources :decisions, only: :create
+    resource :decision, only: %i[create destroy]
     resource :submission, only: :create
   end
 

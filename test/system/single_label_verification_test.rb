@@ -82,9 +82,10 @@ class SingleLabelVerificationTest < ApplicationSystemTestCase
     assert_text "Decision recorded"
     assert_text "Your decision: Reject"
 
-    # And it appears in the queue.
-    visit reviewer_queue_path
+    # And it appears in the queue, under the decided tab.
+    visit reviewer_queue_path(tab: "decided")
     assert_text "OLD TOM DISTILLERY"
+    assert_text "Reject"
   ensure
     VerifyLabelJob.extractor_factory = original
   end

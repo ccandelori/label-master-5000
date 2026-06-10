@@ -21,7 +21,8 @@ class SubmissionsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to label_application_path(application)
     assert application.reload.submitted?
 
-    get reviewer_queue_path
+    # Not yet verified, so it surfaces under the unchecked tab.
+    get reviewer_queue_path(tab: "unchecked")
     assert_match(/PROMOTED PILS/, response.body)
   end
 

@@ -39,6 +39,10 @@ class Verification < ApplicationRecord
     update!(decision: decision, decision_note: note, decided_at: Time.current)
   end
 
+  def undo_decision
+    update!(decision: nil, decision_note: nil, decided_at: nil)
+  end
+
   private
 
   def broadcast_result
