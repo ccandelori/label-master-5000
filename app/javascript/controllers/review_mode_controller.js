@@ -326,9 +326,11 @@ export default class extends Controller {
       const scaleX = imgRect.width / basisW
       const scaleY = imgRect.height / basisH
       const [x, y, w, h] = box.bbox
-      const side = x + w / 2 < basisW / 2 ? "left" : "right"
+      const relCenter = (x + w / 2) / basisW
+      const side = relCenter < 0.5 ? "left" : "right"
       sides[side].push({
         box,
+        relCenter,
         targetY: imgTop + (y + h / 2) * scaleY,
         edges: {
           left: imgLeft + x * scaleX,
@@ -338,6 +340,7 @@ export default class extends Controller {
       })
     })
 
+    this.balanceSides(sides)
     const allItems = [ ...sides.left, ...sides.right ]
     this.drawSpotlight(allItems, {
       x: imgLeft, y: imgTop, w: imgRect.width, h: imgRect.height
@@ -345,6 +348,23 @@ export default class extends Controller {
     this.drawBoxOutlines(allItems)
     this.placeColumn(sides.left, this.leftColumnTarget, "left", wsRect)
     this.placeColumn(sides.right, this.rightColumnTarget, "right", wsRect)
+  }
+
+  // Side assignment follows each box's half of the label, which piles
+  // every callout into one column on an asymmetric label. Move the boxes
+  // nearest the centerline to the lighter side until the columns are
+  // within one of each other - their leader lines stay shortest among
+  // the candidates.
+  balanceSides(sides) {
+    const imbalance = () => sides.left.length - sides.right.length
+    while (imbalance() >= 2) {
+      sides.left.sort((a, b) => a.relCenter - b.relCenter)
+      sides.right.push(sides.left.pop())
+    }
+    while (imbalance() <= -2) {
+      sides.right.sort((a, b) => a.relCenter - b.relCenter)
+      sides.left.push(sides.right.shift())
+    }
   }
 
   // Dims the artwork slightly everywhere except inside the bounding boxes,
@@ -426,12 +446,12 @@ export default class extends Controller {
       const top = Math.max(item.targetY - height / 2, cursor)
       el.style.top = `${top}px`
       el.style.visibility = ""
-      cursor = top + height + 10
+      cursor = top + height + 16
       return { item, el, top, height }
     })
 
     // If the stack ran past the workspace, shift it up as one block.
-    const overflow = cursor - 10 - this.workspaceTarget.clientHeight
+    const overflow = cursor - 16 - this.workspaceTarget.clientHeight
     if (overflow > 0) {
       placed.forEach((p) => {
         p.top = Math.max(p.top - overflow, 0)
