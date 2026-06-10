@@ -24,12 +24,15 @@ class LabelApplicationsHelperTest < ActionView::TestCase
   test "renders one disclosure box per unique normalized text" do
     duplicated = [
       located("CONTAINS SULFITES", bbox: [ 10, 20, 100, 12 ]),
-      located("Contains Sulfites.", bbox: [ 10, 800, 100, 12 ]),
-      located("COLORED WITH FD&C YELLOW #5", bbox: [ 10, 400, 100, 12 ])
+      located("Contains Sulfites.", bbox: [ 10, 800, 100, 12 ])
     ]
-    boxes = bbox_data(verification(disclosures: duplicated))
+    check = FieldCheck.new(
+      field: "disclosure_sulfites", verdict: "pass", expected: "CONTAINS SULFITES",
+      extracted: "CONTAINS SULFITES", citation: "27 CFR 4.32a", note: nil
+    )
+    boxes = bbox_data(verification(disclosures: duplicated, checks: [ check ]))
 
-    assert_equal 2, boxes.size
+    assert_equal 1, boxes.size
     assert_equal [ 10, 20, 100, 12 ], boxes.first[:bbox], "first occurrence keeps its box"
   end
 
@@ -70,29 +73,23 @@ class LabelApplicationsHelperTest < ActionView::TestCase
     assert_equal "OLD TOM", box[:extracted]
   end
 
-  test "field boxes without a check expose the read text as extracted" do
+  test "located fields without a backing check render no box" do
     v = Verification.new(
       extraction: {
         "image_width" => 800, "image_height" => 1000,
-        "fields" => { "vintage" => located("2021") },
+        "fields" => { "fanciful_name" => located("LIMITED EDITION, SAME GREAT TASTE") },
         "disclosures" => []
       },
       field_checks: []
     )
-    box = bbox_data(v).first
 
-    assert_nil box[:expected]
-    assert_equal "2021", box[:extracted]
+    assert_empty bbox_data(v), "nothing on the application means nothing to verify"
   end
 
-  test "disclosure box without a matching check defaults to a plain read" do
-    boxes = bbox_data(verification(disclosures: [ located("Enjoy responsibly") ]))
+  test "disclosure-shaped text no check claimed renders no box" do
+    boxes = bbox_data(verification(disclosures: [ located("IA 5c ME 15c"), located("Enjoy responsibly") ]))
 
-    box = boxes.first
-    assert_equal "pass", box[:verdict]
-    assert_equal "Read", box[:verdict_label]
-    assert_equal "Enjoy responsibly", box[:note]
-    assert_nil box[:citation]
+    assert_empty boxes, "bottle deposits and taglines are not disclosures"
   end
 
   test "drops disclosures with malformed boxes" do

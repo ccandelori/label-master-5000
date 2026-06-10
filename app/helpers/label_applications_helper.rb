@@ -36,6 +36,12 @@ module LabelApplicationsHelper
 
       checks = Array(EXTRACTION_FIELD_TO_CHECKS[key]).filter_map { |f| checks_by_field[f] }
       worst = checks.max_by(&:severity)
+      # A box renders only when a rules check stands behind it. The model
+      # reads everything it can; without a check the read is noise here -
+      # a marketing tagline mistaken for a fanciful name the application
+      # never declared, say.
+      next if worst.nil?
+
       boxes << {
         field: Array(EXTRACTION_FIELD_TO_CHECKS[key]).first || key,
         related_fields: Array(EXTRACTION_FIELD_TO_CHECKS[key]),
@@ -43,41 +49,43 @@ module LabelApplicationsHelper
         bbox: field["bbox"],
         basis: field_basis(field) || basis,
         page: field["page"] || 1,
-        verdict: worst&.verdict || "pass",
-        verdict_label: worst ? verdict_label(worst.verdict) : "Read",
-        note: worst&.note,
-        citation: worst&.citation,
-        expected: worst&.expected,
-        extracted: worst&.extracted || field["text"]
+        verdict: worst.verdict,
+        verdict_label: verdict_label(worst.verdict),
+        note: worst.note,
+        citation: worst.citation,
+        expected: worst.expected,
+        extracted: worst.extracted || field["text"]
       }
     end
 
-    # One box per unique disclosure text: the model reports each printed
-    # occurrence separately, and repeats would stack identical chips.
-    # Each box carries the verdict of its disclosure_* check when one
-    # matched this text, so a failing disclosure colors its chip.
+    # One box per unique disclosure text, and only for texts a
+    # disclosure_* check actually claimed: the model also reads
+    # disclosure-shaped matter that no regulation asks for (bottle
+    # deposit values, say), and those are noise here.
     disclosure_checks = verification.field_checks.select { |c| c.field.start_with?("disclosure_") }
     seen_disclosures = Set.new
 
-    Array(payload["disclosures"]).each_with_index do |field, index|
+    Array(payload["disclosures"]).each do |field|
       next if field.nil? || !valid_bbox?(field["bbox"])
       next unless seen_disclosures.add?(Parsing::TextNormalizer.normalize(field["text"]))
 
       check = disclosure_checks.find do |c|
         Parsing::TextNormalizer.equivalent?(c.extracted, field["text"])
       end
+      next if check.nil?
+
       boxes << {
-        field: check&.field || "disclosure_#{index}",
-        related_fields: check ? [ check.field ] : [],
+        field: check.field,
+        related_fields: [ check.field ],
         label: "Disclosure",
         bbox: field["bbox"],
         basis: field_basis(field) || basis,
         page: field["page"] || 1,
-        verdict: check&.verdict || "pass",
-        verdict_label: check ? verdict_label(check.verdict) : "Read",
-        note: check&.note || field["text"],
-        citation: check&.citation,
-        expected: check&.expected,
+        verdict: check.verdict,
+        verdict_label: verdict_label(check.verdict),
+        note: check.note || field["text"],
+        citation: check.citation,
+        expected: check.expected,
         extracted: field["text"]
       }
     end
