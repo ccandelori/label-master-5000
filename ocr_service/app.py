@@ -20,15 +20,16 @@ from paddleocr import PaddleOCR
 from PIL import Image
 
 # Detection cost (CPU time and the allocator's permanent high-water
-# mark) scales with input area. Inputs are downscaled to this longest
-# side before inference and the word boxes scaled back, so callers
-# always receive coordinates in the original pixel space. The default
-# matches PaddleOCR's internal detection ceiling - identical recognition
-# to letting Paddle downscale, minus the decode of oversized uploads.
-# Memory-constrained hosts can lower it; fine print lost to a lower cap
-# is recovered by the caller's targeted region crops, which arrive here
-# small and pre-magnified.
-MAX_SIDE = int(os.environ.get("OCR_MAX_INPUT_SIDE", "4000"))
+# mark) scales with input area: a ~3800px read peaks past 10GB on CPU,
+# and Paddle's arena keeps that high-water mark for the worker's life.
+# Inputs are downscaled to this longest side before inference and the
+# word boxes scaled back, so callers always receive coordinates in the
+# original pixel space. Fine print lost to the cap is recovered by the
+# caller's targeted region crops, which arrive here small and
+# pre-magnified. Hosts with real memory (or a GPU) can raise it up to
+# PaddleOCR's own 4000px detection ceiling; keep the Rails side's
+# EXTRACTION_OCR_MAX_INPUT_SIDE in agreement.
+MAX_SIDE = int(os.environ.get("OCR_MAX_INPUT_SIDE", "2500"))
 
 app = FastAPI()
 

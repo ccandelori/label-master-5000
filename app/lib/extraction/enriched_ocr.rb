@@ -14,12 +14,12 @@ module Extraction
   # chosen DPI upstream.
   class EnrichedOcr
     UPSCALE_FACTOR = 2.0
-    # PaddleOCR downscales anything whose longest side exceeds ~4000px
-    # before detection, so upscaling past that ceiling burns memory and
-    # transfer for zero recognition gain. The factor is capped to stay
-    # under it, and the pass is skipped when the cap leaves nothing
-    # meaningful (already-huge artwork is at native detector resolution).
-    UPSCALE_MAX_SIDE = 4000
+    # Upscaling past the OCR engine's own input ceiling burns memory and
+    # transfer for zero recognition gain (the engine downscales it right
+    # back). Must stay aligned with the sidecar's OCR_MAX_INPUT_SIDE; the
+    # pass is skipped when the cap leaves nothing meaningful (artwork
+    # already at or above detector resolution).
+    UPSCALE_MAX_SIDE = Integer(ENV.fetch("EXTRACTION_OCR_MAX_INPUT_SIDE", "2500"))
     UPSCALE_MIN_FACTOR = 1.2
 
     def initialize(engine:)
