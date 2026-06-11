@@ -29,12 +29,18 @@ module Parsing
       (?:(?<num>\d+)/(?<den>\d+))
     }x
 
-    SEGMENT = /#{QUANTITY}\s*(?<unit>[a-zA-Z][a-zA-Z. ]*?)(?=\s*(?:,|\band\b|\d)|\s*\z)/
+    SEGMENT = /#{QUANTITY}\s*(?<unit>[a-zA-Z][a-zA-Z. ]*?)(?=\s*(?:,|\band\b|\d|[()])|\s*\z)/
+
+    # A trailing segment within this relative tolerance of the volume so
+    # far is a restatement of it, not an addition; the slack absorbs the
+    # rounding labels print ("750 mL (25.4 FL OZ)" is off by 0.16%).
+    RESTATEMENT_TOLERANCE = 0.015
 
     module_function
 
     # "750 mL" -> metric 750.0; "1 pint, 4 fl oz" -> us_customary sum;
-    # "4/5 quart" and "1 1/4 gallons" handle fractional American forms.
+    # "4/5 quart" and "1 1/4 gallons" handle fractional American forms;
+    # "1 PINT (16 FL OZ)" reads the restatement once, not twice.
     def parse(text)
       return nil if text.nil? || text.strip.empty?
 
@@ -48,15 +54,25 @@ module Parsing
         factor, system = unit_factor(unit_text)
         return nil if factor.nil?
 
+        # An equal restatement contributes neither volume nor system: it
+        # is the same quantity said again for the shopper, sometimes in
+        # the other system.
+        next if restatement?(total_ml, quantity * factor)
+
         total_ml += quantity * factor
         systems << system
       end
 
-      # Mixed-system statements ("1 pint 500 ml") are not a thing on labels;
-      # treat them as unparseable rather than guess.
+      # Mixed-system statements that are NOT restatements of one another
+      # ("1 pint 500 ml") are not a thing on labels; treat them as
+      # unparseable rather than guess.
       return nil if systems.uniq.size > 1
 
       ParsedVolume.new(milliliters: total_ml.round(4), unit_system: systems.first, raw: text)
+    end
+
+    def restatement?(total_ml, segment_ml)
+      total_ml.positive? && (segment_ml - total_ml).abs <= total_ml * RESTATEMENT_TOLERANCE
     end
 
     def scan_segments(text)

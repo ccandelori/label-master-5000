@@ -44,6 +44,28 @@ module Parsing
       assert_nil NetContents.parse("1 pint 500 ml")
     end
 
+    test "a parenthetical restatement is the same volume said twice" do
+      result = NetContents.parse("1 Pint (16 fl oz)")
+      assert_in_delta 473.18, result.milliliters, 0.01
+      assert_predicate result, :us_customary?
+    end
+
+    test "a fused-token restatement without parentheses still counts once" do
+      result = NetContents.parse("1PINT 16FLOZ")
+      assert_in_delta 473.18, result.milliliters, 0.01
+      assert_predicate result, :us_customary?
+    end
+
+    test "a cross-system restatement keeps the primary statement's system" do
+      result = NetContents.parse("750 mL (25.4 FL OZ)")
+      assert_equal 750.0, result.milliliters
+      assert_predicate result, :metric?
+    end
+
+    test "compound additions remain additive - only equal volumes restate" do
+      assert_in_delta 591.47, NetContents.parse("1 pint, 4 fl oz").milliliters, 0.05
+    end
+
     test "returns nil for unparseable input" do
       assert_nil NetContents.parse(nil)
       assert_nil NetContents.parse("")
