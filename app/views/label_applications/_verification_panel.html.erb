@@ -104,7 +104,10 @@
                       </div>
                       <div>
                         <dt class="text-xs uppercase tracking-wide text-ink-faint">On the label</dt>
-                        <dd class="mt-0.5 <%= check.extracted.present? ? "" : "text-ink-faint" %>"><%= check.extracted.presence || "—" %></dd>
+                        <dd class="mt-0.5 <%= check.extracted.present? ? "" : "text-ink-faint" %>">
+                          <%= field_crop_tag(application, verification, check.field) %>
+                          <%= check.extracted.presence || "—" %>
+                        </dd>
                       </div>
                     </dl>
                     <% if check.note.present? %>
@@ -139,7 +142,10 @@
                         </div>
                         <div>
                           <dt class="text-xs uppercase tracking-wide text-ink-faint">On the label</dt>
-                          <dd class="mt-0.5 <%= check.extracted.present? ? "" : "text-ink-faint" %>"><%= check.extracted.presence || "—" %></dd>
+                          <dd class="mt-0.5 <%= check.extracted.present? ? "" : "text-ink-faint" %>">
+                            <%= field_crop_tag(application, verification, check.field) %>
+                            <%= check.extracted.presence || "—" %>
+                          </dd>
                         </div>
                       </dl>
                       <% if check.note.present? %>

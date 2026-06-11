@@ -457,7 +457,7 @@ export default class extends Controller {
               </svg>
             </button>
             <div class="hidden px-4 pb-3 pt-0.5" data-row-detail>
-              ${this.detailHtml(finding)}
+              ${this.detailHtml(finding, located ? (payload.boxes || [])[boxIndex] : null)}
             </div>
           </li>`
       }).join("")
@@ -480,11 +480,16 @@ export default class extends Controller {
       </div>`
   }
 
-  detailHtml(finding) {
+  detailHtml(finding, box) {
     const value = (text) => text
       ? `<dd class="text-sm">${this.escape(text)}</dd>`
       : `<dd class="text-sm text-ink-faint">—</dd>`
+    const crop = box?.crop_url
+      ? `<img src="${this.escape(box.crop_url)}" alt="Label region read for ${this.escape(finding.label)}"
+              class="mb-2 max-h-24 w-auto max-w-full rounded border border-line bg-white" loading="lazy">`
+      : ""
     return `
+      ${crop}
       <dl class="space-y-2 border-l border-line pl-3 ml-0.5">
         <div>
           <dt class="text-xs uppercase tracking-wide text-ink-faint">Application</dt>

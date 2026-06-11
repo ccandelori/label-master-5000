@@ -31,6 +31,9 @@ module LabelApplicationsHelper
     basis = [ payload["image_width"] || 1000, payload["image_height"] || 1000 ]
     boxes = []
 
+    application = verification.label_application
+    croppable = application&.artwork&.attached? && application.artwork.image?
+
     (payload["fields"] || {}).each do |key, field|
       next if field.nil? || !valid_bbox?(field["bbox"])
 
@@ -55,6 +58,9 @@ module LabelApplicationsHelper
         citation: worst.citation,
         expected: worst.expected,
         extracted: worst.extracted || field["text"],
+        # The evidence clip: the artwork cut to this claimed region, so a
+        # human verifies the find by looking at the actual pixels.
+        crop_url: croppable && (field["page"] || 1) == 1 ? label_application_field_crop_path(application, field: key) : nil,
         # Every check behind this element, worst first - one located
         # element can carry several verdicts (the government warning box
         # answers wording, prefix, bold, and paragraph checks), and the
@@ -98,6 +104,25 @@ module LabelApplicationsHelper
     end
 
     boxes
+  end
+
+  # Reverse of EXTRACTION_FIELD_TO_CHECKS: the extraction key whose
+  # located element answers this check.
+  def extraction_key_for(check_field)
+    EXTRACTION_FIELD_TO_CHECKS.find { |_key, checks| checks.include?(check_field) }&.first
+  end
+
+  # The evidence clip for a check: the artwork cut to the region its value
+  # was read from. Nil when nothing was located or artwork is not an image.
+  def field_crop_tag(application, verification, check_field)
+    key = extraction_key_for(check_field)
+    slot = key && verification.extraction&.dig("fields", key)
+    return nil unless slot.is_a?(Hash) && valid_bbox?(slot["bbox"]) && (slot["page"] || 1) == 1
+    return nil unless application.artwork.attached? && application.artwork.image?
+
+    image_tag label_application_field_crop_path(application, field: key),
+              class: "mb-1.5 max-h-14 w-auto max-w-full rounded border border-line bg-white",
+              loading: "lazy", alt: "Label region read for #{field_label(check_field)}"
   end
 
   def check_detail(check)

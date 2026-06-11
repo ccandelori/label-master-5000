@@ -134,6 +134,36 @@ class FieldReconcilerTest < ActiveSupport::TestCase
     assert_equal input, out
   end
 
+  test "reconcile_declared replaces a field with the located declared value" do
+    input = { "fields" => { "brand_name" => { "text" => "JOSH", "bbox" => [ 1, 2, 3, 4 ],
+                                              "bbox_source" => "model", "page" => 1 } } }
+    line = word("JOSH CELLARS RESERVE", 100, 50, 400, 60)
+
+    out = Extraction::FieldReconciler.reconcile_declared(
+      payload: input, pages: [ page([ line ]) ], field: "brand_name",
+      expected: "JOSH CELLARS", threshold: 0.8
+    )
+
+    brand = out["fields"]["brand_name"]
+    assert_equal "JOSH CELLARS", brand["text"]
+    assert_equal "ocr", brand["bbox_source"]
+    assert_equal [ 100, 50, 400, 60 ], brand["bbox"], "carries its parent line's box"
+  end
+
+  test "reconcile_statement_field carries the full statement line for a contained value" do
+    input = { "fields" => {} }
+    line = word("PRODUCT OF SCOTLAND", 50, 900, 300, 24)
+
+    out = Extraction::FieldReconciler.reconcile_statement_field(
+      payload: input, pages: [ page([ line ]) ], field: "country_of_origin_statement",
+      expected: "Scotland", threshold: 0.8
+    )
+
+    statement = out["fields"]["country_of_origin_statement"]
+    assert_equal "PRODUCT OF SCOTLAND", statement["text"]
+    assert_equal [ 50, 900, 300, 24 ], statement["bbox"]
+  end
+
   test "does not mutate its input" do
     input = payload(nil)
     snapshot = Marshal.load(Marshal.dump(input))

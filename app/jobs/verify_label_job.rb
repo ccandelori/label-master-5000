@@ -80,11 +80,8 @@ class VerifyLabelJob < ApplicationJob
     refined = Extraction::RegionRefiner.refine(
       payload: refined, data: data, content_type: content_type, engine: engine, threshold: threshold
     )
-    refined = Extraction::FieldReconciler.reconcile_fanciful_name(
-      payload: refined, pages: pages, expected: application.fanciful_name, threshold: threshold
-    )
-    Extraction::FieldReconciler.reconcile_name_address(
-      payload: refined, pages: pages, expected: application.applicant_name_address, threshold: threshold
+    Extraction::FieldReconciler.reconcile(
+      payload: refined, pages: pages, application: application, threshold: threshold
     )
   rescue Extraction::OcrError => e
     Rails.logger.warn(JSON.generate({

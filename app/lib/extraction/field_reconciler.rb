@@ -1,19 +1,77 @@
 # frozen_string_literal: true
 
 module Extraction
-  # Reconciles the fanciful_name field against the application's declared
-  # value using local OCR geometry. The model frequently mistakes marketing
-  # taglines for fanciful names while the declared name sits in plain type
-  # elsewhere on the label; when the declared text is found among the OCR
-  # words, the located text and its true box replace the model's guess, and
-  # the rules comparison then passes on its own terms.
+  # Expectation-driven location: the application's declared values are the
+  # search targets, hunted in the OCR word pool, instead of trusting the
+  # model's free reading and checking it afterwards. For every declared
+  # field whose text is found on the label, the located printed form and
+  # its true box replace the model's guess; a miss keeps the model's read
+  # (it may faithfully show what IS printed, which the rules then flag).
   #
   # Boundary note: the extraction call itself stays application-blind -
-  # this runs after it, in the job, against Tesseract output that never
-  # leaves the host. A miss changes nothing: the model's read stands and
-  # the rules flag it as before. Pure and total, like BboxGrounder.
+  # this runs after it, in the job, against OCR output that never leaves
+  # the host. Pure and total, like BboxGrounder.
   module FieldReconciler
+    # Fields whose declared application value should appear on the label
+    # verbatim (modulo case, spacing, punctuation, and OCR noise).
+    DECLARED_FIELDS = {
+      "brand_name" => :brand_name,
+      "fanciful_name" => :fanciful_name,
+      "class_type_designation" => :declared_class_type,
+      "appellation" => :appellation,
+      "vintage" => :vintage_year,
+      "net_contents" => :net_contents
+    }.freeze
+
     module_function
+
+    # The orchestrator the job calls: declared fields, then the two
+    # statement-shaped reconciliations (country of origin and the
+    # name/address statement carry their value inside a longer line).
+    def reconcile(payload:, pages:, application:, threshold:)
+      refined = payload
+      DECLARED_FIELDS.each do |field, attribute|
+        refined = reconcile_declared(
+          payload: refined, pages: pages, field: field,
+          expected: application.public_send(attribute).to_s, threshold: threshold
+        )
+      end
+      refined = reconcile_statement_field(
+        payload: refined, pages: pages, field: "country_of_origin_statement",
+        expected: application.country_of_origin.to_s, threshold: threshold
+      )
+      reconcile_name_address(
+        payload: refined, pages: pages,
+        expected: application.applicant_name_address, threshold: threshold
+      )
+    end
+
+    # Locates one declared value and replaces the field slot on a hit.
+    def reconcile_declared(payload:, pages:, field:, expected:, threshold:)
+      target_tokens = BboxGrounder.tokenize(expected)
+      return payload if target_tokens.empty?
+
+      located = locate(target_tokens, pages, threshold)
+      return payload if located.nil?
+
+      fields = payload["fields"].is_a?(Hash) ? payload["fields"] : {}
+      payload.merge("fields" => fields.merge(field => located))
+    end
+
+    # For values printed inside a longer statement ("PRODUCT OF SCOTLAND"
+    # for country "Scotland"): the parent line is the field value.
+    def reconcile_statement_field(payload:, pages:, field:, expected:, threshold:)
+      target_tokens = BboxGrounder.tokenize(expected)
+      return payload if target_tokens.empty?
+
+      fields = payload["fields"].is_a?(Hash) ? payload["fields"] : {}
+      return payload if fields.dig(field, "text").to_s.strip.present?
+
+      located = locate_statement(target_tokens, pages, threshold)
+      return payload if located.nil?
+
+      payload.merge("fields" => fields.merge(field => located))
+    end
 
     # payload: the extraction JSON; pages: Array of OcrClient::Page;
     # expected: the application's declared fanciful name (nil/blank skips);
