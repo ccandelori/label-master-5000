@@ -34,7 +34,7 @@ module Rules
           result << unknown_designation_check(application, extracted, rules, citation)
         end
 
-        result << declared_class_match(application, extracted)
+        result << declared_class_match(application, extracted, facts.model_texts["class_type_designation"])
         result.compact
       end
 
@@ -187,11 +187,14 @@ module Rules
         end
       end
 
-      def declared_class_match(application, extracted)
+      def declared_class_match(application, extracted, model_text)
         declared = application.declared_class_type
         return nil if declared.to_s.strip.empty?
         return nil if Parsing::TextNormalizer.equivalent?(declared, extracted)
         return nil if Parsing::TextNormalizer.normalize(extracted).include?(Parsing::TextNormalizer.normalize(declared))
+        # The vision model's reading of the same print also satisfies the
+        # declared match - OCR character noise is not a formula mismatch.
+        return nil if Parsing::TextNormalizer.equivalent?(declared, model_text)
 
         FieldCheck.new(
           field: "declared_class_type", verdict: "needs_review",

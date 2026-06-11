@@ -27,9 +27,26 @@ module Extraction
         appellation: text_of(fields["appellation"]),
         vintage_year: vintage_year(fields["vintage"]),
         commodity_statement: text_of(fields["commodity_statement"]),
+        model_texts: model_texts_of(fields),
         legible: payload.fetch("legible", true),
         confidence: payload["confidence"]
       )
+    end
+
+    # Reconciled fields whose model reading survives an OCR replacement;
+    # vintage is absent because vintage_year falls back to it directly.
+    MODEL_TEXT_FIELDS = %w[
+      brand_name fanciful_name class_type_designation net_contents appellation
+    ].freeze
+
+    def model_texts_of(fields)
+      MODEL_TEXT_FIELDS.each_with_object({}) do |key, texts|
+        field = fields[key]
+        next unless field.is_a?(Hash)
+
+        text = field["model_text"].to_s.strip
+        texts[key] = text unless text.empty?
+      end
     end
 
     def text_of(field)
@@ -47,12 +64,16 @@ module Extraction
                    .uniq { |text| Parsing::TextNormalizer.normalize(text) }
     end
 
+    # The located text wins, but OCR noise on a year ("2 0 2 1") must not
+    # erase a vintage the model read cleanly - fall back to model_text.
     def vintage_year(field)
-      text = text_of(field)
-      return nil if text.nil?
+      return nil if field.nil?
 
-      match = text[/\b(1[89]\d{2}|20\d{2})\b/, 1]
-      match&.to_i
+      [ field["text"], field["model_text"] ].each do |text|
+        match = text.to_s[/\b(1[89]\d{2}|20\d{2})\b/, 1]
+        return match.to_i if match
+      end
+      nil
     end
   end
 end

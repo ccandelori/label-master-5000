@@ -102,7 +102,8 @@ module Rules
                          note: "Application declares an appellation that is not on the label")
         else
           Identity.match_verdict(field: "appellation", expected: expected,
-                                 extracted: facts.appellation, citation: citation)
+                                 extracted: facts.appellation, citation: citation,
+                                 model_text: facts.model_texts["appellation"])
         end
       end
 

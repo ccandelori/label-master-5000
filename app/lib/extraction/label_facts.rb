@@ -4,7 +4,10 @@ module Extraction
   # The contract between the vision extractor (producer) and the rules
   # engine (consumer). Field values are the literal text read from the
   # label, nil when absent. Visual attributes are true/false when the
-  # extractor could assess them and nil when it could not.
+  # extractor could assess them and nil when it could not. model_texts
+  # holds the vision model's own reading, keyed by field, for slots whose
+  # text was replaced by OCR-located print: a declared value matches if
+  # either form agrees.
   LabelFacts = Data.define(
     :brand_name,
     :fanciful_name,
@@ -21,6 +24,7 @@ module Extraction
     :appellation,
     :vintage_year,
     :commodity_statement,
+    :model_texts,
     :legible,
     :confidence
   ) do
@@ -42,6 +46,7 @@ module Extraction
         appellation: h.fetch("appellation", nil),
         vintage_year: h.fetch("vintage_year", nil),
         commodity_statement: h.fetch("commodity_statement", nil),
+        model_texts: h.fetch("model_texts", {}),
         legible: h.fetch("legible", true),
         confidence: h.fetch("confidence", nil)
       )

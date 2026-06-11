@@ -113,6 +113,43 @@ module Rules
       assert_equal "needs_review", check(checks, "brand_name").verdict
     end
 
+    test "OCR character noise in a located brand passes via the model's reading" do
+      checks = Engine.evaluate(
+        application: malt_application(brand_name: "BROUWERIJ 'TIJ"),
+        facts: malt_facts(
+          "brand_name" => "BROUWERU TIJ",
+          "model_texts" => { "brand_name" => "BROUWERIJ 'TIJ" }
+        )
+      )
+      brand = check(checks, "brand_name")
+      assert_equal "pass_with_note", brand.verdict
+      assert_match(/vision model/, brand.note)
+    end
+
+    test "a dropped decimal in located net contents passes via the model's reading" do
+      checks = Engine.evaluate(
+        application: malt_application(net_contents: "15.5 gallons"),
+        facts: malt_facts(
+          "net_contents" => "15 5 GALLONS",
+          "model_texts" => { "net_contents" => "15.5 GALLONS" }
+        )
+      )
+      net = check(checks, "net_contents")
+      assert_equal "pass_with_note", net.verdict
+      assert_match(/vision model/, net.note)
+    end
+
+    test "model_text does not rescue a genuine mismatch" do
+      checks = Engine.evaluate(
+        application: spirits_application({}),
+        facts: spirits_facts(
+          "brand_name" => "YOUNG TOM DISTILLERY",
+          "model_texts" => { "brand_name" => "YOUNG TOM DISTILLERY" }
+        )
+      )
+      assert_equal "needs_review", check(checks, "brand_name").verdict
+    end
+
     test "title-case government warning fails the prefix check only" do
       warning = STATUTORY.sub("GOVERNMENT WARNING:", "Government Warning:")
       checks = Engine.evaluate(application: spirits_application({}), facts: spirits_facts("government_warning_text" => warning))

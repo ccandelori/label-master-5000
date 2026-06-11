@@ -165,6 +165,42 @@ class FieldReconcilerTest < ActiveSupport::TestCase
     assert_equal [ 50, 900, 300, 24 ], statement["bbox"]
   end
 
+  test "a replaced slot preserves the model's reading as model_text" do
+    tagline = { "text" => "Lovely Day for a Guinness Limited Edition 2026",
+                "bbox" => [ 1690, 1380, 560, 260 ], "page" => 1, "confidence" => 0.85 }
+    words = [ word("DRAUGHT", 300, 500, 90, 30), word("STOUT", 400, 500, 70, 30) ]
+
+    fanciful = reconcile(payload(tagline), [ page(words) ], "DRAUGHT STOUT")["fields"]["fanciful_name"]
+
+    assert_equal "DRAUGHT STOUT", fanciful["text"]
+    assert_equal "Lovely Day for a Guinness Limited Edition 2026", fanciful["model_text"]
+  end
+
+  test "re-reconciling a located slot carries model_text forward" do
+    located = { "text" => "BROUWERU TIJ", "bbox" => [ 1, 2, 3, 4 ], "bbox_source" => "ocr",
+                "bbox_basis" => [ 800, 1000 ], "page" => 1, "model_text" => "BROUWERIJ 'TIJ" }
+    input = { "fields" => { "fanciful_name" => located } }
+    words = [ word("BROUWERU", 10, 10, 90, 30), word("TIJ", 110, 10, 40, 30) ]
+
+    out = Extraction::FieldReconciler.reconcile_declared(
+      payload: input, pages: [ page(words) ], field: "fanciful_name",
+      expected: "BROUWERIJ 'TIJ", threshold: 0.8
+    )
+
+    assert_equal "BROUWERIJ 'TIJ", out["fields"]["fanciful_name"]["model_text"]
+  end
+
+  test "no model_text when the slot was empty or reads the same" do
+    words = [ word("DRAUGHT", 300, 500, 90, 30), word("STOUT", 400, 500, 70, 30) ]
+
+    from_empty = reconcile(payload(nil), [ page(words) ], "DRAUGHT STOUT")
+    assert_nil from_empty["fields"]["fanciful_name"]["model_text"]
+
+    same = { "text" => "DRAUGHT STOUT", "bbox" => [ 1, 2, 3, 4 ], "page" => 1 }
+    from_same = reconcile(payload(same), [ page(words) ], "DRAUGHT STOUT")
+    assert_nil from_same["fields"]["fanciful_name"]["model_text"]
+  end
+
   test "does not mutate its input" do
     input = payload(nil)
     snapshot = Marshal.load(Marshal.dump(input))
