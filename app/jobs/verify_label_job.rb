@@ -20,7 +20,7 @@ class VerifyLabelJob < ApplicationJob
   # Test seam and deployment seam in one: the factory builds the real
   # connector by default.
   class_attribute :extractor_factory, default: -> { LabelExtractor.build }
-  class_attribute :ocr_factory, default: -> { Extraction::OcrClient.build }
+  class_attribute :ocr_factory, default: -> { Extraction::OcrFactory.build }
 
   def perform(label_application_id)
     application = LabelApplication.find(label_application_id)
