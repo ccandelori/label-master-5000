@@ -11,4 +11,9 @@ if [ ! -x .venv/bin/uvicorn ]; then
   exec tail -f /dev/null
 fi
 
-exec .venv/bin/uvicorn app:app --host 127.0.0.1 --port "${OCR_PORT:-8765}"
+# PaddleOCR's CPU memory arena grows with the largest images it has seen
+# and never shrinks (multi-gigabyte after a batch of upscaled reads), so
+# the worker is recycled after a bounded number of requests. --workers
+# puts uvicorn's supervisor in charge of respawning the recycled worker.
+exec .venv/bin/uvicorn app:app --host 127.0.0.1 --port "${OCR_PORT:-8765}" \
+  --workers 1 --limit-max-requests "${OCR_MAX_REQUESTS:-50}"
