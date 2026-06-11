@@ -5,6 +5,10 @@ require "test_helper"
 class RegionRefinerTest < ActiveSupport::TestCase
   def magick? = system("which magick > /dev/null 2>&1")
 
+  def source(data)
+    Extraction::ArtworkSource.new(data: data, content_type: "image/png", checksum: "test-checksum")
+  end
+
   def word(text, x, y, w, h)
     Extraction::OcrClient::Word.new(text: text, x: x, y: y, width: w, height: h)
   end
@@ -52,7 +56,7 @@ class RegionRefinerTest < ActiveSupport::TestCase
     crop_words = [ word("OLD", 210, 25, 150, 90), word("TOM", 390, 25, 150, 90), word("DISTILLERY", 570, 25, 450, 90) ]
 
     out = Extraction::RegionRefiner.refine(
-      payload: payload(field), data: data, content_type: "image/png",
+      payload: payload(field), sources_by_page: { 1 => source(data) },
       engine: StubEngine.new(words: crop_words), threshold: 0.8
     )
 
@@ -74,7 +78,7 @@ class RegionRefinerTest < ActiveSupport::TestCase
     engine = DeafUntilEngine.new(words: crop_words, from_read: 3)
 
     out = Extraction::RegionRefiner.refine(
-      payload: payload(field), data: data, content_type: "image/png",
+      payload: payload(field), sources_by_page: { 1 => source(data) },
       engine: engine, threshold: 0.8
     )
 
@@ -93,7 +97,7 @@ class RegionRefinerTest < ActiveSupport::TestCase
     engine = DeafUntilEngine.new(words: [], from_read: 1)
 
     out = Extraction::RegionRefiner.refine(
-      payload: payload(field), data: data, content_type: "image/png",
+      payload: payload(field), sources_by_page: { 1 => source(data) },
       engine: engine, threshold: 0.8
     )
     stamped = out["fields"]["brand_name"]
@@ -103,7 +107,7 @@ class RegionRefinerTest < ActiveSupport::TestCase
 
     again = Extraction::RegionRefiner.refine(
       payload: { "image_width" => 800, "image_height" => 1000, "fields" => { "brand_name" => stamped } },
-      data: data, content_type: "image/png", engine: engine, threshold: 0.8
+      sources_by_page: { 1 => source(data) }, engine: engine, threshold: 0.8
     )
     assert_equal stamped, again["fields"]["brand_name"]
     assert_equal first_pass_reads, engine.reads, "stamped field must not trigger new reads"
@@ -119,7 +123,7 @@ class RegionRefinerTest < ActiveSupport::TestCase
               "fields" => { "brand_name" => grounded, "vintage" => silent } }
 
     out = Extraction::RegionRefiner.refine(
-      payload: input, data: data, content_type: "image/png",
+      payload: input, sources_by_page: { 1 => source(data) },
       engine: StubEngine.new(words: []), threshold: 0.8
     )
 
@@ -131,7 +135,7 @@ class RegionRefinerTest < ActiveSupport::TestCase
     input = payload(field)
 
     out = Extraction::RegionRefiner.refine(
-      payload: input, data: "not-an-image", content_type: "image/png",
+      payload: input, sources_by_page: { 1 => source("not-an-image") },
       engine: StubEngine.new(words: []), threshold: 0.8
     )
 

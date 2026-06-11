@@ -22,15 +22,15 @@ export default class extends Controller {
     document.addEventListener("click", this.outsideClickHandler)
     document.addEventListener("keydown", this.escapeHandler)
 
-    if (this.hasImageTarget) {
-      if (this.imageTarget.complete) {
+    this.resizeObserver = new ResizeObserver(() => this.render())
+    this.imageTargets.forEach((image) => {
+      if (image.complete) {
         this.render()
       } else {
-        this.imageTarget.addEventListener("load", () => this.render(), { once: true })
+        image.addEventListener("load", () => this.render(), { once: true })
       }
-      this.resizeObserver = new ResizeObserver(() => this.render())
-      this.resizeObserver.observe(this.imageTarget)
-    }
+      this.resizeObserver.observe(image)
+    })
   }
 
   disconnect() {
@@ -39,17 +39,24 @@ export default class extends Controller {
     document.removeEventListener("keydown", this.escapeHandler)
   }
 
+  // One frame per artwork page (front and optional back), each carrying
+  // its page in data-page; every box renders on the frame of its page.
   render() {
-    if (!this.hasFrameTarget || this.imageTarget.naturalWidth === 0) return
-
-    this.frameTarget.querySelectorAll("[data-bbox-box]").forEach((el) => el.remove())
     this.closePopover()
+    this.frameTargets.forEach((frame, index) => this.renderFrame(frame, this.imageTargets[index]))
+  }
 
-    this.boxesValue.filter((box) => box.page === 1).forEach((box) => {
+  renderFrame(frame, image) {
+    if (!image || image.naturalWidth === 0) return
+
+    frame.querySelectorAll("[data-bbox-box]").forEach((el) => el.remove())
+    const page = Number(frame.dataset.page || 1)
+
+    this.boxesValue.filter((box) => box.page === page).forEach((box) => {
       // Each box carries the pixel basis the extractor measured against.
       const [basisW, basisH] = box.basis || [1000, 1000]
-      const scaleX = this.imageTarget.clientWidth / basisW
-      const scaleY = this.imageTarget.clientHeight / basisH
+      const scaleX = image.clientWidth / basisW
+      const scaleY = image.clientHeight / basisH
       const [x, y, w, h] = box.bbox
       const el = document.createElement("button")
       el.type = "button"
@@ -63,9 +70,9 @@ export default class extends Controller {
       el.style.backgroundColor = "transparent"
       el.addEventListener("click", (event) => {
         event.stopPropagation()
-        this.togglePopover(el, box)
+        this.togglePopover(el, box, frame)
       })
-      this.frameTarget.appendChild(el)
+      frame.appendChild(el)
     })
   }
 
@@ -87,15 +94,15 @@ export default class extends Controller {
   }
 
   setEmphasis(field, on) {
-    this.frameTarget?.querySelectorAll("[data-bbox-box]").forEach((el) => {
+    this.frameTargets.forEach((frame) => frame.querySelectorAll("[data-bbox-box]").forEach((el) => {
       const box = this.boxesValue.find((b) => b.field === el.dataset.bboxBox)
       const related = box && (box.field === field || (box.related_fields || []).includes(field))
       el.style.borderStyle = related && on ? "solid" : "dashed"
       el.style.borderWidth = related && on ? "3px" : "2px"
-    })
+    }))
   }
 
-  togglePopover(anchor, box) {
+  togglePopover(anchor, box, frame) {
     if (this.popover && this.popover.dataset.field === box.field) {
       this.closePopover()
       return
@@ -112,17 +119,17 @@ export default class extends Controller {
       ${box.citation ? `<p class="mt-1 text-ink-faint">${this.escape(box.citation)}</p>` : ""}
     `
 
-    const frameRect = this.frameTarget.getBoundingClientRect()
+    const frameRect = frame.getBoundingClientRect()
     const anchorRect = anchor.getBoundingClientRect()
     const top = anchorRect.bottom - frameRect.top + 6
     pop.style.left = `${Math.max(anchorRect.left - frameRect.left, 0)}px`
     pop.style.top = `${top}px`
 
-    this.frameTarget.appendChild(pop)
+    frame.appendChild(pop)
     this.popover = pop
 
     // Flip above the box when it would overflow the frame.
-    if (top + pop.offsetHeight > this.frameTarget.offsetHeight) {
+    if (top + pop.offsetHeight > frame.offsetHeight) {
       pop.style.top = `${Math.max(anchorRect.top - frameRect.top - pop.offsetHeight - 6, 0)}px`
     }
   }

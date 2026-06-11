@@ -39,7 +39,7 @@ class SingleLabelVerificationTest < ApplicationSystemTestCase
       "stub-model"
     end
 
-    def extract(data:, content_type:)
+    def extract(artworks:)
       LabelExtractor::Result.new(
         facts: Extraction::FactsMapper.to_facts(@payload),
         raw: @payload,
@@ -95,6 +95,37 @@ class SingleLabelVerificationTest < ApplicationSystemTestCase
     visit reviewer_queue_path(tab: "decided")
     assert_text "OLD TOM DISTILLERY"
     assert_text "Reject"
+  ensure
+    VerifyLabelJob.extractor_factory = original
+  end
+
+  test "front and back labels upload together and render as two frames" do
+    payload = stub_payload
+    payload["pages"] = [ { "page" => 1, "width" => 800, "height" => 1000 },
+                         { "page" => 2, "width" => 800, "height" => 1000 } ]
+    payload["fields"]["government_warning"]["page"] = 2
+    original = VerifyLabelJob.extractor_factory
+    VerifyLabelJob.extractor_factory = -> { StubExtractor.new(payload) }
+
+    visit new_label_application_path
+    fill_in "Serial number", with: "26-2042"
+    select "Distilled spirits", from: "Type of product"
+    fill_in "Brand name", with: "OLD TOM DISTILLERY"
+    fill_in "Applicant name and address (as on the permit)", with: "Old Tom Distilling Co., Bardstown, KY"
+    fill_in "Alcohol content (% by volume)", with: "45"
+    fill_in "Net contents", with: "750 mL"
+    attach_file "Label artwork", Rails.root.join("test/fixtures/files/label.png")
+    attach_file "Back label artwork (optional)", Rails.root.join("test/fixtures/files/ocr_label.png")
+
+    perform_enqueued_jobs do
+      click_on "Check this label"
+    end
+    visit current_path
+
+    assert_text "Front label"
+    assert_text "Back label"
+    assert_selector "[data-bbox-overlay-target='frame'][data-page='1']"
+    assert_selector "[data-bbox-overlay-target='frame'][data-page='2']"
   ensure
     VerifyLabelJob.extractor_factory = original
   end

@@ -12,7 +12,8 @@ class BatchesControllerTest < ActionDispatch::IntegrationTest
       "stub-model"
     end
 
-    def extract(data:, content_type:)
+    def extract(artworks:)
+      data = artworks.first.data
       brand = data.include?("alpha") ? "ALPHA ALE" : "BETA BOURBON"
       payload = {
         "legible" => true,

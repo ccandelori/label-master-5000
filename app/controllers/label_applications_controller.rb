@@ -59,7 +59,7 @@ class LabelApplicationsController < ApplicationController
       :declared_class_type, :actual_alcohol_content,
       :contains_fd_c_yellow_5, :contains_cochineal_carmine, :contains_sulfites_10ppm,
       :contains_saccharin, :contains_aspartame, :contains_added_coloring,
-      :artwork
+      :artwork, :back_artwork
     ])
   end
 

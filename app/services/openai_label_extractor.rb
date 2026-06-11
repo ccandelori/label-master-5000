@@ -21,11 +21,12 @@ class OpenaiLabelExtractor
     @config.model
   end
 
-  # data: raw artwork bytes; content_type: one of the allowed upload types.
-  def extract(data:, content_type:)
-    enforce_page_cap!(data) if content_type == PDF_CONTENT_TYPE
+  # artworks: Array of Extraction::ArtworkSource, front label first; a
+  # source's 1-based position is its page.
+  def extract(artworks:)
+    artworks.each { |artwork| enforce_page_cap!(artwork.data) if artwork.pdf? }
 
-    params = request_params(data, content_type)
+    params = request_params(artworks)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
     payload = with_retries("label_extraction") { Extraction::ModelResponse.parse_json(@client.complete(params)) }
     latency = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond) - started
@@ -41,13 +42,13 @@ class OpenaiLabelExtractor
 
   private
 
-  def request_params(data, content_type)
+  def request_params(artworks)
     {
       model: @config.model,
       max_completion_tokens: @config.max_tokens,
       messages: [
         { role: "system", content: Extraction::Schema::PROMPT },
-        { role: "user", content: user_content(data, content_type) }
+        { role: "user", content: user_content(artworks) }
       ],
       response_format: {
         type: :json_schema,
@@ -60,15 +61,29 @@ class OpenaiLabelExtractor
     }
   end
 
-  def user_content(data, content_type)
-    artwork_blocks(data, content_type) +
+  def user_content(artworks)
+    artwork_blocks(artworks) +
       [ { type: :text, text: "Extract the label contents as schema-conforming JSON." } ]
   end
 
-  def artwork_blocks(data, content_type)
-    return [ image_block(data, content_type) ] unless content_type == PDF_CONTENT_TYPE
+  # A lone image goes unlabeled (the single-image request is unchanged);
+  # a front + back pair gets the shared page labels. A PDF rasterizes to
+  # per-page images regardless - validation guarantees a PDF never has a
+  # companion back label, so the two labeling schemes cannot collide.
+  def artwork_blocks(artworks)
+    if artworks.one?
+      artwork = artworks.first
+      return artwork.pdf? ? pdf_blocks(artwork) : [ image_block(artwork.data, artwork.content_type) ]
+    end
 
-    Extraction::PdfPages.rasterize(data: data, dpi: @config.ocr_dpi, pdftoppm: "pdftoppm") do |pages|
+    artworks.each_with_index.flat_map do |artwork, index|
+      [ { type: :text, text: Extraction::Schema::PAGE_LABELS[index] },
+        image_block(artwork.data, artwork.content_type) ]
+    end
+  end
+
+  def pdf_blocks(artwork)
+    Extraction::PdfPages.rasterize(data: artwork.data, dpi: @config.ocr_dpi, pdftoppm: "pdftoppm") do |pages|
       pages.flat_map do |path, number|
         [ { type: :text, text: "PDF page #{number}:" }, image_block(File.binread(path), "image/png") ]
       end

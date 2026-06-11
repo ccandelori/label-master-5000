@@ -15,7 +15,7 @@ class VerifyLabelJobTest < ActiveSupport::TestCase
       @calls = 0
     end
 
-    def extract(data:, content_type:)
+    def extract(artworks:)
       @calls += 1
       raise @error if @error
 
@@ -169,6 +169,27 @@ class VerifyLabelJobTest < ActiveSupport::TestCase
     assert_equal 1, other_model.calls, "a model must produce its own reading"
     assert_not second.extraction_reused
     assert_equal "other-model", second.model_id
+  end
+
+  test "adding a back label changes the fingerprint and forces a fresh extraction" do
+    app = create_application({})
+    stub = StubExtractor.new(payload: payload({}))
+
+    first = with_extractor(stub) { VerifyLabelJob.perform_now(app.id) }
+    assert_equal app.artwork.blob.checksum, first.artwork_fingerprint
+
+    app.back_artwork.attach(io: StringIO.new("back-bytes"), filename: "back.png", content_type: "image/png")
+    app.save!
+    second = with_extractor(stub) { VerifyLabelJob.perform_now(app.id) }
+
+    assert_equal 2, stub.calls, "the same front with a different back is a different reading"
+    assert_not second.extraction_reused
+    assert_equal "#{app.artwork.blob.checksum}+#{app.back_artwork.blob.checksum}",
+                 second.artwork_fingerprint
+
+    third = with_extractor(stub) { VerifyLabelJob.perform_now(app.id) }
+    assert_equal 2, stub.calls, "the same pair reuses the pair's extraction"
+    assert third.extraction_reused
   end
 
   test "OCR grounding re-anchors matchable boxes and records provenance" do

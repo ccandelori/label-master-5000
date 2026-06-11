@@ -52,4 +52,27 @@ class FieldCropsControllerTest < ActionDispatch::IntegrationTest
     get label_application_field_crop_path(app, field: "not_a_field")
     assert_response :not_found
   end
+
+  test "a page-2 field crops from the back label and 404s without one" do
+    skip "imagemagick not available" unless magick?
+
+    app = create_application_with_artwork
+    add_verification(app, fields: {
+      "government_warning" => { "text" => "GOVERNMENT WARNING...", "bbox" => [ 100, 80, 350, 42 ],
+                                "bbox_source" => "ocr", "bbox_basis" => [ 800, 1000 ], "page" => 2 }
+    })
+
+    get label_application_field_crop_path(app, field: "government_warning")
+    assert_response :not_found, "no back label attached"
+
+    app.back_artwork.attach(
+      io: File.open(Rails.root.join("test/fixtures/files/ocr_label.png")),
+      filename: "back.png", content_type: "image/png"
+    )
+    app.save!
+
+    get label_application_field_crop_path(app, field: "government_warning")
+    assert_response :success
+    assert_equal "image/png", response.media_type
+  end
 end

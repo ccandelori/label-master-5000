@@ -6,7 +6,11 @@ class LabelApplication < ApplicationRecord
 
   belongs_to :batch, optional: true
   has_many :verifications, dependent: :destroy
+  # artwork is the front (brand) label - the one the placement rules name
+  # by role; back_artwork is optional and image-only (a PDF front already
+  # carries every panel as pages).
   has_one_attached :artwork
+  has_one_attached :back_artwork
 
   enum :beverage_type, { malt: "malt", wine: "wine", spirits: "spirits" }
 
@@ -52,14 +56,28 @@ class LabelApplication < ApplicationRecord
   private
 
   def artwork_constraints
-    return unless artwork.attached?
+    if artwork.attached?
+      unless ARTWORK_CONTENT_TYPES.include?(artwork.content_type)
+        errors.add(:artwork, "must be JPEG, PNG, WebP, or PDF")
+      end
 
-    unless ARTWORK_CONTENT_TYPES.include?(artwork.content_type)
-      errors.add(:artwork, "must be JPEG, PNG, WebP, or PDF")
+      if artwork.byte_size > ARTWORK_MAX_BYTES
+        errors.add(:artwork, "must be 20 MB or smaller")
+      end
     end
 
-    if artwork.byte_size > ARTWORK_MAX_BYTES
-      errors.add(:artwork, "must be 20 MB or smaller")
+    return unless back_artwork.attached?
+
+    unless (ARTWORK_CONTENT_TYPES - [ "application/pdf" ]).include?(back_artwork.content_type)
+      errors.add(:back_artwork, "must be JPEG, PNG, or WebP")
+    end
+
+    if back_artwork.byte_size > ARTWORK_MAX_BYTES
+      errors.add(:back_artwork, "must be 20 MB or smaller")
+    end
+
+    if artwork.attached? && artwork.content_type == "application/pdf"
+      errors.add(:back_artwork, "cannot accompany PDF artwork - a PDF already carries every label panel as pages")
     end
   end
 end

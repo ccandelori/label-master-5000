@@ -8,9 +8,8 @@ module Extraction
   # replaces the estimate. The model's placement error routinely exceeds
   # its own box, so a miss escalates through wider paddings (and an
   # inverted variant per rung, for light-on-dark print) before giving up.
-  # Single-image artwork only (the model's page-1 basis maps cleanly onto
-  # the original bytes); misses and crop failures leave the field
-  # untouched.
+  # Only fields on pages with standalone image bytes are refined (PDF
+  # pages have none); misses and crop failures leave the field untouched.
   module RegionRefiner
     # First rung doubles as the display margin FieldCropsController uses.
     PADDING = 0.2
@@ -26,18 +25,15 @@ module Extraction
 
     module_function
 
-    def refine(payload:, data:, content_type:, engine:, threshold:)
-      return payload if content_type == OcrClient::PDF_CONTENT_TYPE
-
+    # sources_by_page: {page => ArtworkSource} for pages that exist as
+    # standalone images.
+    def refine(payload:, sources_by_page:, engine:, threshold:)
       fields = payload["fields"]
-      return payload unless fields.is_a?(Hash)
+      return payload if sources_by_page.empty? || !fields.is_a?(Hash)
 
-      image_w, image_h = ImageVariants.dimensions(data)
-      basis_w = payload["image_width"] || image_w
-      basis_h = payload["image_height"] || image_h
-
+      dimensions = {}
       refined = fields.to_h do |key, field|
-        [ key, refine_field(field, data, image_w, image_h, basis_w, basis_h, engine, threshold) ]
+        [ key, refine_field(field, payload, sources_by_page, dimensions, engine, threshold) ]
       end
       payload.merge("fields" => refined)
     rescue OcrError => e
@@ -45,11 +41,16 @@ module Extraction
       payload
     end
 
-    def refine_field(field, data, image_w, image_h, basis_w, basis_h, engine, threshold)
-      return field unless candidate?(field)
+    def refine_field(field, payload, sources_by_page, dimensions, engine, threshold)
+      return field unless candidate?(field, sources_by_page)
 
       target_tokens = BboxGrounder.tokenize(field["text"])
       return field if target_tokens.empty?
+
+      page = field["page"] || 1
+      data = sources_by_page.fetch(page).data
+      image_w, image_h = (dimensions[page] ||= ImageVariants.dimensions(data))
+      basis_w, basis_h = PageBasis.dimensions(payload, page) || [ image_w, image_h ]
 
       PADDINGS.each do |padding|
         rect = padded_rect(field["bbox"], image_w, image_h, basis_w, basis_h, padding)
@@ -94,13 +95,13 @@ module Extraction
       )
     end
 
-    def candidate?(field)
+    def candidate?(field, sources_by_page)
       field.is_a?(Hash) &&
         field["bbox_source"] == "model" &&
         field["refine_attempted"] != ALGORITHM_VERSION &&
         field["text"].to_s.strip.present? &&
         field["bbox"].is_a?(Array) && field["bbox"].size == 4 &&
-        (field["page"] || 1) == 1
+        sources_by_page.key?(field["page"] || 1)
     end
 
     # The model's box, scaled from its self-reported basis to the original

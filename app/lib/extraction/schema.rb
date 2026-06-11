@@ -11,6 +11,11 @@ module Extraction
       government_warning commodity_statement appellation vintage
     ].freeze
 
+    # Text labels preceding each image in a multi-image (front + back
+    # label) request, indexed by page - 1. Shared by every connector so
+    # the prompt's page semantics never drift between providers.
+    PAGE_LABELS = [ "FRONT label (page 1):", "BACK label (page 2):" ].freeze
+
     FIELD_SCHEMA = {
       "type" => %w[object null],
       "additionalProperties" => false,
@@ -50,11 +55,30 @@ module Extraction
         "confidence" => { "type" => "number" },
         "image_width" => {
           "type" => "integer",
-          "description" => "Width in pixels of the image as you see it - the basis for every bbox"
+          "description" => "Width in pixels of the first image as you see it - the bbox basis for page 1"
         },
         "image_height" => {
           "type" => "integer",
-          "description" => "Height in pixels of the image as you see it - the basis for every bbox"
+          "description" => "Height in pixels of the first image as you see it - the bbox basis for page 1"
+        },
+        # Per-page coordinate bases for multi-image requests. Nullable
+        # rather than optional: OpenAI strict mode requires every property
+        # listed in required, and old payloads without the key stay valid
+        # for consumers (PageBasis falls back to the top-level pair).
+        "pages" => {
+          "type" => %w[array null],
+          "items" => {
+            "type" => "object",
+            "additionalProperties" => false,
+            "properties" => {
+              "page" => { "type" => "integer" },
+              "width" => { "type" => "integer" },
+              "height" => { "type" => "integer" }
+            },
+            "required" => %w[page width height]
+          },
+          "description" => "One entry per image: its 1-based page and the pixel dimensions " \
+                           "of that image as you see it - the bbox basis for fields on that page"
         },
         "fields" => {
           "type" => "object",
@@ -75,7 +99,7 @@ module Extraction
           "required" => %w[prefix_all_caps prefix_bold continuous_paragraph]
         }
       },
-      "required" => %w[legible confidence image_width image_height fields varietals disclosures warning_attributes]
+      "required" => %w[legible confidence image_width image_height pages fields varietals disclosures warning_attributes]
     }.freeze
 
     PROMPT = <<~PROMPT
@@ -83,12 +107,15 @@ module Extraction
       what is printed - do not correct, complete, or normalize anything.
 
       First report image_width and image_height: the pixel dimensions of
-      the image exactly as you see it. Then, for each field, report the
-      literal text as printed, a bounding box [x, y, width, height] in
-      pixels of that same image with (0, 0) at the top-left corner, the
-      page number (1-based; always 1 for a single image), and your
-      confidence from 0 to 1. Use null for anything not present on the
-      label.
+      the first image exactly as you see it. When you are given more than
+      one image (or a multi-page PDF), also fill pages: one entry per
+      image with its 1-based page number and that image's pixel
+      dimensions as you see it; otherwise set pages to null. Then, for
+      each field, report the literal text as printed, a bounding box
+      [x, y, width, height] in pixels of the image it appears on with
+      (0, 0) at the top-left corner, the page number (1-based: the image
+      as labeled, or the PDF page), and your confidence from 0 to 1. Use
+      null for anything not present on the label.
 
       Field notes:
       - brand_name: the most prominent product name.

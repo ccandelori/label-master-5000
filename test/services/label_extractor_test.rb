@@ -26,6 +26,10 @@ class LabelExtractorTest < ActiveSupport::TestCase
     Config.new(model: "claude-opus-4-7", effort: "low", max_tokens: 4096, max_retries: 2, max_pdf_pages: 4)
   end
 
+  def source(data, content_type)
+    Extraction::ArtworkSource.new(data: data, content_type: content_type, checksum: "test-checksum")
+  end
+
   def payload_json
     {
       "legible" => true,
@@ -52,7 +56,7 @@ class LabelExtractorTest < ActiveSupport::TestCase
   test "image extraction sends an image block and the schema" do
     client = StubClient.new(responses: [ payload_json ])
     extractor = LabelExtractor.new(client: client, config: config)
-    extractor.extract(data: "fake-png-bytes", content_type: "image/png")
+    extractor.extract(artworks: [ source("fake-png-bytes", "image/png") ])
 
     params = client.calls.first
     block = params[:messages].first[:content].first
@@ -64,10 +68,23 @@ class LabelExtractorTest < ActiveSupport::TestCase
     assert_equal "claude-opus-4-7", params[:model]
   end
 
+  test "a front and back pair sends both images with shared page labels" do
+    client = StubClient.new(responses: [ payload_json ])
+    extractor = LabelExtractor.new(client: client, config: config)
+    extractor.extract(artworks: [ source("front-bytes", "image/png"), source("back-bytes", "image/jpeg") ])
+
+    content = client.calls.first[:messages].first[:content]
+    assert_equal Extraction::Schema::PAGE_LABELS[0], content[0][:text]
+    assert_equal "image", content[1][:type]
+    assert_equal "front-bytes", Base64.strict_decode64(content[1][:source][:data])
+    assert_equal Extraction::Schema::PAGE_LABELS[1], content[2][:text]
+    assert_equal "back-bytes", Base64.strict_decode64(content[3][:source][:data])
+  end
+
   test "PDF extraction sends a native document block" do
     client = StubClient.new(responses: [ payload_json ])
     extractor = LabelExtractor.new(client: client, config: config)
-    extractor.extract(data: "%PDF-1.4 /Type /Page >>", content_type: "application/pdf")
+    extractor.extract(artworks: [ source("%PDF-1.4 /Type /Page >>", "application/pdf") ])
 
     block = client.calls.first[:messages].first[:content].first
     assert_equal "document", block[:type]
@@ -80,7 +97,7 @@ class LabelExtractorTest < ActiveSupport::TestCase
     five_pages = "%PDF-1.4 " + ("/Type /Page >> " * 5)
 
     assert_raises(Extraction::PageLimitExceeded) do
-      extractor.extract(data: five_pages, content_type: "application/pdf")
+      extractor.extract(artworks: [ source(five_pages, "application/pdf") ])
     end
     assert_empty client.calls
   end
@@ -88,7 +105,7 @@ class LabelExtractorTest < ActiveSupport::TestCase
   test "the artwork is the only application data that leaves" do
     client = StubClient.new(responses: [ payload_json ])
     extractor = LabelExtractor.new(client: client, config: config)
-    extractor.extract(data: "bytes", content_type: "image/png")
+    extractor.extract(artworks: [ source("bytes", "image/png") ])
 
     serialized = JSON.generate(client.calls.first.except(:messages))
     text_parts = client.calls.first[:messages].flat_map { |m| Array(m[:content]) }
@@ -100,7 +117,7 @@ class LabelExtractorTest < ActiveSupport::TestCase
   test "successful extraction maps facts, keeps raw boxes, records latency" do
     client = StubClient.new(responses: [ payload_json ])
     extractor = LabelExtractor.new(client: client, config: config)
-    result = extractor.extract(data: "bytes", content_type: "image/png")
+    result = extractor.extract(artworks: [ source("bytes", "image/png") ])
 
     assert_equal "OLD TOM DISTILLERY", result.facts.brand_name
     assert_equal 2021, result.facts.vintage_year
@@ -116,7 +133,7 @@ class LabelExtractorTest < ActiveSupport::TestCase
   test "code fences around the JSON are tolerated" do
     client = StubClient.new(responses: [ "```json\n#{payload_json}\n```" ])
     extractor = LabelExtractor.new(client: client, config: config)
-    result = extractor.extract(data: "bytes", content_type: "image/png")
+    result = extractor.extract(artworks: [ source("bytes", "image/png") ])
     assert_equal "OLD TOM DISTILLERY", result.facts.brand_name
   end
 
@@ -125,7 +142,7 @@ class LabelExtractorTest < ActiveSupport::TestCase
     extractor = LabelExtractor.new(client: client, config: config)
 
     assert_raises(Extraction::ResponseParseError) do
-      extractor.extract(data: "bytes", content_type: "image/png")
+      extractor.extract(artworks: [ source("bytes", "image/png") ])
     end
     assert_equal 3, client.calls.size
   end
@@ -133,7 +150,7 @@ class LabelExtractorTest < ActiveSupport::TestCase
   test "a retry that succeeds recovers" do
     client = StubClient.new(responses: [ "not json", payload_json ])
     extractor = LabelExtractor.new(client: client, config: config)
-    result = extractor.extract(data: "bytes", content_type: "image/png")
+    result = extractor.extract(artworks: [ source("bytes", "image/png") ])
     assert_equal "OLD TOM DISTILLERY", result.facts.brand_name
     assert_equal 2, client.calls.size
   end
@@ -145,7 +162,7 @@ class LabelExtractorTest < ActiveSupport::TestCase
     client = StubClient.new(responses: [ payload.to_json ])
     extractor = LabelExtractor.new(client: client, config: config)
 
-    result = extractor.extract(data: "bytes", content_type: "image/png")
+    result = extractor.extract(artworks: [ source("bytes", "image/png") ])
     assert_not result.facts.legible
     assert_in_delta 0.2, result.facts.confidence, 0.001
   end

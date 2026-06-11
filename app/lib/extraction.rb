@@ -3,12 +3,19 @@
 module Extraction
   class ExtractionError < StandardError; end
 
-  # What every extractor's extract(data:, content_type:) returns,
-  # whichever provider produced it. raw conforms to Schema::RESPONSE_SCHEMA;
-  # model_id is the provider's model identifier, which also keys
-  # extraction reuse (one model's reading must never be reused as
-  # another's).
+  # What every extractor's extract(artworks:) returns, whichever provider
+  # produced it. raw conforms to Schema::RESPONSE_SCHEMA; model_id is the
+  # provider's model identifier, which also keys extraction reuse (one
+  # model's reading must never be reused as another's).
   ExtractorResult = Data.define(:facts, :raw, :model_id, :latency_ms)
+
+  # One artwork raster as the pipeline passes it around: front label
+  # first, optional back label second; a source's 1-based position is its
+  # page. checksum is the blob's, keying the OCR pool cache (extractors
+  # ignore it).
+  ArtworkSource = Data.define(:data, :content_type, :checksum) do
+    def pdf? = content_type == "application/pdf"
+  end
 
   # Raised before any API call when a PDF exceeds the configured page cap.
   class PageLimitExceeded < ExtractionError; end
