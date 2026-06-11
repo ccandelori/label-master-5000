@@ -226,6 +226,38 @@ module Rules
       assert_match(/1 pint/, form.expected)
     end
 
+    test "a parenthesized ounce restatement does not break the 1 pint form" do
+      checks = Engine.evaluate(
+        application: malt_application(net_contents: "1 Pint (16 fl oz)"),
+        facts: malt_facts("net_contents" => "1 PINT (16 FL OZ)")
+      )
+      assert_nil check(checks, "net_contents_form"), "compliant wording emits no form check"
+    end
+
+    test "fused OCR wording passes the form rule via the model's reading" do
+      checks = Engine.evaluate(
+        application: malt_application(net_contents: "1 Pint (16 fl oz)"),
+        facts: malt_facts(
+          "net_contents" => "1PINT 16FLOZ",
+          "model_texts" => { "net_contents" => "1 PINT (16 FL OZ)" }
+        )
+      )
+      form = check(checks, "net_contents_form")
+      assert_equal "pass_with_note", form.verdict
+      assert_match(/vision model/, form.note)
+    end
+
+    test "model_text does not rescue genuinely wrong form wording" do
+      checks = Engine.evaluate(
+        application: malt_application(net_contents: "16 fl oz"),
+        facts: malt_facts(
+          "net_contents" => "16 FL OZ",
+          "model_texts" => { "net_contents" => "16 FL OZ" }
+        )
+      )
+      assert_equal "fail", check(checks, "net_contents_form").verdict
+    end
+
     test "missing net contents passes with note when declared embossed" do
       checks = Engine.evaluate(
         application: spirits_application(container_embossed_info: "750 mL blown into the glass"),

@@ -37,7 +37,9 @@ module Rules
         result << match_check(expected, extracted, expected_volume, extracted_volume, model_volume, citation)
         result << system_check(extracted, extracted_volume, section)
         result << fill_check(extracted_volume, section) if section["required_system"] == "metric"
-        result << malt_form_check(extracted, extracted_volume, section) if rules["commodity"] == "malt"
+        if rules["commodity"] == "malt"
+          result << malt_form_check(extracted, extracted_volume, section, facts.model_texts["net_contents"])
+        end
         result.compact
       end
 
@@ -141,7 +143,7 @@ module Rules
         ml >= range["min"] && ml <= range["max"] && (ml % 1000.0).abs <= FILL_TOLERANCE_ML
       end
 
-      def malt_form_check(extracted, extracted_volume, section)
+      def malt_form_check(extracted, extracted_volume, section, model_text)
         return nil unless extracted_volume.us_customary?
 
         buckets = section.dig("form_of_statement", "buckets")
@@ -150,6 +152,18 @@ module Rules
 
         expression = bucket["expression"]
         return nil if form_satisfied?(extracted, expression)
+
+        # OCR-located text can lose the punctuation that marks a wording
+        # as compliant ("1 PINT (16 FL OZ)" fused into "1PINT 16FLOZ");
+        # the vision model's reading of the same print settles it.
+        if model_text.to_s.strip.present? && form_satisfied?(model_text, expression)
+          return FieldCheck.new(
+            field: "net_contents_form", verdict: "pass_with_note", expected: expression, extracted: extracted,
+            citation: section.dig("form_of_statement", "citation"),
+            note: "Required form satisfied as read by the vision model (#{model_text.to_s.strip}); " \
+                  "the OCR-located print differs only by likely character noise"
+          )
+        end
 
         FieldCheck.new(
           field: "net_contents_form", verdict: "fail", expected: expression, extracted: extracted,
@@ -171,9 +185,13 @@ module Rules
       end
 
       def form_satisfied?(extracted, expression)
-        text = Parsing::TextNormalizer.normalize(extracted)
+        # The form rule governs the statement's primary expression; a
+        # parenthesized equivalent ("1 PINT (16 FL OZ)") is a visible
+        # supplement, not the statement, so it is dropped before judging.
+        primary = extracted.to_s.gsub(/\([^)]*\)/, " ")
+        text = Parsing::TextNormalizer.normalize(primary)
         required_units = expression.scan(/pint|quart|gallon|fluid ounces/).uniq
-        has_fraction = extracted.match?(%r{\d/\d|0?\.\d+})
+        has_fraction = primary.match?(%r{\d/\d|0?\.\d+})
 
         case expression
         when /\A1 (pint|quart|gallon)\z/
