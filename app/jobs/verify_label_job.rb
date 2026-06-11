@@ -63,22 +63,28 @@ class VerifyLabelJob < ApplicationJob
 
   private
 
-  # OCR-dependent refinement: re-anchors boxes to word geometry, then
-  # reconciles the fanciful name against the application's declared value.
-  # Strictly best-effort: any OCR failure (missing binary, unreadable
-  # artwork) logs a warning and returns the payload unchanged - it never
-  # fails a verification. Runs on reused extractions too: OCR is local
-  # and cheap, and reconciliation depends on the application, which can
-  # differ across duplicate artwork.
+  # OCR-dependent refinement: re-anchors boxes to word geometry, retries
+  # still-ungrounded fields with a targeted region crop, then reconciles
+  # the fanciful name and a missing name/address statement against the
+  # application's declared values. Strictly best-effort: any OCR failure
+  # (missing binary, unreadable artwork) logs a warning and returns the
+  # payload unchanged - it never fails a verification. Runs on reused
+  # extractions too: OCR is local and cheap, and reconciliation depends
+  # on the application, which can differ across duplicate artwork.
   def refine_extraction(raw:, data:, content_type:, application:)
     threshold = Rails.application.config.x.extraction.ocr_match_threshold
-    pages = ocr_factory.call.read(data: data, content_type: content_type)
-    grounded = Extraction::BboxGrounder.ground(payload: raw, pages: pages, threshold: threshold)
-    Extraction::FieldReconciler.reconcile_fanciful_name(
-      payload: grounded,
-      pages: pages,
-      expected: application.fanciful_name,
-      threshold: threshold
+    engine = ocr_factory.call
+    pages = engine.read(data: data, content_type: content_type)
+
+    refined = Extraction::BboxGrounder.ground(payload: raw, pages: pages, threshold: threshold)
+    refined = Extraction::RegionRefiner.refine(
+      payload: refined, data: data, content_type: content_type, engine: engine, threshold: threshold
+    )
+    refined = Extraction::FieldReconciler.reconcile_fanciful_name(
+      payload: refined, pages: pages, expected: application.fanciful_name, threshold: threshold
+    )
+    Extraction::FieldReconciler.reconcile_name_address(
+      payload: refined, pages: pages, expected: application.applicant_name_address, threshold: threshold
     )
   rescue Extraction::OcrError => e
     Rails.logger.warn(JSON.generate({

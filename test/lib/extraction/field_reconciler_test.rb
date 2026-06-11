@@ -72,6 +72,68 @@ class FieldReconcilerTest < ActiveSupport::TestCase
     assert_equal 2, result["fields"]["fanciful_name"]["page"]
   end
 
+  test "fills a missing statement from the line containing the applicant name" do
+    input = { "fields" => { "name_address_statement" => nil } }
+    lines = [
+      word("STELLA ROSA", 10, 10, 200, 30),
+      word("IMPORTED BY IL CONTE IMPORTS,", 20, 700, 400, 20),
+      word("LOS ANGELES, CA", 20, 724, 150, 20)
+    ]
+
+    out = Extraction::FieldReconciler.reconcile_name_address(
+      payload: input, pages: [ page(lines) ],
+      expected: "IL CONTE IMPORTS, SAN ANTONIO WINERY, INC., 723 GIBBONS ST, LOS ANGELES, CA",
+      threshold: 0.8
+    )
+
+    statement = out["fields"]["name_address_statement"]
+    assert_equal "IMPORTED BY IL CONTE IMPORTS,", statement["text"]
+    assert_equal "ocr", statement["bbox_source"]
+    assert_equal [ 20, 700, 400, 20 ], statement["bbox"]
+  end
+
+  test "falls back to a statement-shaped line when the printed name differs" do
+    input = { "fields" => { "name_address_statement" => nil } }
+    lines = [
+      word("GUINNESS DRAUGHT", 10, 10, 200, 30),
+      word("IMPORTED BY DIAGEO BEER COMPANY USA,", 20, 700, 400, 20),
+      word("NEW YORK, NY", 20, 724, 150, 20)
+    ]
+
+    out = Extraction::FieldReconciler.reconcile_name_address(
+      payload: input, pages: [ page(lines) ],
+      expected: "DIAGEO AMERICAS SUPPLY, INC., 3 WORLD TRADE CENTER, New York, NY",
+      threshold: 0.8
+    )
+
+    statement = out["fields"]["name_address_statement"]
+    assert_equal "IMPORTED BY DIAGEO BEER COMPANY USA, NEW YORK, NY", statement["text"]
+    assert_equal [ 20, 700, 400, 44 ], statement["bbox"], "continuation line is carried"
+  end
+
+  test "a statement the model read is never second-guessed" do
+    existing = { "text" => "BOTTLED BY SOMEONE", "bbox" => [ 1, 2, 3, 4 ], "page" => 1 }
+    input = { "fields" => { "name_address_statement" => existing } }
+
+    out = Extraction::FieldReconciler.reconcile_name_address(
+      payload: input, pages: [ page([ word("IMPORTED BY OTHER CO", 1, 1, 9, 9) ]) ],
+      expected: "OTHER CO, TOWN, CA", threshold: 0.8
+    )
+
+    assert_equal existing, out["fields"]["name_address_statement"]
+  end
+
+  test "no name match and no statement-shaped line leaves the payload alone" do
+    input = { "fields" => { "name_address_statement" => nil } }
+
+    out = Extraction::FieldReconciler.reconcile_name_address(
+      payload: input, pages: [ page([ word("JUST A BRAND", 1, 1, 9, 9) ]) ],
+      expected: "SOMEBODY ELSE, TOWN, CA", threshold: 0.8
+    )
+
+    assert_equal input, out
+  end
+
   test "does not mutate its input" do
     input = payload(nil)
     snapshot = Marshal.load(Marshal.dump(input))
