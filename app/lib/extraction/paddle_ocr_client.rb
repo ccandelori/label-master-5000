@@ -13,11 +13,13 @@ module Extraction
   class PaddleOcrClient
     PDF_CONTENT_TYPE = "application/pdf"
 
-    def initialize(base_url:, pdftoppm:, dpi:, timeout_seconds:)
+    def initialize(base_url:, pdftoppm:, dpi:, timeout_seconds:, attempts:, backoff_seconds:)
       @base_url = URI(base_url)
       @pdftoppm = pdftoppm
       @dpi = dpi
       @timeout_seconds = timeout_seconds
+      @attempts = attempts
+      @backoff_seconds = backoff_seconds
     end
 
     def self.build
@@ -26,7 +28,9 @@ module Extraction
         base_url: config.paddle_url,
         pdftoppm: "pdftoppm",
         dpi: config.ocr_dpi,
-        timeout_seconds: config.paddle_timeout_seconds
+        timeout_seconds: config.paddle_timeout_seconds,
+        attempts: 3,
+        backoff_seconds: 4
       )
     end
 
@@ -62,7 +66,28 @@ module Extraction
 
     private
 
+    # The sidecar recycles its worker periodically to bound PaddleOCR's
+    # memory growth; a read landing in the reload window is refused, so
+    # transient failures retry with a warning before the last error
+    # propagates (and the engine-level fallback takes over).
     def read_image(data, page_number)
+      attempt = 0
+      begin
+        attempt += 1
+        attempt_read(data, page_number)
+      rescue OcrError => e
+        raise e if attempt >= @attempts
+
+        Rails.logger.warn(JSON.generate({
+          event: "paddle_read_retry", attempt: attempt, of: @attempts,
+          backoff_seconds: @backoff_seconds * attempt, error: e.message.to_s.first(160)
+        }))
+        sleep(@backoff_seconds * attempt)
+        retry
+      end
+    end
+
+    def attempt_read(data, page_number)
       response = post_read(data)
       unless response.is_a?(Net::HTTPSuccess)
         raise OcrError, "ocr sidecar responded #{response.code}: #{response.body.to_s.first(200)}"

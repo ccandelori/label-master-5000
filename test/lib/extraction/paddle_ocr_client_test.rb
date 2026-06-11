@@ -31,13 +31,31 @@ class PaddleOcrClientTest < ActiveSupport::TestCase
 
   test "read raises OcrError when the sidecar is unreachable" do
     client = Extraction::PaddleOcrClient.new(
-      base_url: "http://127.0.0.1:1", pdftoppm: "pdftoppm", dpi: 200, timeout_seconds: 1
+      base_url: "http://127.0.0.1:1", pdftoppm: "pdftoppm", dpi: 200, timeout_seconds: 1,
+      attempts: 1, backoff_seconds: 0
     )
 
     error = assert_raises(Extraction::OcrError) do
       client.read(data: "bytes", content_type: "image/png")
     end
     assert_match(/unreachable/, error.message)
+  end
+
+  test "read retries transient failures before raising the last error" do
+    client = Extraction::PaddleOcrClient.new(
+      base_url: "http://127.0.0.1:1", pdftoppm: "pdftoppm", dpi: 200, timeout_seconds: 1,
+      attempts: 3, backoff_seconds: 0
+    )
+    attempts = 0
+    client.define_singleton_method(:post_read) do |_data|
+      attempts += 1
+      raise Extraction::OcrError, "ocr sidecar unreachable: connection refused"
+    end
+
+    assert_raises(Extraction::OcrError) do
+      client.read(data: "bytes", content_type: "image/png")
+    end
+    assert_equal 3, attempts
   end
 
   test "read returns word boxes from a running sidecar" do
@@ -49,7 +67,8 @@ class PaddleOcrClientTest < ActiveSupport::TestCase
     end
 
     client = Extraction::PaddleOcrClient.new(
-      base_url: base_url, pdftoppm: "pdftoppm", dpi: 200, timeout_seconds: 120
+      base_url: base_url, pdftoppm: "pdftoppm", dpi: 200, timeout_seconds: 120,
+      attempts: 3, backoff_seconds: 4
     )
     data = File.binread(Rails.root.join("test/fixtures/files/ocr_label.png"))
     pages = client.read(data: data, content_type: "image/png")

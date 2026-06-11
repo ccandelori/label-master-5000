@@ -13,7 +13,11 @@ fi
 
 # PaddleOCR's CPU memory arena grows with the largest images it has seen
 # and never shrinks (multi-gigabyte after a batch of upscaled reads), so
-# the worker is recycled after a bounded number of requests. --workers
-# puts uvicorn's supervisor in charge of respawning the recycled worker.
-exec .venv/bin/uvicorn app:app --host 127.0.0.1 --port "${OCR_PORT:-8765}" \
-  --workers 1 --limit-max-requests "${OCR_MAX_REQUESTS:-50}"
+# the process is recycled after a bounded number of requests. uvicorn
+# exits cleanly when the limit is hit and the loop brings it back; the
+# Rails client retries through the reload window.
+while true; do
+  .venv/bin/uvicorn app:app --host 127.0.0.1 --port "${OCR_PORT:-8765}" \
+    --limit-max-requests "${OCR_MAX_REQUESTS:-50}"
+  echo "ocr_service: worker recycled after ${OCR_MAX_REQUESTS:-50} requests, restarting"
+done
