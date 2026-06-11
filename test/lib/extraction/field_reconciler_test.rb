@@ -21,8 +21,9 @@ class FieldReconcilerTest < ActiveSupport::TestCase
   end
 
   def reconcile(payload, pages, expected)
-    Extraction::FieldReconciler.reconcile_fanciful_name(
-      payload: payload, pages: pages, expected: expected, threshold: THRESHOLD
+    Extraction::FieldReconciler.reconcile_declared(
+      payload: payload, pages: pages, field: "fanciful_name",
+      expected: expected.to_s, threshold: THRESHOLD
     )
   end
 

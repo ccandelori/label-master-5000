@@ -73,22 +73,6 @@ module Extraction
       payload.merge("fields" => fields.merge(field => located))
     end
 
-    # payload: the extraction JSON; pages: Array of OcrClient::Page;
-    # expected: the application's declared fanciful name (nil/blank skips);
-    # threshold: minimum fuzzy similarity, shared with bbox grounding.
-    def reconcile_fanciful_name(payload:, pages:, expected:, threshold:)
-      target_tokens = BboxGrounder.tokenize(expected)
-      return payload if target_tokens.empty?
-
-      located = locate(target_tokens, pages, threshold)
-      return payload if located.nil?
-
-      fields = payload["fields"].is_a?(Hash) ? payload["fields"] : {}
-      payload.merge(
-        "fields" => fields.merge("fanciful_name" => located)
-      )
-    end
-
     # Operation verbs that open a name/address statement; "<verb> by"
     # locates the statement line even when the printed company name does
     # not match the application's.
@@ -133,14 +117,7 @@ module Extraction
           BboxGrounder.normalize(word.text) == token ? word.text : token
         end.join(" ")
 
-        return {
-          "text" => text,
-          "bbox" => BboxGrounder.union_bbox(matched.map(&:first).uniq),
-          "bbox_basis" => [ page.width, page.height ],
-          "bbox_source" => "ocr",
-          "page" => page.number,
-          "confidence" => nil
-        }
+        return located_slot(text, matched.map(&:first).uniq, page)
       end
 
       nil
@@ -164,14 +141,7 @@ module Extraction
           lines << word
         end
 
-        return {
-          "text" => lines.map(&:text).join(" "),
-          "bbox" => BboxGrounder.union_bbox(lines),
-          "bbox_basis" => [ page.width, page.height ],
-          "bbox_source" => "ocr",
-          "page" => page.number,
-          "confidence" => nil
-        }
+        return located_slot(lines.map(&:text).join(" "), lines, page)
       end
 
       nil
@@ -186,17 +156,23 @@ module Extraction
         next if matched.nil?
 
         parents = matched.map(&:first).uniq
-        return {
-          "text" => parents.map(&:text).join(" "),
-          "bbox" => BboxGrounder.union_bbox(parents),
-          "bbox_basis" => [ page.width, page.height ],
-          "bbox_source" => "ocr",
-          "page" => page.number,
-          "confidence" => nil
-        }
+        return located_slot(parents.map(&:text).join(" "), parents, page)
       end
 
       nil
+    end
+
+    # Every reconciliation path fills a slot the same way: the located
+    # text, boxed by the union of its words in the page's raster basis.
+    def located_slot(text, words, page)
+      {
+        "text" => text,
+        "bbox" => BboxGrounder.union_bbox(words),
+        "bbox_basis" => [ page.width, page.height ],
+        "bbox_source" => "ocr",
+        "page" => page.number,
+        "confidence" => nil
+      }
     end
   end
 end
