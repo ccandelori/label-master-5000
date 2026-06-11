@@ -1,5 +1,5 @@
-<div class="bg-white rounded-xl border border-stone-200 p-5 flex flex-wrap items-center gap-4">
-  <p class="flex-1 min-w-64 text-stone-700">
+<div class="bg-raised rounded-xl border border-line p-5 flex flex-wrap items-center gap-4">
+  <p class="flex-1 min-w-64 text-ink-muted">
     <% case verification.overall_verdict %>
     <% when "fail" %>
       Fix the failed checks above before filing — each one cites the rule it
@@ -15,5 +15,5 @@
     <% end %>
   </p>
   <%= button_to "Submit to TTB", label_application_submission_path(application),
-        class: "rounded-lg bg-stone-900 text-white px-5 py-2.5 font-medium hover:bg-stone-700 cursor-pointer" %>
+        class: "rounded-lg bg-ink text-surface px-5 py-2.5 font-medium hover:opacity-90 cursor-pointer" %>
 </div>

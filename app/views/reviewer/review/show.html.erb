@@ -34,6 +34,9 @@
       <div class="flex-1 min-h-0 flex flex-col items-center justify-center gap-4 px-8 py-6">
         <div class="text-center" data-review-mode-target="caption"></div>
         <div class="relative max-h-full min-h-0" data-review-mode-target="frame">
+          <%# bg-white is intentional and scheme-independent: transparent
+              artwork must render against the print-white substrate it will
+              be physically printed on, or its colors read wrong. %>
           <img class="max-h-[62vh] max-w-full rounded-sm shadow-xl shadow-ink/15 bg-white"
                alt="" data-review-mode-target="image">
           <svg class="absolute inset-0 w-full h-full pointer-events-none" aria-hidden="true"

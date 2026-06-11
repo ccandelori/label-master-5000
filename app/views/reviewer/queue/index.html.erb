@@ -3,24 +3,24 @@
 <div class="flex items-start justify-between flex-wrap gap-3 mb-6">
   <div>
     <h1 class="text-2xl font-semibold">Review queue</h1>
-    <p class="text-stone-600 mt-1 max-w-2xl">
+    <p class="text-ink-muted mt-1 max-w-2xl">
       Applications submitted to TTB, checked field by field against the label
       artwork. Worst findings first; open a record for the full detail, or
       work the queue in review mode.
     </p>
   </div>
   <%= link_to "Enter review mode", reviewer_review_path,
-        class: "rounded-lg bg-stone-900 text-white px-5 py-2.5 font-medium hover:bg-stone-700" %>
+        class: "rounded-lg bg-ink text-surface px-5 py-2.5 font-medium hover:opacity-90" %>
 </div>
 
 <div class="flex items-center justify-between flex-wrap gap-3 mb-4">
-  <nav class="inline-flex rounded-lg border border-stone-300 bg-white p-1" aria-label="Queue view">
+  <nav class="inline-flex rounded-lg border border-line-strong bg-raised p-1" aria-label="Queue view">
     <% ReviewerQueue::TABS.each do |tab| %>
       <%= link_to reviewer_queue_path(tab: tab, q: @query.presence),
-            class: "px-4 py-1.5 rounded-md font-medium #{tab == @tab ? 'bg-stone-900 text-white' : 'text-stone-700 hover:bg-stone-100'}",
+            class: "px-4 py-1.5 rounded-md font-medium #{tab == @tab ? 'bg-ink text-surface' : 'text-ink-muted hover:bg-panel'}",
             aria: { current: tab == @tab ? "page" : nil } do %>
         <%= ReviewerQueue::TAB_LABELS.fetch(tab) %>
-        <span class="<%= tab == @tab ? 'text-stone-300' : 'text-stone-500' %>"><%= @tabs.fetch(tab).size %></span>
+        <span class="<%= tab == @tab ? 'text-surface/70' : 'text-ink-faint' %>"><%= @tabs.fetch(tab).size %></span>
       <% end %>
     <% end %>
   </nav>
@@ -29,24 +29,24 @@
     <%= f.hidden_field :tab, value: @tab %>
     <%= f.label :q, "Search by serial or brand", class: "sr-only" %>
     <%= f.search_field :q, value: @query, placeholder: "Serial or brand…",
-          class: "rounded-lg border-stone-300 w-56" %>
-    <%= f.submit "Search", class: "rounded-lg border border-stone-300 bg-white px-4 py-2 font-medium hover:bg-stone-100 cursor-pointer" %>
+          class: "rounded-lg border-line-strong w-56" %>
+    <%= f.submit "Search", class: "rounded-lg border border-line-strong bg-raised px-4 py-2 font-medium hover:bg-panel cursor-pointer" %>
   <% end %>
 </div>
 
 <% if @entries.empty? %>
-  <section class="bg-white rounded-xl border border-stone-200 p-8 text-center">
+  <section class="bg-raised rounded-xl border border-line p-8 text-center">
     <p class="text-lg font-medium mb-1">Nothing in <%= ReviewerQueue::TAB_LABELS.fetch(@tab).downcase %>.</p>
-    <p class="text-stone-600">
+    <p class="text-ink-muted">
       <%= @query.present? ? "No matches for “#{@query}” here." : "Submitted applications appear as they are filed and checked." %>
     </p>
   </section>
 <% else %>
-  <div class="bg-white rounded-xl border border-stone-200 overflow-hidden">
+  <div class="bg-raised rounded-xl border border-line overflow-hidden">
     <table class="w-full text-left">
       <caption class="sr-only">Submitted applications - <%= ReviewerQueue::TAB_LABELS.fetch(@tab) %></caption>
       <thead>
-        <tr class="border-b border-stone-200 text-stone-600">
+        <tr class="border-b border-line text-ink-muted">
           <th scope="col" class="px-4 py-3 font-medium">Serial</th>
           <th scope="col" class="px-4 py-3 font-medium">Brand</th>
           <th scope="col" class="px-4 py-3 font-medium">Type</th>
@@ -59,21 +59,21 @@
         <% @entries.each do |entry| %>
           <% application = entry.application %>
           <% verification = entry.verification %>
-          <tr class="border-t border-stone-100">
+          <tr class="border-t border-line">
             <td class="px-4 py-3 font-medium"><%= application.serial_number %></td>
             <td class="px-4 py-3"><%= application.brand_name %></td>
-            <td class="px-4 py-3 text-stone-700"><%= application.beverage_type.capitalize %></td>
+            <td class="px-4 py-3 text-ink-muted"><%= application.beverage_type.capitalize %></td>
             <td class="px-4 py-3">
               <% if verification %>
                 <%= verdict_chip(verification.overall_verdict) %>
               <% else %>
-                <span class="text-stone-500">Checking…</span>
+                <span class="text-ink-faint">Checking…</span>
               <% end %>
             </td>
-            <td class="px-4 py-3 text-stone-700">
+            <td class="px-4 py-3 text-ink-muted">
               <% if @tab == "decided" %>
                 <%= verification.decision.humanize %>
-                <span class="text-stone-500"><%= verification.decided_at&.strftime("%b %-d, %H:%M") %></span>
+                <span class="text-ink-faint"><%= verification.decided_at&.strftime("%b %-d, %H:%M") %></span>
               <% else %>
                 <%= application.created_at.strftime("%b %-d, %H:%M") %>
               <% end %>
@@ -84,25 +84,25 @@
                 <%= button_to "✓ Approve", label_application_decision_path(application),
                       params: { decision: { verification_id: verification.id, decision: "approve" } },
                       form_class: "inline-block mr-2",
-                      class: "rounded-lg border border-green-700 text-green-900 bg-green-50 px-3 py-1.5 font-medium hover:bg-green-100 cursor-pointer" %>
+                      class: "rounded-lg border border-pass/50 text-pass bg-pass-tint px-3 py-1.5 font-medium hover:opacity-85 cursor-pointer" %>
                 <%= link_to "Review", reviewer_review_path(start: application.id),
-                      class: "rounded-lg bg-stone-900 text-white px-3 py-1.5 font-medium hover:bg-stone-700 mr-2" %>
-                <%= link_to "Details", application, class: "text-stone-700 underline underline-offset-2 hover:text-stone-900" %>
+                      class: "rounded-lg bg-ink text-surface px-3 py-1.5 font-medium hover:opacity-90 mr-2" %>
+                <%= link_to "Details", application, class: "text-ink-muted underline underline-offset-2 hover:text-ink" %>
               <% when "needs_attention" %>
                 <%= link_to "Review", reviewer_review_path(start: application.id),
-                      class: "rounded-lg bg-stone-900 text-white px-3 py-1.5 font-medium hover:bg-stone-700 mr-2" %>
-                <%= link_to "Details", application, class: "text-stone-700 underline underline-offset-2 hover:text-stone-900" %>
+                      class: "rounded-lg bg-ink text-surface px-3 py-1.5 font-medium hover:opacity-90 mr-2" %>
+                <%= link_to "Details", application, class: "text-ink-muted underline underline-offset-2 hover:text-ink" %>
               <% when "unchecked" %>
                 <%= button_to "Run check", label_application_check_path(application),
                       form_class: "inline-block mr-2",
-                      class: "rounded-lg border border-stone-400 px-3 py-1.5 font-medium hover:bg-stone-100 cursor-pointer" %>
-                <%= link_to "Details", application, class: "text-stone-700 underline underline-offset-2 hover:text-stone-900" %>
+                      class: "rounded-lg border border-line-strong px-3 py-1.5 font-medium hover:bg-panel cursor-pointer" %>
+                <%= link_to "Details", application, class: "text-ink-muted underline underline-offset-2 hover:text-ink" %>
               <% else %>
                 <% if verification.rejection_notice.present? %>
                   <%= link_to "Notice", label_application_rejection_notice_path(application, download: 1),
-                        class: "font-medium text-stone-900 underline underline-offset-2 hover:text-stone-600 mr-3" %>
+                        class: "font-medium text-ink underline underline-offset-2 hover:text-ink-muted mr-3" %>
                 <% end %>
-                <%= link_to "Details", application, class: "font-medium text-stone-900 underline underline-offset-2 hover:text-stone-600" %>
+                <%= link_to "Details", application, class: "font-medium text-ink underline underline-offset-2 hover:text-ink-muted" %>
               <% end %>
             </td>
           </tr>

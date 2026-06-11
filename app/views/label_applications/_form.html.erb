@@ -1,6 +1,6 @@
 <%= form_with model: application, class: "space-y-6" do |f| %>
   <% if application.errors.any? %>
-    <div class="rounded-lg bg-red-50 text-red-900 px-4 py-3" role="alert">
+    <div class="rounded-lg bg-fail-tint text-fail px-4 py-3" role="alert">
       <p class="font-medium">Please fix the following before submitting:</p>
       <ul class="list-disc ml-5 mt-1">
         <% application.errors.full_messages.each do |message| %>
@@ -10,24 +10,24 @@
     </div>
   <% end %>
 
-  <fieldset class="bg-white rounded-xl border border-stone-200 p-6 space-y-4">
+  <fieldset class="bg-raised rounded-xl border border-line p-6 space-y-4">
     <legend class="sr-only">Application details</legend>
     <h2 class="text-lg font-semibold">Application (TTB Form 5100.31)</h2>
 
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <div>
         <%= f.label :serial_number, "Serial number", class: "block font-medium mb-1" %>
-        <%= f.text_field :serial_number, class: "w-full rounded-lg border-stone-300", placeholder: "26-1042" %>
+        <%= f.text_field :serial_number, class: "w-full rounded-lg border-line-strong", placeholder: "26-1042" %>
       </div>
       <div>
         <%= f.label :beverage_type, "Type of product", class: "block font-medium mb-1" %>
         <%= f.select :beverage_type,
               [ [ "Distilled spirits", "spirits" ], [ "Wine", "wine" ], [ "Malt beverage", "malt" ] ],
-              { include_blank: "Choose..." }, class: "w-full rounded-lg border-stone-300" %>
+              { include_blank: "Choose..." }, class: "w-full rounded-lg border-line-strong" %>
       </div>
       <div class="flex items-end pb-2">
         <label class="inline-flex items-center gap-2 font-medium">
-          <%= f.check_box :imported, class: "rounded border-stone-300 h-5 w-5" %>
+          <%= f.check_box :imported, class: "rounded border-line-strong h-5 w-5" %>
           Imported product
         </label>
       </div>
@@ -36,67 +36,67 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div>
         <%= f.label :brand_name, "Brand name", class: "block font-medium mb-1" %>
-        <%= f.text_field :brand_name, class: "w-full rounded-lg border-stone-300" %>
+        <%= f.text_field :brand_name, class: "w-full rounded-lg border-line-strong" %>
       </div>
       <div>
         <%= f.label :fanciful_name, "Fanciful name (optional)", class: "block font-medium mb-1" %>
-        <%= f.text_field :fanciful_name, class: "w-full rounded-lg border-stone-300" %>
+        <%= f.text_field :fanciful_name, class: "w-full rounded-lg border-line-strong" %>
       </div>
     </div>
 
     <div>
       <%= f.label :applicant_name_address, "Applicant name and address (as on the permit)", class: "block font-medium mb-1" %>
-      <%= f.text_area :applicant_name_address, rows: 2, class: "w-full rounded-lg border-stone-300" %>
+      <%= f.text_area :applicant_name_address, rows: 2, class: "w-full rounded-lg border-line-strong" %>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <div>
         <%= f.label :alcohol_content, "Alcohol content (% by volume)", class: "block font-medium mb-1" %>
-        <%= f.number_field :alcohol_content, step: 0.1, min: 0, class: "w-full rounded-lg border-stone-300" %>
+        <%= f.number_field :alcohol_content, step: 0.1, min: 0, class: "w-full rounded-lg border-line-strong" %>
       </div>
       <div>
         <%= f.label :net_contents, "Net contents", class: "block font-medium mb-1" %>
-        <%= f.text_field :net_contents, class: "w-full rounded-lg border-stone-300", placeholder: "750 mL" %>
+        <%= f.text_field :net_contents, class: "w-full rounded-lg border-line-strong", placeholder: "750 mL" %>
       </div>
       <div>
         <%= f.label :country_of_origin, "Country of origin (imports)", class: "block font-medium mb-1" %>
-        <%= f.text_field :country_of_origin, class: "w-full rounded-lg border-stone-300" %>
+        <%= f.text_field :country_of_origin, class: "w-full rounded-lg border-line-strong" %>
       </div>
     </div>
 
     <div>
       <%= f.label :container_embossed_info, "Information blown, branded or embossed on the container (optional)", class: "block font-medium mb-1" %>
-      <%= f.text_field :container_embossed_info, class: "w-full rounded-lg border-stone-300", placeholder: "e.g. 750 mL molded into the glass" %>
+      <%= f.text_field :container_embossed_info, class: "w-full rounded-lg border-line-strong", placeholder: "e.g. 750 mL molded into the glass" %>
     </div>
 
     <details <%= "open" if application.wine? %>>
-      <summary class="cursor-pointer font-medium text-stone-700">Wine fields (varietals, appellation, vintage)</summary>
+      <summary class="cursor-pointer font-medium text-ink-muted">Wine fields (varietals, appellation, vintage)</summary>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-3">
         <div>
           <%= f.label :varietals_list, "Grape varietals on the label", class: "block font-medium mb-1" %>
-          <%= f.text_field :varietals_list, class: "w-full rounded-lg border-stone-300", placeholder: "Merlot, Syrah" %>
+          <%= f.text_field :varietals_list, class: "w-full rounded-lg border-line-strong", placeholder: "Merlot, Syrah" %>
         </div>
         <div>
           <%= f.label :appellation, "Appellation (if on the label)", class: "block font-medium mb-1" %>
-          <%= f.text_field :appellation, class: "w-full rounded-lg border-stone-300" %>
+          <%= f.text_field :appellation, class: "w-full rounded-lg border-line-strong" %>
         </div>
         <div>
           <%= f.label :vintage_year, "Vintage year (if on the label)", class: "block font-medium mb-1" %>
-          <%= f.number_field :vintage_year, class: "w-full rounded-lg border-stone-300" %>
+          <%= f.number_field :vintage_year, class: "w-full rounded-lg border-line-strong" %>
         </div>
       </div>
     </details>
 
     <details <%= "open" if application.formula_provided? %>>
-      <summary class="cursor-pointer font-medium text-stone-700">Formula data (TTB Form 5100.51, optional - enables stricter checks)</summary>
+      <summary class="cursor-pointer font-medium text-ink-muted">Formula data (TTB Form 5100.51, optional - enables stricter checks)</summary>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
         <div>
           <%= f.label :declared_class_type, "Class and type from the formula", class: "block font-medium mb-1" %>
-          <%= f.text_field :declared_class_type, class: "w-full rounded-lg border-stone-300" %>
+          <%= f.text_field :declared_class_type, class: "w-full rounded-lg border-line-strong" %>
         </div>
         <div>
           <%= f.label :actual_alcohol_content, "Actual alcohol content (% by volume)", class: "block font-medium mb-1" %>
-          <%= f.number_field :actual_alcohol_content, step: 0.01, min: 0, class: "w-full rounded-lg border-stone-300" %>
+          <%= f.number_field :actual_alcohol_content, step: 0.01, min: 0, class: "w-full rounded-lg border-line-strong" %>
         </div>
       </div>
       <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-3">
@@ -112,25 +112,25 @@
             <%= f.label attribute, label, class: "block font-medium mb-1" %>
             <%= f.select attribute,
                   [ [ "Unknown", "" ], [ "Contains", "true" ], [ "Does not contain", "false" ] ],
-                  {}, class: "w-full rounded-lg border-stone-300" %>
+                  {}, class: "w-full rounded-lg border-line-strong" %>
           </div>
         <% end %>
       </div>
     </details>
   </fieldset>
 
-  <fieldset class="bg-white rounded-xl border border-stone-200 p-6">
+  <fieldset class="bg-raised rounded-xl border border-line p-6">
     <legend class="sr-only">Label artwork</legend>
     <h2 class="text-lg font-semibold mb-3" aria-hidden="true">Label artwork</h2>
     <%= f.label :artwork, "Label artwork", class: "sr-only" %>
     <%= f.file_field :artwork, accept: "image/jpeg,image/png,image/webp,application/pdf",
-          class: "block w-full text-stone-700 file:mr-4 file:rounded-lg file:border-0 file:bg-stone-200 file:px-4 file:py-2 file:font-medium hover:file:bg-stone-300" %>
-    <p class="text-stone-600 mt-2">JPEG, PNG, WebP, or PDF (up to 4 pages, 20 MB).</p>
+          class: "block w-full text-ink-muted file:mr-4 file:rounded-lg file:border-0 file:bg-panel file:px-4 file:py-2 file:font-medium hover:file:bg-line" %>
+    <p class="text-ink-muted mt-2">JPEG, PNG, WebP, or PDF (up to 4 pages, 20 MB).</p>
     <% if application.artwork.attached? && application.persisted? %>
-      <p class="mt-2 text-stone-700">Current artwork: <%= application.artwork.filename %> (kept unless you choose a new file)</p>
+      <p class="mt-2 text-ink-muted">Current artwork: <%= application.artwork.filename %> (kept unless you choose a new file)</p>
     <% end %>
   </fieldset>
 
   <%= f.submit application.persisted? ? "Save and re-check" : "Check this label",
-        class: "rounded-lg bg-stone-900 text-white px-6 py-3 text-lg font-medium hover:bg-stone-700 cursor-pointer" %>
+        class: "rounded-lg bg-ink text-surface px-6 py-3 text-lg font-medium hover:opacity-90 cursor-pointer" %>
 <% end %>

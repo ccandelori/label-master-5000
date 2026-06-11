@@ -20,6 +20,7 @@
   --rv-pass: oklch(44% 0.115 152);
   --rv-pass-tint: oklch(93.5% 0.035 152);
   --rv-focus: oklch(46% 0.13 245);
+  --rv-focus-tint: oklch(93% 0.025 245);
   --rv-on-strong: oklch(98.5% 0.004 85);
   --rv-dim: oklch(25% 0.012 85 / 0.22);
 }
@@ -41,6 +42,7 @@
     --rv-pass: oklch(75% 0.12 152);
     --rv-pass-tint: oklch(26.5% 0.045 152);
     --rv-focus: oklch(74% 0.11 245);
+    --rv-focus-tint: oklch(27% 0.04 245);
     --rv-on-strong: oklch(17% 0.01 85);
     --rv-dim: oklch(5% 0.005 85 / 0.5);
   }
@@ -62,7 +64,38 @@
   --color-pass: var(--rv-pass);
   --color-pass-tint: var(--rv-pass-tint);
   --color-focus: var(--rv-focus);
+  --color-focus-tint: var(--rv-focus-tint);
   --color-on-strong: var(--rv-on-strong);
+}
+
+/* One form-control vocabulary app-wide: visible bounds, raised surface,
+   focus ring from the token layer. Preflight strips native borders, and
+   scattering border utilities per field invites drift. */
+@layer base {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="file"]),
+  textarea,
+  select {
+    background-color: var(--rv-raised);
+    border: 1px solid var(--rv-line-strong);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+  }
+
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid var(--rv-focus);
+    outline-offset: 1px;
+  }
+
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--rv-focus);
+  }
+
+  ::placeholder {
+    color: var(--rv-ink-faint);
+  }
 }
 
 /* SVG annotation layer: presentation attributes cannot carry var(), so

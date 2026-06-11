@@ -3,9 +3,9 @@ class ApplicationController < ActionController::Base
   allow_browser versions: :modern
 
   AREAS = {
-    reviewer: { label: "Reviewer", classes: "bg-indigo-100 text-indigo-900" },
-    pre_review: { label: "Pre-review", classes: "bg-teal-100 text-teal-900" },
-    rules: { label: "Rules reference", classes: "bg-stone-200 text-stone-700" }
+    reviewer: { label: "Reviewer", classes: "bg-focus-tint text-focus" },
+    pre_review: { label: "Pre-review", classes: "bg-pass-tint text-pass" },
+    rules: { label: "Rules reference", classes: "bg-panel text-ink-muted" }
   }.freeze
 
   helper_method :current_area

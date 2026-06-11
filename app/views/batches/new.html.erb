@@ -1,5 +1,5 @@
 <h1 class="text-2xl font-semibold mb-2">Pre-check a batch of labels</h1>
-<p class="text-stone-600 mb-6 max-w-2xl">
+<p class="text-ink-muted mb-6 max-w-2xl">
   Upload a CSV of applications and the label images they reference. Everything
   is validated up front — processing only starts when the whole batch is clean.
   Once checked, submit the batch to TTB in one click.
@@ -8,7 +8,7 @@
 <%= render "shared/pre_review_mode_nav", active: :batch %>
 
 <% if @ingest_errors.any? %>
-  <div class="mb-6 rounded-lg bg-red-50 text-red-900 px-4 py-3" role="alert">
+  <div class="mb-6 rounded-lg bg-fail-tint text-fail px-4 py-3" role="alert">
     <p class="font-medium mb-1">The batch was not started. Fix these and re-upload:</p>
     <ul class="list-disc ml-5 space-y-0.5">
       <% @ingest_errors.first(25).each do |error| %>
@@ -22,17 +22,17 @@
 <% end %>
 
 <%= form_with model: @batch, class: "space-y-6" do |f| %>
-  <fieldset class="bg-white rounded-xl border border-stone-200 p-6 space-y-4">
+  <fieldset class="bg-raised rounded-xl border border-line p-6 space-y-4">
     <legend class="sr-only">Batch details</legend>
     <div>
       <%= f.label :name, "Batch name (optional)", class: "block font-medium mb-1" %>
-      <%= f.text_field :name, class: "w-full sm:w-96 rounded-lg border-stone-300", placeholder: "June shipment - Janet's Imports" %>
+      <%= f.text_field :name, class: "w-full sm:w-96 rounded-lg border-line-strong", placeholder: "June shipment - Janet's Imports" %>
     </div>
     <div>
       <%= f.label :csv_file, "Applications CSV", class: "block font-medium mb-1" %>
       <%= f.file_field :csv_file, accept: "text/csv,.csv",
-            class: "block w-full text-stone-700 file:mr-4 file:rounded-lg file:border-0 file:bg-stone-200 file:px-4 file:py-2 file:font-medium hover:file:bg-stone-300" %>
-      <p class="text-stone-600 mt-2">
+            class: "block w-full text-ink-muted file:mr-4 file:rounded-lg file:border-0 file:bg-panel file:px-4 file:py-2 file:font-medium hover:file:bg-line" %>
+      <p class="text-ink-muted mt-2">
         Required columns: <code class="text-sm">serial_number, beverage_type, brand_name,
         applicant_name_address, net_contents, image_filename</code>.
         Optional: alcohol content, imports, wine fields (varietals separated by semicolons),
@@ -42,11 +42,11 @@
     <div>
       <%= f.label :images, "Label images", class: "block font-medium mb-1" %>
       <%= f.file_field :images, multiple: true, accept: "image/jpeg,image/png,image/webp,application/pdf",
-            class: "block w-full text-stone-700 file:mr-4 file:rounded-lg file:border-0 file:bg-stone-200 file:px-4 file:py-2 file:font-medium hover:file:bg-stone-300" %>
-      <p class="text-stone-600 mt-2">Select all files at once; rows match images by filename.</p>
+            class: "block w-full text-ink-muted file:mr-4 file:rounded-lg file:border-0 file:bg-panel file:px-4 file:py-2 file:font-medium hover:file:bg-line" %>
+      <p class="text-ink-muted mt-2">Select all files at once; rows match images by filename.</p>
     </div>
   </fieldset>
 
   <%= f.submit "Validate and start the batch",
-        class: "rounded-lg bg-stone-900 text-white px-6 py-3 text-lg font-medium hover:bg-stone-700 cursor-pointer" %>
+        class: "rounded-lg bg-ink text-surface px-6 py-3 text-lg font-medium hover:opacity-90 cursor-pointer" %>
 <% end %>
