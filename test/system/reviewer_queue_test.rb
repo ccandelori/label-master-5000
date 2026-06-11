@@ -45,10 +45,11 @@ class ReviewerQueueFlowTest < ApplicationSystemTestCase
     assert_text "Decision recorded"
     assert clean.latest_verification.reload.decided_to_approve?
 
-    # Reject the failure from its record page.
+    # Reject the failure from its record page; the breadcrumb leads back.
     click_on "Failed"
     click_on "Details"
     assert_text "GOVERNMENT WARNING must appear in capital letters"
+    within("nav[aria-label='Breadcrumb']") { assert_link "Review queue" }
     click_on "✗ Reject"
     assert_text "Decision recorded"
 
