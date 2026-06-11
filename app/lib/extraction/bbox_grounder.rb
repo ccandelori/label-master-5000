@@ -118,6 +118,39 @@ module Extraction
       fused_token_match(indexed, target_compact)
     end
 
+    # Diagnostic counterpart to best_match: the top-scoring windows with
+    # their scores, regardless of threshold, so a human can see what the
+    # matcher considered and why it refused. Not used in verification.
+    def candidates(target_tokens, words, limit)
+      indexed = words.flat_map do |word|
+        normalize(word.text).split(" ").map { |token| [ word, token ] }
+      end
+      return [] if indexed.empty?
+
+      target_compact = target_tokens.join
+      min_length = (target_compact.length * (1 - SIZE_SLACK)).floor
+      max_length = (target_compact.length * (1 + SIZE_SLACK)).ceil
+
+      scored = []
+      (0...indexed.size).each do |start|
+        length = 0
+        (start...indexed.size).each do |stop|
+          length += indexed[stop].last.length
+          break if length > max_length
+          next if length < min_length
+
+          window = indexed[start..stop]
+          scored << {
+            score: similarity(target_compact, window.map(&:last).join),
+            tokens: window.map(&:last),
+            words: window.map(&:first).uniq
+          }
+        end
+      end
+
+      scored.sort_by { |c| -c[:score] }.first(limit)
+    end
+
     # The fallback for fused recognition: the target appearing verbatim
     # inside a longer token. The pair carries the target itself as the
     # token, so a reconciled field reads as the declared name rather than

@@ -1,0 +1,75 @@
+# frozen_string_literal: true
+
+require "test_helper"
+
+class RegionRefinerTest < ActiveSupport::TestCase
+  def magick? = system("which magick > /dev/null 2>&1")
+
+  def word(text, x, y, w, h)
+    Extraction::OcrClient::Word.new(text: text, x: x, y: y, width: w, height: h)
+  end
+
+  class StubEngine
+    def initialize(words:)
+      @words = words
+    end
+
+    def read(data:, content_type:)
+      [ Extraction::OcrClient::Page.new(number: 1, width: 999, height: 999, words: @words) ]
+    end
+  end
+
+  def payload(field)
+    { "image_width" => 800, "image_height" => 1000, "fields" => { "brand_name" => field } }
+  end
+
+  test "re-grounds a model-estimated box from a crop and maps coordinates back" do
+    skip "imagemagick not available" unless magick?
+
+    data = File.binread(Rails.root.join("test/fixtures/files/ocr_label.png"))
+    field = { "text" => "OLD TOM DISTILLERY", "bbox" => [ 100, 80, 350, 42 ],
+              "bbox_source" => "model", "page" => 1 }
+    # Crop rect: pad 20% of 350x42 -> [30, 71.6, 490, 58.8]. Words placed
+    # at 3x crop scale so the mapped box lands on round-ish numbers.
+    crop_words = [ word("OLD", 210, 25, 150, 90), word("TOM", 390, 25, 150, 90), word("DISTILLERY", 570, 25, 450, 90) ]
+
+    out = Extraction::RegionRefiner.refine(
+      payload: payload(field), data: data, content_type: "image/png",
+      engine: StubEngine.new(words: crop_words), threshold: 0.8
+    )
+
+    refined = out["fields"]["brand_name"]
+    assert_equal "ocr", refined["bbox_source"]
+    assert_equal [ 800, 1000 ], refined["bbox_basis"]
+    assert_equal [ 100, 80, 270, 30 ], refined["bbox"]
+  end
+
+  test "fields already grounded or without text stay untouched" do
+    skip "imagemagick not available" unless magick?
+
+    data = File.binread(Rails.root.join("test/fixtures/files/ocr_label.png"))
+    grounded = { "text" => "OLD TOM", "bbox" => [ 1, 2, 3, 4 ], "bbox_source" => "ocr", "page" => 1 }
+    silent = { "text" => nil, "bbox" => [ 1, 2, 3, 4 ], "bbox_source" => "model", "page" => 1 }
+    input = { "image_width" => 800, "image_height" => 1000,
+              "fields" => { "brand_name" => grounded, "vintage" => silent } }
+
+    out = Extraction::RegionRefiner.refine(
+      payload: input, data: data, content_type: "image/png",
+      engine: StubEngine.new(words: []), threshold: 0.8
+    )
+
+    assert_equal input, out
+  end
+
+  test "unreadable artwork leaves the payload unchanged" do
+    field = { "text" => "OLD TOM", "bbox" => [ 1, 2, 3, 4 ], "bbox_source" => "model", "page" => 1 }
+    input = payload(field)
+
+    out = Extraction::RegionRefiner.refine(
+      payload: input, data: "not-an-image", content_type: "image/png",
+      engine: StubEngine.new(words: []), threshold: 0.8
+    )
+
+    assert_equal input, out
+  end
+end
