@@ -65,40 +65,97 @@
          data-controller="bbox-overlay"
          data-bbox-overlay-boxes-value="<%= bbox_data(verification).to_json %>">
       <div class="lg:col-span-2">
-        <%= render "label_applications/artwork_panel", application: application, verification: verification %>
+        <div class="lg:sticky lg:top-6">
+          <%= render "label_applications/artwork_panel", application: application, verification: verification %>
+        </div>
       </div>
 
+      <%# Checks grouped by severity: flagged groups read open at full
+          width (statutory texts need room to compare); passing and
+          skipped checks fold into disclosure rows. %>
       <div class="lg:col-span-3 bg-raised rounded-xl border border-line overflow-hidden">
-        <table class="w-full text-left">
-          <caption class="sr-only">Field-by-field verification results</caption>
-          <thead>
-            <tr class="border-b border-line text-ink-muted">
-              <th scope="col" class="px-4 py-3 font-medium">Check</th>
-              <th scope="col" class="px-4 py-3 font-medium">Application</th>
-              <th scope="col" class="px-4 py-3 font-medium">On the label</th>
-              <th scope="col" class="px-4 py-3 font-medium">Result</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% verification.field_checks.sort_by { |c| -c.severity }.each do |check| %>
-              <tr class="border-t border-line align-top" data-field="<%= check.field %>"
-                  data-action="mouseenter->bbox-overlay#highlight mouseleave->bbox-overlay#unhighlight">
-                <th scope="row" class="px-4 py-3 font-medium"><%= field_label(check.field) %></th>
-                <td class="px-4 py-3 text-ink-muted"><%= check.expected.presence || "—" %></td>
-                <td class="px-4 py-3 text-ink-muted"><%= check.extracted.presence || "—" %></td>
-                <td class="px-4 py-3"><%= verdict_chip(check.verdict) %></td>
-              </tr>
-              <% if check.note.present? || check.citation.present? %>
-                <tr class="text-ink-muted" data-field="<%= check.field %>">
-                  <td colspan="4" class="px-4 pb-3 pt-0">
-                    <% if check.note.present? %><span class="<%= check.verdict == 'fail' ? 'text-fail' : '' %>"><%= check.note %></span><% end %>
-                    <% if check.citation.present? %><span class="text-ink-faint"> — <%= check.citation %></span><% end %>
-                  </td>
-                </tr>
-              <% end %>
+        <% sorted = verification.field_checks.sort_by { |c| -c.severity } %>
+        <% groups = [
+             [ "Failed",       "fail",         sorted.select { |c| c.verdict == "fail" } ],
+             [ "Needs review", "needs_review", sorted.select { |c| c.verdict == "needs_review" } ],
+             [ "Passed",       "pass",         sorted.select { |c| %w[pass pass_with_note].include?(c.verdict) } ],
+             [ "Not checked",  nil,            sorted.select { |c| %w[not_required not_applicable].include?(c.verdict) } ]
+           ] %>
+        <% group_color = { "fail" => "text-fail", "needs_review" => "text-warn", "pass" => "text-pass" } %>
+
+        <% groups.each do |title, verdict_key, checks| %>
+          <% next if checks.empty? %>
+          <section aria-label="<%= title %> checks">
+            <h3 class="flex items-baseline gap-2 px-5 pt-4 pb-1.5 text-xs font-semibold uppercase tracking-wider <%= group_color[verdict_key] || "text-ink-faint" %>">
+              <%= title %>
+              <span class="text-ink-faint font-normal normal-case tracking-normal"><%= checks.size %></span>
+            </h3>
+
+            <% if %w[fail needs_review].include?(verdict_key) %>
+              <div class="divide-y divide-line/60">
+                <% checks.each do |check| %>
+                  <article class="px-5 py-4" data-field="<%= check.field %>"
+                           data-action="mouseenter->bbox-overlay#highlight mouseleave->bbox-overlay#unhighlight">
+                    <h4 class="font-medium"><%= field_label(check.field) %></h4>
+                    <dl class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 max-w-prose sm:max-w-none">
+                      <div>
+                        <dt class="text-xs uppercase tracking-wide text-ink-faint">Application</dt>
+                        <dd class="mt-0.5 <%= check.expected.present? ? "" : "text-ink-faint" %>"><%= check.expected.presence || "—" %></dd>
+                      </div>
+                      <div>
+                        <dt class="text-xs uppercase tracking-wide text-ink-faint">On the label</dt>
+                        <dd class="mt-0.5 <%= check.extracted.present? ? "" : "text-ink-faint" %>"><%= check.extracted.presence || "—" %></dd>
+                      </div>
+                    </dl>
+                    <% if check.note.present? %>
+                      <p class="mt-2 <%= check.verdict == "fail" ? "text-fail" : "text-ink-muted" %>"><%= check.note %></p>
+                    <% end %>
+                    <% if check.citation.present? %>
+                      <p class="mt-1 text-sm text-ink-faint"><%= check.citation %></p>
+                    <% end %>
+                  </article>
+                <% end %>
+              </div>
+            <% else %>
+              <div class="divide-y divide-line/60">
+                <% checks.each do |check| %>
+                  <details class="group" data-field="<%= check.field %>"
+                           data-action="mouseenter->bbox-overlay#highlight mouseleave->bbox-overlay#unhighlight">
+                    <summary class="flex items-center gap-2.5 px-5 py-2.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden hover:bg-panel transition duration-150">
+                      <span class="shrink-0 size-2 rounded-full <%= verdict_key == "pass" ? "bg-pass" : "bg-line-strong" %>" aria-hidden="true"></span>
+                      <span class="flex-1 min-w-0 truncate font-medium text-sm"><%= field_label(check.field) %></span>
+                      <% if check.verdict == "pass_with_note" %>
+                        <span class="shrink-0 text-xs text-ink-faint">with note</span>
+                      <% end %>
+                      <svg class="shrink-0 size-3.5 text-ink-faint transition-transform duration-150 group-open:rotate-90" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </summary>
+                    <div class="px-5 pb-4 pt-0.5">
+                      <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
+                        <div>
+                          <dt class="text-xs uppercase tracking-wide text-ink-faint">Application</dt>
+                          <dd class="mt-0.5 <%= check.expected.present? ? "" : "text-ink-faint" %>"><%= check.expected.presence || "—" %></dd>
+                        </div>
+                        <div>
+                          <dt class="text-xs uppercase tracking-wide text-ink-faint">On the label</dt>
+                          <dd class="mt-0.5 <%= check.extracted.present? ? "" : "text-ink-faint" %>"><%= check.extracted.presence || "—" %></dd>
+                        </div>
+                      </dl>
+                      <% if check.note.present? %>
+                        <p class="mt-2 text-ink-muted"><%= check.note %></p>
+                      <% end %>
+                      <% if check.citation.present? %>
+                        <p class="mt-1 text-sm text-ink-faint"><%= check.citation %></p>
+                      <% end %>
+                    </div>
+                  </details>
+                <% end %>
+              </div>
             <% end %>
-          </tbody>
-        </table>
+          </section>
+        <% end %>
+        <div class="pb-2"></div>
       </div>
     </div>
 
