@@ -72,6 +72,22 @@ class ReviewerReviewControllerTest < ActionDispatch::IntegrationTest
     assert_match(/capital letters/, finding["note"])
     assert_equal "GOVERNMENT WARNING", finding["expected"]
     assert_equal "Government Warning", finding["extracted"]
+    assert_nil payload["back_artwork_url"], "no back label, no back url"
+  end
+
+  test "the payload carries the back label url when one is attached" do
+    application = create_application(serial: "26-2S", brand: "TWO SIDED")
+    application.artwork.attach(io: StringIO.new("front"), filename: "front.png", content_type: "image/png")
+    application.back_artwork.attach(io: StringIO.new("back"), filename: "back.png", content_type: "image/png")
+    application.save!
+    add_verification(application, verdict: "needs_review")
+
+    get reviewer_review_next_path
+    payload = response.parsed_body
+
+    assert payload["artwork_url"].present?
+    assert payload["back_artwork_url"].present?
+    assert_not_equal payload["artwork_url"], payload["back_artwork_url"]
   end
 
   test "start pins the opening item regardless of severity order" do

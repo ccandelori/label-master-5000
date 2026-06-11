@@ -66,6 +66,11 @@ class ReviewerQueueFlowTest < ApplicationSystemTestCase
     visit reviewer_review_path
     assert_text "Exit review mode"
     assert_match(/26-HUD/, page.html)
+
+    # The side switch and its shortcut hint ship hidden; the controller
+    # reveals them per item when a back label exists.
+    assert_selector "[data-review-mode-target='sideToggle']", visible: :all
+    assert_selector "[data-review-mode-target='sideHint']", visible: :all
   end
 
   test "failed labels enter review mode for their rejection" do
