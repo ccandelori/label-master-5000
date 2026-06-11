@@ -33,12 +33,20 @@ module Extraction
 
     def locate(target_tokens, pages, threshold)
       Array(pages).each do |page|
-        words = BboxGrounder.best_match(target_tokens, page.words, threshold)
-        next if words.nil?
+        matched = BboxGrounder.best_match(target_tokens, page.words, threshold)
+        next if matched.nil?
+
+        # An entry that is exactly its one token keeps its printed form;
+        # a token matched inside a longer line-level entry falls back to
+        # its normalized form, since the sub-line verbatim text is not
+        # recoverable from line geometry.
+        text = matched.map do |word, token|
+          BboxGrounder.normalize(word.text) == token ? word.text : token
+        end.join(" ")
 
         return {
-          "text" => words.map(&:text).join(" "),
-          "bbox" => BboxGrounder.union_bbox(words),
+          "text" => text,
+          "bbox" => BboxGrounder.union_bbox(matched.map(&:first).uniq),
           "bbox_basis" => [ page.width, page.height ],
           "bbox_source" => "ocr",
           "page" => page.number,

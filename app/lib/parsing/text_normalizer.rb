@@ -22,12 +22,13 @@ module Parsing
     end
 
     # "STONE'S THROW" and "Stone's Throw" are equivalent; so are
-    # "Côte du Soleil" and "Cote du Soleil".
+    # "Côte du Soleil" and "Cote du Soleil", and letter-spaced display
+    # type like "V O D K A" against "VODKA" - spacing carries no content.
     def equivalent?(left, right)
-      normalized_left = normalize(left)
+      normalized_left = normalize(left).delete(" ")
       return false if normalized_left.empty?
 
-      normalized_left == normalize(right)
+      normalized_left == normalize(right).delete(" ")
     end
 
     # True when the strings match only after normalization - the

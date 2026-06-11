@@ -32,5 +32,11 @@ module Parsing
       assert TextNormalizer.equivalent_but_not_identical?("STONE'S THROW", "Stone's Throw")
       assert_not TextNormalizer.equivalent_but_not_identical?("Stone's Throw", "Stone's Throw")
     end
+
+    test "equivalent? ignores spacing - letter-spaced display type matches" do
+      assert TextNormalizer.equivalent?("V o D K A", "VODKA")
+      assert TextNormalizer.equivalent?("D R A U G H T  S T O U T", "Draught Stout")
+      assert_not TextNormalizer.equivalent?("VODKA", "VODA")
+    end
   end
 end

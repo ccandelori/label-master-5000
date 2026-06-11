@@ -126,6 +126,29 @@ class BboxGrounderTest < ActiveSupport::TestCase
     assert_equal frozen_snapshot, input
   end
 
+  test "matches a target inside a longer line-level OCR entry" do
+    line = word("TEDDY LOVES IPA", 100, 200, 400, 40)
+    result = ground(payload(fields: { "fanciful_name" => field("IPA") }), [ page([ line ]) ])
+
+    grounded = result["fields"]["fanciful_name"]
+    assert_equal "ocr", grounded["bbox_source"]
+    assert_equal [ 100, 200, 400, 40 ], grounded["bbox"], "the match carries its parent line's box"
+  end
+
+  test "matches a target fused into a longer token by recognition errors" do
+    fused = word("TEDDY LOVE8IPA", 100, 200, 400, 40)
+    result = ground(payload(fields: { "fanciful_name" => field("IPA") }), [ page([ fused ]) ])
+
+    assert_equal "ocr", result["fields"]["fanciful_name"]["bbox_source"]
+  end
+
+  test "a short target inside an unrelated long token does not match" do
+    bystander = word("PARTICIPATE", 100, 200, 200, 20)
+    result = ground(payload(fields: { "fanciful_name" => field("IPA") }), [ page([ bystander ]) ])
+
+    assert_equal "model", result["fields"]["fanciful_name"]["bbox_source"]
+  end
+
   test "matches letter-spaced display type read as one word per letter" do
     letters = "DRAUGHT STOUT".delete(" ").chars.each_with_index.map do |letter, index|
       word(letter, 100 + index * 30, 400, 24, 30)

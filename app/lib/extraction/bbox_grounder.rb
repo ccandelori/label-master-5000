@@ -17,6 +17,14 @@ module Extraction
     # short window's words carry OCR character errors.
     OVERLAP_PREFILTER = 0.5
     PREFILTER_MIN_TOKENS = 8
+
+    # Recognition sometimes fuses neighbors into one token ("LOVES IPA"
+    # read as "LOVE8IPA"). When no window matches, a target found verbatim
+    # inside a longer token still counts - if it is long enough, and a
+    # substantial enough part of its host, to not be coincidence ("ipa"
+    # inside "participate" must not match).
+    SUBSTRING_MIN_LENGTH = 3
+    SUBSTRING_MIN_RATIO = 0.3
     # Candidate windows range over the target's character length +/- this
     # fraction, absorbing OCR word splits, merges, and stray marks.
     SIZE_SLACK = 0.3
@@ -51,11 +59,11 @@ module Extraction
       page = pages_by_number[field["page"] || 1]
       return field.merge("bbox_source" => "model") if target_tokens.empty? || page.nil?
 
-      matched_words = best_match(target_tokens, page.words, threshold)
-      return field.merge("bbox_source" => "model") if matched_words.nil?
+      matched = best_match(target_tokens, page.words, threshold)
+      return field.merge("bbox_source" => "model") if matched.nil?
 
       field.merge(
-        "bbox" => union_bbox(matched_words),
+        "bbox" => union_bbox(matched.map(&:first).uniq),
         "bbox_basis" => [ page.width, page.height ],
         "bbox_source" => "ocr"
       )
@@ -69,9 +77,12 @@ module Extraction
     # target. Words that normalize to nothing (stray punctuation) are
     # excluded from the sequence so they neither pad nor split windows.
     def best_match(target_tokens, words, threshold)
-      indexed = words.filter_map do |word|
-        normalized = normalize(word.text)
-        [ word, normalized.delete(" ") ] unless normalized.empty?
+      # One OCR entry may carry several tokens (line-level engines emit
+      # "TEDDY LOVES IPA" as one entry); each token enters the sequence
+      # separately, sharing its parent's box, so a target inside a longer
+      # line is still matchable. The union then covers the parent line.
+      indexed = words.flat_map do |word|
+        normalize(word.text).split(" ").map { |token| [ word, token ] }
       end
       return nil if indexed.empty?
 
@@ -81,7 +92,7 @@ module Extraction
       target_tally = target_tokens.tally
       prefilter = target_tokens.size > PREFILTER_MIN_TOKENS
 
-      best_words = nil
+      best_pairs = nil
       best_score = -1.0
 
       (0...indexed.size).each do |start|
@@ -97,12 +108,30 @@ module Extraction
           score = similarity(target_compact, window.map(&:last).join)
           if score > best_score
             best_score = score
-            best_words = window.map(&:first)
+            best_pairs = window
           end
         end
       end
 
-      best_score >= threshold ? best_words : nil
+      return best_pairs if best_score >= threshold
+
+      fused_token_match(indexed, target_compact)
+    end
+
+    # The fallback for fused recognition: the target appearing verbatim
+    # inside a longer token. The pair carries the target itself as the
+    # token, so a reconciled field reads as the declared name rather than
+    # the fused noise around it.
+    def fused_token_match(indexed, target_compact)
+      return nil if target_compact.length < SUBSTRING_MIN_LENGTH
+
+      host = indexed.select do |_, token|
+        token.length > target_compact.length &&
+          token.include?(target_compact) &&
+          target_compact.length.fdiv(token.length) >= SUBSTRING_MIN_RATIO
+      end.min_by { |_, token| token.length }
+
+      host && [ [ host.first, target_compact ] ]
     end
 
     # Fraction of the target's tokens present in the window (multiset).

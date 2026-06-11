@@ -161,7 +161,7 @@ module Rules
         elsif Parsing::TextNormalizer.equivalent?(expected, extracted)
           FieldCheck.new(field: field, verdict: "pass_with_note", expected: expected, extracted: extracted,
                          citation: citation,
-                         note: "Same name, different casing or punctuation - treated as a match")
+                         note: "Same name, different casing, spacing, or punctuation - treated as a match")
         else
           FieldCheck.new(field: field, verdict: "needs_review", expected: expected, extracted: extracted,
                          citation: citation,

@@ -102,7 +102,7 @@ module Rules
       )
       brand = check(checks, "brand_name")
       assert_equal "pass_with_note", brand.verdict
-      assert_match(/casing or punctuation/, brand.note)
+      assert_match(/casing, spacing, or punctuation/, brand.note)
     end
 
     test "genuinely different brand needs review" do
