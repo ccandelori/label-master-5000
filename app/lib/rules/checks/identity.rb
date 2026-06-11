@@ -21,7 +21,8 @@ module Rules
 
         match_verdict(
           field: "brand_name", expected: expected, extracted: extracted,
-          citation: brand_citation(rules) || citation
+          citation: brand_citation(rules) || citation,
+          model_text: facts.model_texts["brand_name"]
         )
       end
 
@@ -32,7 +33,8 @@ module Rules
         match_verdict(
           field: "fanciful_name", expected: expected, extracted: facts.fanciful_name,
           citation: "TTB F 5100.31 item 7",
-          missing_note: "Fanciful name on the application was not found on the label"
+          missing_note: "Fanciful name on the application was not found on the label",
+          model_text: facts.model_texts["fanciful_name"]
         )
       end
 
@@ -147,7 +149,11 @@ module Rules
         end
       end
 
-      def match_verdict(field:, expected:, extracted:, citation:, missing_note: nil)
+      # model_text is the vision model's reading of a slot whose text was
+      # replaced by OCR-located print: the located form carries the true
+      # geometry but sometimes OCR character noise, so a declared value
+      # matching either form is a match, not a discrepancy.
+      def match_verdict(field:, expected:, extracted:, citation:, missing_note: nil, model_text: nil)
         if extracted.to_s.strip.empty?
           return FieldCheck.new(
             field: field, verdict: "needs_review", expected: expected, extracted: nil,
@@ -162,6 +168,11 @@ module Rules
           FieldCheck.new(field: field, verdict: "pass_with_note", expected: expected, extracted: extracted,
                          citation: citation,
                          note: "Same name, different casing, spacing, or punctuation - treated as a match")
+        elsif Parsing::TextNormalizer.equivalent?(expected, model_text)
+          FieldCheck.new(field: field, verdict: "pass_with_note", expected: expected, extracted: extracted,
+                         citation: citation,
+                         note: "Matches the application as read by the vision model (#{model_text.to_s.strip}); " \
+                               "the OCR-located print differs only by likely character noise")
         else
           FieldCheck.new(field: field, verdict: "needs_review", expected: expected, extracted: extracted,
                          citation: citation,

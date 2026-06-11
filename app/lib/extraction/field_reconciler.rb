@@ -47,6 +47,11 @@ module Extraction
     end
 
     # Locates one declared value and replaces the field slot on a hit.
+    # The model's own reading survives the replacement under "model_text":
+    # located text carries the print's true geometry but also its OCR
+    # character noise, and the rules accept a declared-value match against
+    # either form. Reused extractions re-reconcile an already-located
+    # slot, so an existing model_text is carried forward, not re-derived.
     def reconcile_declared(payload:, pages:, field:, expected:, threshold:)
       target_tokens = BboxGrounder.tokenize(expected)
       return payload if target_tokens.empty?
@@ -55,6 +60,11 @@ module Extraction
       return payload if located.nil?
 
       fields = payload["fields"].is_a?(Hash) ? payload["fields"] : {}
+      prior = fields[field].is_a?(Hash) ? fields[field] : {}
+      model_text = prior["model_text"].to_s.strip
+      model_text = prior["text"].to_s.strip if model_text.empty?
+      located = located.merge("model_text" => model_text) if !model_text.empty? && model_text != located["text"]
+
       payload.merge("fields" => fields.merge(field => located))
     end
 

@@ -35,4 +35,24 @@ class FactsMapperTest < ActiveSupport::TestCase
     assert_equal [ "CONTAINS SULFITES" ], facts.disclosures
     assert_equal [ "Chardonnay", "Viognier" ], facts.varietals
   end
+
+  test "to_facts carries each reconciled field's model_text" do
+    payload = {
+      "fields" => {
+        "brand_name" => { "text" => "BROUWERU TIJ", "model_text" => "BROUWERIJ 'TIJ" },
+        "net_contents" => { "text" => "15 5 GALLONS", "model_text" => "15.5 GALLONS" },
+        "fanciful_name" => { "text" => "DRAUGHT STOUT" }
+      }
+    }
+    facts = Extraction::FactsMapper.to_facts(payload)
+
+    assert_equal({ "brand_name" => "BROUWERIJ 'TIJ", "net_contents" => "15.5 GALLONS" },
+                 facts.model_texts)
+  end
+
+  test "vintage_year falls back to model_text when located text carries no year" do
+    payload = { "fields" => { "vintage" => { "text" => "2 0 2 1", "model_text" => "2021" } } }
+
+    assert_equal 2021, Extraction::FactsMapper.to_facts(payload).vintage_year
+  end
 end

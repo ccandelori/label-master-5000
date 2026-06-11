@@ -14,13 +14,17 @@ module Rules
         citation = section["citation"]
         expected = application.net_contents
         extracted = facts.net_contents
+        # The vision model's reading of the same print: OCR-located text
+        # sometimes drops a decimal point ("15 5 GALLONS"), and a volume
+        # readable from either form is not a discrepancy.
+        model_volume = Parsing::NetContents.parse(facts.model_texts["net_contents"])
 
         if extracted.to_s.strip.empty?
           return [ missing_check(application, expected, citation) ]
         end
 
         expected_volume = Parsing::NetContents.parse(expected)
-        extracted_volume = Parsing::NetContents.parse(extracted)
+        extracted_volume = Parsing::NetContents.parse(extracted) || model_volume
 
         if extracted_volume.nil?
           return [ FieldCheck.new(
@@ -30,7 +34,7 @@ module Rules
         end
 
         result = []
-        result << match_check(expected, extracted, expected_volume, extracted_volume, citation)
+        result << match_check(expected, extracted, expected_volume, extracted_volume, model_volume, citation)
         result << system_check(extracted, extracted_volume, section)
         result << fill_check(extracted_volume, section) if section["required_system"] == "metric"
         result << malt_form_check(extracted, extracted_volume, section) if rules["commodity"] == "malt"
@@ -53,7 +57,7 @@ module Rules
         end
       end
 
-      def match_check(expected, extracted, expected_volume, extracted_volume, citation)
+      def match_check(expected, extracted, expected_volume, extracted_volume, model_volume, citation)
         if expected_volume.nil?
           FieldCheck.new(
             field: "net_contents", verdict: "needs_review", expected: expected, extracted: extracted,
@@ -62,6 +66,13 @@ module Rules
         elsif (expected_volume.milliliters - extracted_volume.milliliters).abs <= FILL_TOLERANCE_ML
           FieldCheck.new(field: "net_contents", verdict: "pass", expected: expected, extracted: extracted,
                          citation: citation, note: nil)
+        elsif model_volume && (expected_volume.milliliters - model_volume.milliliters).abs <= FILL_TOLERANCE_ML
+          FieldCheck.new(
+            field: "net_contents", verdict: "pass_with_note", expected: expected, extracted: extracted,
+            citation: citation,
+            note: "Matches the application as read by the vision model (#{format_ml(model_volume)}); " \
+                  "the OCR-located print differs only by likely character noise"
+          )
         else
           FieldCheck.new(
             field: "net_contents", verdict: "fail", expected: expected, extracted: extracted,
