@@ -124,6 +124,7 @@
     <h2 class="text-lg font-semibold mb-3" aria-hidden="true">Label artwork</h2>
     <%= f.label :artwork, "Label artwork", class: "sr-only" %>
     <%= f.file_field :artwork, accept: "image/jpeg,image/png,image/webp,application/pdf",
+            data: { controller: "artwork-downscale", action: "change->artwork-downscale#shrink" },
           class: "block w-full text-ink-muted file:mr-4 file:rounded-lg file:border-0 file:bg-panel file:px-4 file:py-2 file:font-medium hover:file:bg-line" %>
     <p class="text-ink-muted mt-2">JPEG, PNG, WebP, or PDF (up to 4 pages, 20 MB).</p>
     <% if application.artwork.attached? && application.persisted? %>
