@@ -10,6 +10,18 @@ export default class extends Controller {
 
   connect() {
     this.popover = null
+    // The popover frequently covers its own box, so re-clicking the box is
+    // not a workable dismissal; any click outside the popover (or Escape)
+    // closes it. Box clicks stop propagation, so toggling still works.
+    this.outsideClickHandler = (event) => {
+      if (this.popover && !this.popover.contains(event.target)) this.closePopover()
+    }
+    this.escapeHandler = (event) => {
+      if (event.key === "Escape") this.closePopover()
+    }
+    document.addEventListener("click", this.outsideClickHandler)
+    document.addEventListener("keydown", this.escapeHandler)
+
     if (this.hasImageTarget) {
       if (this.imageTarget.complete) {
         this.render()
@@ -23,6 +35,8 @@ export default class extends Controller {
 
   disconnect() {
     if (this.resizeObserver) this.resizeObserver.disconnect()
+    document.removeEventListener("click", this.outsideClickHandler)
+    document.removeEventListener("keydown", this.escapeHandler)
   }
 
   render() {
