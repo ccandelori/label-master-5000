@@ -88,6 +88,7 @@ class VerifyLabelJob < ApplicationJob
 
     checks = Rules::Engine.evaluate(application: application, facts: facts)
     checks << duplicate_note(duplicate_of) if duplicate_of
+    checks << coverage_note if sparse_extraction?(checks)
 
     application.verifications.create!(
       overall_verdict: FieldCheck.overall(checks),
@@ -129,6 +130,27 @@ class VerifyLabelJob < ApplicationJob
       extracted: nil,
       citation: "Internal: blob checksum match",
       note: "This artwork was previously verified as application #{other_application.serial_number} (##{other_application.id})"
+    )
+  end
+
+  # Several mandatory items failing with NOTHING extracted usually means
+  # unreadable artwork rather than a label missing all of them at once.
+  SPARSE_EXTRACTION_FAILS = 3
+
+  def sparse_extraction?(checks)
+    checks.count { |c| c.verdict == "fail" && c.extracted.to_s.strip.empty? } >= SPARSE_EXTRACTION_FAILS
+  end
+
+  # Advisory only - it rides along with the failures that triggered it
+  # and never outranks them in FieldCheck.overall.
+  def coverage_note
+    FieldCheck.new(
+      field: "artwork_quality",
+      verdict: "pass_with_note",
+      expected: nil,
+      extracted: nil,
+      citation: "Internal: extraction coverage",
+      note: "Several mandatory items could not be read from the artwork at all - consider requesting a better image before rejecting"
     )
   end
 

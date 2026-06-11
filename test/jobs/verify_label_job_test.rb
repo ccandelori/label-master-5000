@@ -227,6 +227,21 @@ class VerifyLabelJobTest < ActiveSupport::TestCase
     assert_equal "pass", check.verdict
   end
 
+  test "several unreadable mandatory fields add an artwork-quality advisory" do
+    app = create_application({})
+    sparse = payload({})
+    sparse["fields"] = sparse["fields"].merge(
+      "name_address_statement" => nil, "government_warning" => nil, "net_contents" => nil
+    )
+
+    verification = with_extractor(StubExtractor.new(payload: sparse)) { VerifyLabelJob.perform_now(app.id) }
+
+    advisory = verification.field_checks.find { |c| c.field == "artwork_quality" }
+    assert_not_nil advisory, "expected the extraction-coverage advisory"
+    assert_equal "pass_with_note", advisory.verdict
+    assert_equal "fail", verification.overall_verdict, "the advisory never outranks the failures that triggered it"
+  end
+
   test "duplicate artwork across applications gets a note" do
     original = create_application(serial_number: "26-1042")
     stub = StubExtractor.new(payload: payload({}))
