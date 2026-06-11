@@ -64,14 +64,14 @@ class ReviewerQueueTest < ActiveSupport::TestCase
     assert_equal [ "26-2" ], ReviewerQueue.search(entries, "stone").map { |e| e.application.serial_number }
   end
 
-  test "reviewable covers undecided judgment work only - failed labels are excluded" do
+  test "reviewable covers every undecided label a human acts on, including failed" do
     needs_review = create_application(serial: "R-0").tap { |a| add_verification(a, verdict: "needs_review") }
     failing = create_application(serial: "R-1").tap { |a| add_verification(a, verdict: "fail") }
     unchecked = create_application(serial: "R-2")
     decided = create_application(serial: "R-3").tap { |a| add_verification(a, verdict: "fail", decision: "reject") }
 
     assert ReviewerQueue.reviewable?(entry_for(needs_review))
-    assert_not ReviewerQueue.reviewable?(entry_for(failing)), "failed labels await rejection, not review"
+    assert ReviewerQueue.reviewable?(entry_for(failing)), "a failure is confirmed in review, not rubber-stamped from a list"
     assert_not ReviewerQueue.reviewable?(entry_for(unchecked))
     assert_not ReviewerQueue.reviewable?(entry_for(decided))
   end

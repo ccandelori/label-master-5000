@@ -70,12 +70,17 @@ class SingleLabelVerificationTest < ApplicationSystemTestCase
     assert_text "27 CFR 16.22"
     assert_match(/checked in \d+(\.\d+)?s/, page.text)
 
-    # Pre-review sandbox: fix-guidance and the promotion bridge, no decisions.
+    # Pre-review sandbox: fix-guidance and the promotion bridge, no
+    # decisions, and no reviewer breadcrumb - this is the applicant's view.
     assert_text "Fix the failed checks above before filing"
     assert_no_text "Your decision:"
+    assert_no_selector "nav[aria-label='Breadcrumb']"
 
     click_on "Submit to TTB"
     assert_text "now in the reviewer queue"
+
+    # Filed work is reviewer work: the breadcrumb leads back to the queue.
+    assert_selector "nav[aria-label='Breadcrumb']", text: "Review queue"
 
     # The filed application reads as reviewer work and accepts a decision.
     click_on "✗ Reject"

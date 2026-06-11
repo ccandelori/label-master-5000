@@ -1,5 +1,15 @@
 <%= turbo_stream_from @application %>
 
+<%# Pre-review applications are the applicant's sandbox; only submitted
+    work breadcrumbs back into the reviewer queue. %>
+<% if @application.submitted? %>
+  <nav class="mb-3 text-base text-ink-muted" aria-label="Breadcrumb">
+    <%= link_to "Review queue", reviewer_queue_path, class: "underline underline-offset-2 hover:text-ink" %>
+    <span aria-hidden="true" class="mx-1 text-ink-faint">/</span>
+    <span aria-current="page"><%= @application.serial_number %></span>
+  </nav>
+<% end %>
+
 <div class="flex items-start justify-between flex-wrap gap-3 mb-6">
   <div>
     <h1 class="text-2xl font-semibold">

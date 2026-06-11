@@ -99,10 +99,12 @@
                       class: "#{control} border-transparent bg-ink text-surface hover:opacity-90 mr-2" %>
                 <%= link_to "Details", application, class: "#{quiet_link} text-ink-muted hover:text-ink" %>
               <% when "failed" %>
-                <%= button_to "Reject", label_application_decision_path(application),
+                <%= button_to "✗ Reject", label_application_decision_path(application),
                       params: { decision: { verification_id: verification.id, decision: "reject" } },
                       form_class: "inline-block align-middle mr-2",
                       class: "#{control} border-fail/50 text-fail bg-fail-tint hover:opacity-85 cursor-pointer" %>
+                <%= link_to "Review", reviewer_review_path(start: application.id),
+                      class: "#{control} border-transparent bg-ink text-surface hover:opacity-90 mr-2" %>
                 <%= link_to "Details", application, class: "#{quiet_link} text-ink-muted hover:text-ink" %>
               <% when "unchecked" %>
                 <%= button_to "Run check", label_application_check_path(application),
