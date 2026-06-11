@@ -342,7 +342,32 @@ export default class extends Controller {
     const svgNS = "http://www.w3.org/2000/svg"
     const boxes = (this.current.boxes || []).filter((b) => b.page === 1)
 
-    // Dim everything outside the located regions so they read as spotlit.
+    // Every outline rides a light casing rect so it stays legible over
+    // busy or dark artwork. The boxes draw first; the dim sheet draws
+    // above them, asleep until a hover spotlights one box through the
+    // single-hole mask (so every other outline recedes with the artwork).
+    this.overlayRects = {}
+    boxes.forEach((box) => {
+      const rect = this.scaledRect(box, width, height)
+      const index = this.current.boxes.indexOf(box)
+      this.overlayRects[index] = rect
+
+      const casing = document.createElementNS(svgNS, "rect")
+      this.placeRect(casing, rect)
+      casing.setAttribute("class", "rv-box-casing")
+      this.svgTarget.appendChild(casing)
+
+      const el = document.createElementNS(svgNS, "rect")
+      this.placeRect(el, rect)
+      el.setAttribute("class", "rv-box")
+      el.style.stroke = this.colorFor(box.verdict)
+      el.style.pointerEvents = "all"
+      el.dataset.boxIndex = index
+      el.addEventListener("pointerenter", () => this.highlightFromBox(el.dataset.boxIndex))
+      el.addEventListener("pointerleave", () => this.clearHighlight())
+      this.svgTarget.appendChild(el)
+    })
+
     if (boxes.length > 0) {
       const defs = document.createElementNS(svgNS, "defs")
       const mask = document.createElementNS(svgNS, "mask")
@@ -355,46 +380,34 @@ export default class extends Controller {
       visible.setAttribute("fill", "white")
       mask.appendChild(visible)
 
-      boxes.forEach((box) => {
-        const rect = this.scaledRect(box, width, height)
-        const hole = document.createElementNS(svgNS, "rect")
-        hole.setAttribute("x", rect.x)
-        hole.setAttribute("y", rect.y)
-        hole.setAttribute("width", Math.max(rect.w, 6))
-        hole.setAttribute("height", Math.max(rect.h, 6))
-        hole.setAttribute("rx", "3")
-        hole.setAttribute("fill", "black")
-        mask.appendChild(hole)
-      })
+      this.spotlightHole = document.createElementNS(svgNS, "rect")
+      this.spotlightHole.setAttribute("rx", "3")
+      this.spotlightHole.setAttribute("fill", "black")
+      mask.appendChild(this.spotlightHole)
       defs.appendChild(mask)
       this.svgTarget.appendChild(defs)
 
-      const dim = document.createElementNS(svgNS, "rect")
-      dim.setAttribute("x", 0)
-      dim.setAttribute("y", 0)
-      dim.setAttribute("width", width)
-      dim.setAttribute("height", height)
-      dim.setAttribute("class", "rv-dim")
-      dim.setAttribute("mask", "url(#rv-spotlight)")
-      this.svgTarget.appendChild(dim)
+      this.spotlightDim = document.createElementNS(svgNS, "rect")
+      this.spotlightDim.setAttribute("x", 0)
+      this.spotlightDim.setAttribute("y", 0)
+      this.spotlightDim.setAttribute("width", width)
+      this.spotlightDim.setAttribute("height", height)
+      this.spotlightDim.setAttribute("class", "rv-dim")
+      this.spotlightDim.setAttribute("mask", "url(#rv-spotlight)")
+      this.spotlightDim.dataset.active = false
+      this.svgTarget.appendChild(this.spotlightDim)
+    } else {
+      this.spotlightDim = null
+      this.spotlightHole = null
     }
+  }
 
-    boxes.forEach((box) => {
-      const rect = this.scaledRect(box, width, height)
-      const el = document.createElementNS(svgNS, "rect")
-      el.setAttribute("x", rect.x)
-      el.setAttribute("y", rect.y)
-      el.setAttribute("width", Math.max(rect.w, 6))
-      el.setAttribute("height", Math.max(rect.h, 6))
-      el.setAttribute("rx", "3")
-      el.setAttribute("class", "rv-box")
-      el.style.stroke = this.colorFor(box.verdict)
-      el.style.pointerEvents = "all"
-      el.dataset.boxIndex = this.current.boxes.indexOf(box)
-      el.addEventListener("pointerenter", () => this.highlightFromBox(el.dataset.boxIndex))
-      el.addEventListener("pointerleave", () => this.clearHighlight())
-      this.svgTarget.appendChild(el)
-    })
+  placeRect(el, rect) {
+    el.setAttribute("x", rect.x)
+    el.setAttribute("y", rect.y)
+    el.setAttribute("width", Math.max(rect.w, 6))
+    el.setAttribute("height", Math.max(rect.h, 6))
+    el.setAttribute("rx", "3")
   }
 
   scaledRect(box, width, height) {
@@ -512,13 +525,17 @@ export default class extends Controller {
     this.highlightBox(event.currentTarget.dataset.boxIndex)
   }
 
-  // Hovering a row spotlights its box; all other boxes recede.
+  // Hovering a row (or a box) wakes the dim sheet with the spotlight hole
+  // over that one box; everything else, other outlines included, recedes.
   highlightBox(boxIndex) {
     if (boxIndex === undefined || boxIndex === null || boxIndex === "") return
+    const rect = this.overlayRects?.[boxIndex]
+    if (!rect || !this.spotlightDim) return
+
+    this.placeRect(this.spotlightHole, rect)
+    this.spotlightDim.dataset.active = true
     this.svgTarget.querySelectorAll(".rv-box").forEach((el) => {
-      const active = el.dataset.boxIndex === String(boxIndex)
-      el.dataset.active = active
-      el.dataset.faded = !active
+      el.dataset.active = el.dataset.boxIndex === String(boxIndex)
     })
   }
 
@@ -532,9 +549,9 @@ export default class extends Controller {
   }
 
   clearHighlight() {
+    if (this.spotlightDim) this.spotlightDim.dataset.active = false
     this.svgTarget.querySelectorAll(".rv-box").forEach((el) => {
       el.dataset.active = false
-      el.dataset.faded = false
     })
     this.inspectorTarget.querySelectorAll("[data-box-index]").forEach((row) => row.classList.remove("bg-raised"))
   }
