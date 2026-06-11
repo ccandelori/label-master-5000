@@ -92,6 +92,12 @@
                 <%= link_to "Review", reviewer_review_path(start: application.id),
                       class: "rounded-lg bg-ink text-surface px-3 py-1.5 font-medium hover:opacity-90 mr-2" %>
                 <%= link_to "Details", application, class: "text-ink-muted underline underline-offset-2 hover:text-ink" %>
+              <% when "failed" %>
+                <%= button_to "✗ Reject", label_application_decision_path(application),
+                      params: { decision: { verification_id: verification.id, decision: "reject" } },
+                      form_class: "inline-block mr-2",
+                      class: "rounded-lg border border-fail/50 text-fail bg-fail-tint px-3 py-1.5 font-medium hover:opacity-85 cursor-pointer" %>
+                <%= link_to "Details", application, class: "text-ink-muted underline underline-offset-2 hover:text-ink" %>
               <% when "unchecked" %>
                 <%= button_to "Run check", label_application_check_path(application),
                       form_class: "inline-block mr-2",

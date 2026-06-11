@@ -32,8 +32,8 @@ class ReviewerQueueTest < ApplicationSystemTestCase
         note: "GOVERNMENT WARNING must appear in capital letters" }
     ])
 
-    # Worst work first: the failure is on the default tab.
-    visit reviewer_queue_path
+    # Failures live on their own tab, out of the review rotation.
+    visit reviewer_queue_path(tab: "failed")
     assert_text "DIRTY STOUT"
     assert_no_text "CLEAN LAGER"
 
@@ -45,7 +45,7 @@ class ReviewerQueueTest < ApplicationSystemTestCase
     assert clean.latest_verification.reload.decided_to_approve?
 
     # Reject the failure from its record page.
-    click_on "Needs attention"
+    click_on "Failed"
     click_on "Details"
     assert_text "GOVERNMENT WARNING must appear in capital letters"
     click_on "✗ Reject"
@@ -58,11 +58,20 @@ class ReviewerQueueTest < ApplicationSystemTestCase
   end
 
   test "review mode shell renders the worst undecided item" do
-    failing = create_application(serial: "26-HUD", brand: "HUD PORTER")
-    add_verification(failing, verdict: "fail")
+    flagged = create_application(serial: "26-HUD", brand: "HUD PORTER")
+    add_verification(flagged, verdict: "needs_review")
 
     visit reviewer_review_path
     assert_text "Exit review mode"
     assert_match(/26-HUD/, page.html)
+  end
+
+  test "failed labels do not enter review mode" do
+    failing = create_application(serial: "26-NOPE", brand: "FAILED STOUT")
+    add_verification(failing, verdict: "fail")
+
+    visit reviewer_review_path
+    assert_text "Queue clear"
+    assert_no_match(/26-NOPE/, page.html)
   end
 end

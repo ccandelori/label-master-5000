@@ -24,8 +24,8 @@ class ReviewerQueueControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "the queue lists submitted applications only" do
-    create_application(channel: "submitted", serial: "SUB-1").tap { |a| add_verification(a, verdict: "fail") }
-    create_application(channel: "pre_review", serial: "PRE-1").tap { |a| add_verification(a, verdict: "fail") }
+    create_application(channel: "submitted", serial: "SUB-1").tap { |a| add_verification(a, verdict: "needs_review") }
+    create_application(channel: "pre_review", serial: "PRE-1").tap { |a| add_verification(a, verdict: "needs_review") }
 
     get reviewer_queue_path
     assert_response :success
@@ -40,14 +40,21 @@ class ReviewerQueueControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "tabs partition the queue by work state" do
+    create_application(channel: "submitted", serial: "REVIEW-1").tap { |a| add_verification(a, verdict: "needs_review") }
     create_application(channel: "submitted", serial: "FAIL-1").tap { |a| add_verification(a, verdict: "fail") }
     create_application(channel: "submitted", serial: "PASS-1").tap { |a| add_verification(a, verdict: "pass") }
     create_application(channel: "submitted", serial: "PEND-1")
     create_application(channel: "submitted", serial: "DONE-1").tap { |a| add_verification(a, verdict: "pass", decision: "approve") }
 
     get reviewer_queue_path
-    assert_match(/FAIL-1/, response.body)
+    assert_match(/REVIEW-1/, response.body)
+    assert_no_match(/FAIL-1/, response.body)
     assert_no_match(/PASS-1/, response.body)
+
+    get reviewer_queue_path(tab: "failed")
+    assert_match(/FAIL-1/, response.body)
+    assert_match(/Reject/, response.body)
+    assert_no_match(/REVIEW-1/, response.body)
 
     get reviewer_queue_path(tab: "ready_to_approve")
     assert_match(/PASS-1/, response.body)
@@ -62,16 +69,16 @@ class ReviewerQueueControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "needs attention orders worst verdict first" do
+    create_application(channel: "submitted", serial: "RETAKE-1").tap { |a| add_verification(a, verdict: "request_retake") }
     create_application(channel: "submitted", serial: "REVIEW-1").tap { |a| add_verification(a, verdict: "needs_review") }
-    create_application(channel: "submitted", serial: "FAIL-1").tap { |a| add_verification(a, verdict: "fail") }
 
     get reviewer_queue_path
-    assert_operator response.body.index("FAIL-1"), :<, response.body.index("REVIEW-1")
+    assert_operator response.body.index("REVIEW-1"), :<, response.body.index("RETAKE-1")
   end
 
   test "search narrows by serial or brand" do
-    create_application(channel: "submitted", serial: "FIND-ME", brand: "ALPHA").tap { |a| add_verification(a, verdict: "fail") }
-    create_application(channel: "submitted", serial: "OTHER-1", brand: "BETA").tap { |a| add_verification(a, verdict: "fail") }
+    create_application(channel: "submitted", serial: "FIND-ME", brand: "ALPHA").tap { |a| add_verification(a, verdict: "needs_review") }
+    create_application(channel: "submitted", serial: "OTHER-1", brand: "BETA").tap { |a| add_verification(a, verdict: "needs_review") }
 
     get reviewer_queue_path(q: "find")
     assert_match(/FIND-ME/, response.body)

@@ -40,7 +40,7 @@ class ReviewerReviewControllerTest < ActionDispatch::IntegrationTest
     passing = create_application(serial: "26-PASS", brand: "CLEAN GIN")
     add_verification(passing, verdict: "pass")
     failing = create_application(serial: "26-FAIL", brand: "BAD BOURBON")
-    add_verification(failing, verdict: "fail")
+    add_verification(failing, verdict: "needs_review")
 
     get reviewer_review_path
     assert_response :success
@@ -50,14 +50,14 @@ class ReviewerReviewControllerTest < ActionDispatch::IntegrationTest
 
   test "next_item returns the callout payload" do
     application = create_application(serial: "26-1", brand: "OLD TOM")
-    add_verification(application, verdict: "fail")
+    add_verification(application, verdict: "needs_review")
 
     get reviewer_review_next_path
     assert_response :success
     payload = response.parsed_body
 
     assert_equal "26-1", payload.dig("application", "serial_number")
-    assert_equal "fail", payload.dig("verification", "overall_verdict")
+    assert_equal "needs_review", payload.dig("verification", "overall_verdict")
     assert_equal 1, payload.dig("summary", "fails")
     assert_equal 1, payload["remaining"]
     assert_equal label_application_decision_path(application), payload["decision_path"]
@@ -76,7 +76,7 @@ class ReviewerReviewControllerTest < ActionDispatch::IntegrationTest
 
   test "start pins the opening item regardless of severity order" do
     failing = create_application(serial: "26-WORST", brand: "WORST FIRST")
-    add_verification(failing, verdict: "fail")
+    add_verification(failing, verdict: "needs_review")
     passing = create_application(serial: "26-PINNED", brand: "PINNED PASS")
     add_verification(passing, verdict: "pass")
 
@@ -91,13 +91,13 @@ class ReviewerReviewControllerTest < ActionDispatch::IntegrationTest
 
   test "next_item skips deferred ids and decided or pre-review records" do
     first = create_application(serial: "26-1", brand: "FIRST")
-    add_verification(first, verdict: "fail")
+    add_verification(first, verdict: "needs_review")
     second = create_application(serial: "26-2", brand: "SECOND")
     add_verification(second, verdict: "needs_review")
     decided = create_application(serial: "26-3", brand: "DECIDED")
     add_verification(decided, verdict: "fail", decision: "reject")
     sandbox = create_application(serial: "26-4", brand: "SANDBOX", channel: "pre_review")
-    add_verification(sandbox, verdict: "fail")
+    add_verification(sandbox, verdict: "needs_review")
 
     get reviewer_review_next_path(skip: first.id.to_s)
     assert_equal "26-2", response.parsed_body.dig("application", "serial_number")
@@ -108,7 +108,7 @@ class ReviewerReviewControllerTest < ActionDispatch::IntegrationTest
 
   test "a decision removes the item from the review feed" do
     application = create_application(serial: "26-1", brand: "OLD TOM")
-    verification = add_verification(application, verdict: "fail")
+    verification = add_verification(application, verdict: "needs_review")
 
     post label_application_decision_path(application), as: :json,
          params: { decision: { verification_id: verification.id, decision: "reject" } }
@@ -121,7 +121,7 @@ class ReviewerReviewControllerTest < ActionDispatch::IntegrationTest
 
   test "undo returns the item to the review feed" do
     application = create_application(serial: "26-1", brand: "OLD TOM")
-    verification = add_verification(application, verdict: "fail")
+    verification = add_verification(application, verdict: "needs_review")
     verification.record_decision(decision: "reject", note: nil)
 
     delete label_application_decision_path(application), as: :json,
