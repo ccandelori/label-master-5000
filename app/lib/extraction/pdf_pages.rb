@@ -25,6 +25,13 @@ module Extraction
       end
     end
 
+    # Page-object count from the raw bytes. Crude but dependency-free; the
+    # page cap exists to protect the latency budget, not for exactness.
+    def page_count(data)
+      count = data.scan(%r{/Type\s*/Page[^s]}).size
+      count.positive? ? count : 1
+    end
+
     def run!(*command)
       _stdout, stderr, status = Open3.capture3(*command)
       unless status.success?

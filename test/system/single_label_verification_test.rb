@@ -35,6 +35,10 @@ class SingleLabelVerificationTest < ApplicationSystemTestCase
       @payload = payload
     end
 
+    def model_id
+      "stub-model"
+    end
+
     def extract(data:, content_type:)
       LabelExtractor::Result.new(
         facts: Extraction::FactsMapper.to_facts(@payload),
