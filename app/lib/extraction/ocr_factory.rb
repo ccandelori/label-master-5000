@@ -10,8 +10,8 @@ module Extraction
   module OcrFactory
     # Bump when anything that changes OCR output changes: engine models,
     # enrichment passes, upscale factor. Stale cache rows simply stop
-    # being read.
-    CACHE_VERSION = 2
+    # being read. v3: mobile detection model.
+    CACHE_VERSION = 3
 
     module_function
 

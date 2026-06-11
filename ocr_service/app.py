@@ -35,8 +35,16 @@ app = FastAPI()
 
 # Model weights download on first construction; doc-level rectification
 # stays off (labels are flat artwork, not photographed documents).
+# The mobile detector is the default: the server variant's activation
+# footprint on CPU is multi-gigabyte per read and was the source of the
+# worker's memory pathology; mobile detects with a fraction of both
+# memory and time, and the caller's region-crop ladder compensates for
+# its weaker small-print recall.
+DET_MODEL = os.environ.get("OCR_DET_MODEL", "PP-OCRv5_mobile_det")
+
 engine = PaddleOCR(
     lang="en",
+    text_detection_model_name=DET_MODEL,
     use_doc_orientation_classify=False,
     use_doc_unwarping=False,
     use_textline_orientation=True,
