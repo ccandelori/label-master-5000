@@ -171,4 +171,47 @@ class BboxGrounderTest < ActiveSupport::TestCase
 
     assert_equal "ocr", result["fields"]["government_warning"]["bbox_source"]
   end
+
+  test "a field already pixel-anchored is not re-grounded or downgraded" do
+    anchored = field("DRAUGHT STOUT").merge(
+      "bbox" => [ 721, 1118, 480, 106 ], "bbox_basis" => [ 2433, 1807 ], "bbox_source" => "ocr"
+    )
+    # Empty page: re-matching would miss and flip the source back to model.
+    result = ground(payload(fields: { "fanciful_name" => anchored }), [ page([]) ])
+
+    assert_equal anchored, result["fields"]["fanciful_name"]
+  end
+
+  test "gapped_match skips an unrelated word interleaved between the target's parts" do
+    target = Extraction::BboxGrounder.tokenize("4.1% alc./vol.")
+    words = [
+      word("4.1%", 100, 100, 60, 20),
+      word("Yeshi", 200, 110, 80, 20),
+      word("alc./vol.", 100, 125, 90, 20)
+    ]
+
+    assert_nil Extraction::BboxGrounder.best_match(target, words, THRESHOLD)
+
+    matched = Extraction::BboxGrounder.gapped_match(target, words, THRESHOLD)
+    assert_equal [ "4.1%", "alc./vol." ], matched.map(&:first).uniq.map(&:text)
+  end
+
+  test "gapped_match refuses to stitch far-apart fragments into one box" do
+    target = Extraction::BboxGrounder.tokenize("4.1% alc./vol.")
+    words = [
+      word("4.1%", 0, 0, 60, 20),
+      word("Yeshi", 200, 110, 80, 20),
+      word("alc./vol.", 700, 900, 90, 20)
+    ]
+
+    assert_nil Extraction::BboxGrounder.gapped_match(target, words, THRESHOLD)
+  end
+
+  test "gapped_match yields to best_match when no word is irrelevant" do
+    target = Extraction::BboxGrounder.tokenize("4.1% alc./vol.")
+    words = [ word("4.1%", 100, 100, 60, 20), word("alc./vol.", 100, 125, 90, 20) ]
+
+    assert_nil Extraction::BboxGrounder.gapped_match(target, words, THRESHOLD)
+    refute_nil Extraction::BboxGrounder.best_match(target, words, THRESHOLD)
+  end
 end

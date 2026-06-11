@@ -14,9 +14,23 @@ module Extraction
   # chosen DPI upstream.
   class EnrichedOcr
     UPSCALE_FACTOR = 2.0
+    # Upscaling past the OCR engine's own input ceiling burns memory and
+    # transfer for zero recognition gain (the engine downscales it right
+    # back). Must stay aligned with the sidecar's OCR_MAX_INPUT_SIDE; the
+    # pass is skipped when the cap leaves nothing meaningful (artwork
+    # already at or above detector resolution).
+    UPSCALE_MAX_SIDE = Integer(ENV.fetch("EXTRACTION_OCR_MAX_INPUT_SIDE", "2500"))
+    UPSCALE_MIN_FACTOR = 1.2
 
     def initialize(engine:)
       @engine = engine
+    end
+
+    # Forwarded so the caching layer can refuse to persist a pool that a
+    # fallback engine contributed to. Engines without the concept (plain
+    # Tesseract) never degrade.
+    def degraded?
+      @engine.respond_to?(:degraded?) && @engine.degraded?
     end
 
     def read(data:, content_type:)
@@ -40,10 +54,19 @@ module Extraction
     end
 
     def upscaled(data)
-      pages = @engine.read(data: ImageVariants.upscale(data, factor: UPSCALE_FACTOR), content_type: "image/png")
-      pages.flat_map(&:words).map { |w| scale_word(w, 1.0 / UPSCALE_FACTOR) }
+      factor = upscale_factor(data)
+      return [] if factor < UPSCALE_MIN_FACTOR
+
+      pages = @engine.read(data: ImageVariants.upscale(data, factor: factor), content_type: "image/png")
+      pages.flat_map(&:words).map { |w| scale_word(w, 1.0 / factor) }
     rescue OcrError => e
       skip_variant("upscale", e)
+    end
+
+    def upscale_factor(data)
+      width, height = ImageVariants.dimensions(data)
+      longest = [ width, height ].max
+      [ UPSCALE_FACTOR, UPSCALE_MAX_SIDE.fdiv(longest) ].min
     end
 
     def inverted(data)

@@ -25,6 +25,11 @@ module Extraction
     # inside "participate" must not match).
     SUBSTRING_MIN_LENGTH = 3
     SUBSTRING_MIN_RATIO = 0.3
+    # In gapped_match, consecutive matched words must sit within this
+    # multiple of the larger word's largest dimension of each other:
+    # tolerating reading-order interleavings must not license stitching
+    # far-apart fragments into a fabricated union box.
+    GAP_PROXIMITY_FACTOR = 3.0
     # Candidate windows range over the target's character length +/- this
     # fraction, absorbing OCR word splits, merges, and stray marks.
     SIZE_SLACK = 0.3
@@ -54,6 +59,11 @@ module Extraction
 
     def ground_field(field, pages_by_number, threshold)
       return field unless field.is_a?(Hash)
+      # Already pixel-anchored by a previous pass (reused extractions
+      # carry their refinement). Region-crop grounding found text the
+      # page pool lacks; re-matching here would only downgrade it back
+      # to a model estimate.
+      return field if field["bbox_source"] == "ocr" && field["bbox_basis"].is_a?(Array)
 
       target_tokens = tokenize(field["text"])
       page = pages_by_number[field["page"] || 1]
@@ -116,6 +126,38 @@ module Extraction
       return best_pairs if best_score >= threshold
 
       fused_token_match(indexed, target_compact)
+    end
+
+    # Second chance for reading-order interleavings: an unrelated word
+    # emitted between the target's parts ("4.1%" and "alc./vol." stacked,
+    # with a neighbor's word in between) breaks every contiguous window.
+    # Re-running the window match over only the words that share a token
+    # with the target skips such gaps. Restricted to spatial neighbors
+    # (GAP_PROXIMITY_FACTOR): meant for targeted region crops, where the
+    # word pool is already small and local.
+    def gapped_match(target_tokens, words, threshold)
+      target_set = target_tokens.uniq
+      relevant = words.select do |word|
+        normalize(word.text).split(" ").any? { |token| target_set.include?(token) }
+      end
+      return nil if relevant.size < 2 || relevant.size == words.size
+
+      matched = best_match(target_tokens, relevant, threshold)
+      return nil if matched.nil?
+
+      parents = matched.map(&:first).uniq
+      proximate?(parents) ? matched : nil
+    end
+
+    # Every consecutive pair of boxes within GAP_PROXIMITY_FACTOR of the
+    # larger box's largest dimension, measured center to center.
+    def proximate?(words)
+      words.each_cons(2).all? do |a, b|
+        limit = [ a.width, a.height, b.width, b.height ].max * GAP_PROXIMITY_FACTOR
+        dx = (a.x + a.width / 2.0) - (b.x + b.width / 2.0)
+        dy = (a.y + a.height / 2.0) - (b.y + b.height / 2.0)
+        Math.sqrt(dx * dx + dy * dy) <= limit
+      end
     end
 
     # Diagnostic counterpart to best_match: the top-scoring windows with

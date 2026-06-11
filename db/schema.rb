@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_06_10_190844) do
+ActiveRecord::Schema[8.0].define(version: 2026_06_11_192259) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -80,6 +80,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_06_10_190844) do
     t.index ["batch_id"], name: "index_label_applications_on_batch_id"
     t.index ["channel"], name: "index_label_applications_on_channel"
     t.index ["serial_number"], name: "index_label_applications_on_serial_number"
+  end
+
+  create_table "ocr_readings", force: :cascade do |t|
+    t.string "blob_checksum", null: false
+    t.string "engine_key", null: false
+    t.json "pages", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["blob_checksum", "engine_key"], name: "index_ocr_readings_on_blob_checksum_and_engine_key", unique: true
   end
 
   create_table "verifications", force: :cascade do |t|

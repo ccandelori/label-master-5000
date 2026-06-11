@@ -20,7 +20,9 @@ class FieldCropsController < ApplicationController
     image_w, image_h = Extraction::ImageVariants.dimensions(data)
     basis = slot["bbox_basis"] ||
             [ verification.extraction["image_width"] || image_w, verification.extraction["image_height"] || image_h ]
-    rect = Extraction::RegionRefiner.padded_rect(bbox, image_w, image_h, basis[0], basis[1])
+    rect = Extraction::RegionRefiner.padded_rect(
+      bbox, image_w, image_h, basis[0], basis[1], Extraction::RegionRefiner::PADDING
+    )
     return head :not_found if rect.nil?
 
     expires_in 10.minutes
