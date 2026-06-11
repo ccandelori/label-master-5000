@@ -18,6 +18,6 @@ fi
 # Rails client retries through the reload window.
 while true; do
   .venv/bin/uvicorn app:app --host 127.0.0.1 --port "${OCR_PORT:-8765}" \
-    --limit-max-requests "${OCR_MAX_REQUESTS:-50}"
-  echo "ocr_service: worker recycled after ${OCR_MAX_REQUESTS:-50} requests, restarting"
+    --limit-max-requests "${OCR_MAX_REQUESTS:-20}"
+  echo "ocr_service: worker recycled after ${OCR_MAX_REQUESTS:-20} requests, restarting"
 done

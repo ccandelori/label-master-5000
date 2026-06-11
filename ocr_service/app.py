@@ -12,11 +12,23 @@ blind Tesseract on dark or decorative label artwork.
 """
 
 import io
+import os
 
 import numpy as np
 from fastapi import FastAPI, Request, Response
 from paddleocr import PaddleOCR
 from PIL import Image
+
+# Detection cost (CPU time and the allocator's permanent high-water
+# mark) scales with input area. Inputs are downscaled to this longest
+# side before inference and the word boxes scaled back, so callers
+# always receive coordinates in the original pixel space. The default
+# matches PaddleOCR's internal detection ceiling - identical recognition
+# to letting Paddle downscale, minus the decode of oversized uploads.
+# Memory-constrained hosts can lower it; fine print lost to a lower cap
+# is recovered by the caller's targeted region crops, which arrive here
+# small and pre-magnified.
+MAX_SIDE = int(os.environ.get("OCR_MAX_INPUT_SIDE", "4000"))
 
 app = FastAPI()
 
@@ -45,6 +57,14 @@ async def read(request: Request, response: Response) -> dict:
         return {"error": "body is not a decodable image"}
 
     width, height = image.size
+    scale = 1.0
+    if max(width, height) > MAX_SIDE:
+        scale = MAX_SIDE / max(width, height)
+        image = image.resize(
+            (max(1, round(width * scale)), max(1, round(height * scale))),
+            Image.LANCZOS,
+        )
+
     words = []
     for page in engine.predict(np.array(image)):
         texts = page.get("rec_texts") or []
@@ -60,7 +80,13 @@ async def read(request: Request, response: Response) -> dict:
                 ys = [int(p[1]) for p in polys[index]]
                 x1, y1, x2, y2 = min(xs), min(ys), max(xs), max(ys)
             words.append(
-                {"text": str(text), "x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1}
+                {
+                    "text": str(text),
+                    "x": round(x1 / scale),
+                    "y": round(y1 / scale),
+                    "width": round((x2 - x1) / scale),
+                    "height": round((y2 - y1) / scale),
+                }
             )
 
     return {"width": width, "height": height, "words": words}
