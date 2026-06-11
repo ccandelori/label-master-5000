@@ -14,6 +14,13 @@ module Extraction
   # chosen DPI upstream.
   class EnrichedOcr
     UPSCALE_FACTOR = 2.0
+    # PaddleOCR downscales anything whose longest side exceeds ~4000px
+    # before detection, so upscaling past that ceiling burns memory and
+    # transfer for zero recognition gain. The factor is capped to stay
+    # under it, and the pass is skipped when the cap leaves nothing
+    # meaningful (already-huge artwork is at native detector resolution).
+    UPSCALE_MAX_SIDE = 4000
+    UPSCALE_MIN_FACTOR = 1.2
 
     def initialize(engine:)
       @engine = engine
@@ -47,10 +54,19 @@ module Extraction
     end
 
     def upscaled(data)
-      pages = @engine.read(data: ImageVariants.upscale(data, factor: UPSCALE_FACTOR), content_type: "image/png")
-      pages.flat_map(&:words).map { |w| scale_word(w, 1.0 / UPSCALE_FACTOR) }
+      factor = upscale_factor(data)
+      return [] if factor < UPSCALE_MIN_FACTOR
+
+      pages = @engine.read(data: ImageVariants.upscale(data, factor: factor), content_type: "image/png")
+      pages.flat_map(&:words).map { |w| scale_word(w, 1.0 / factor) }
     rescue OcrError => e
       skip_variant("upscale", e)
+    end
+
+    def upscale_factor(data)
+      width, height = ImageVariants.dimensions(data)
+      longest = [ width, height ].max
+      [ UPSCALE_FACTOR, UPSCALE_MAX_SIDE.fdiv(longest) ].min
     end
 
     def inverted(data)

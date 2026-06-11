@@ -11,7 +11,7 @@ module Extraction
     # Bump when anything that changes OCR output changes: engine models,
     # enrichment passes, upscale factor. Stale cache rows simply stop
     # being read.
-    CACHE_VERSION = 1
+    CACHE_VERSION = 2
 
     module_function
 

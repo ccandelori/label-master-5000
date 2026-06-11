@@ -41,7 +41,7 @@ class PaddleOcrClientTest < ActiveSupport::TestCase
     assert_match(/unreachable/, error.message)
   end
 
-  test "read retries transient failures before raising the last error" do
+  test "read retries connection failures before raising the last error" do
     client = Extraction::PaddleOcrClient.new(
       base_url: "http://127.0.0.1:1", pdftoppm: "pdftoppm", dpi: 200, timeout_seconds: 1,
       attempts: 3, backoff_seconds: 0
@@ -49,13 +49,30 @@ class PaddleOcrClientTest < ActiveSupport::TestCase
     attempts = 0
     client.define_singleton_method(:post_read) do |_data|
       attempts += 1
-      raise Extraction::OcrError, "ocr sidecar unreachable: connection refused"
+      raise Extraction::OcrConnectionError, "ocr sidecar unreachable: connection refused"
+    end
+
+    assert_raises(Extraction::OcrConnectionError) do
+      client.read(data: "bytes", content_type: "image/png")
+    end
+    assert_equal 3, attempts
+  end
+
+  test "read does not retry a failure that is not connection-shaped" do
+    client = Extraction::PaddleOcrClient.new(
+      base_url: "http://127.0.0.1:1", pdftoppm: "pdftoppm", dpi: 200, timeout_seconds: 1,
+      attempts: 3, backoff_seconds: 0
+    )
+    attempts = 0
+    client.define_singleton_method(:post_read) do |_data|
+      attempts += 1
+      raise Extraction::OcrError, "ocr sidecar read failed: Net::ReadTimeout"
     end
 
     assert_raises(Extraction::OcrError) do
       client.read(data: "bytes", content_type: "image/png")
     end
-    assert_equal 3, attempts
+    assert_equal 1, attempts, "a slow inference must not be re-submitted"
   end
 
   test "read returns word boxes from a running sidecar" do

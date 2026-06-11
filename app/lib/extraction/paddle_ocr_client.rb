@@ -68,14 +68,16 @@ module Extraction
 
     # The sidecar recycles its worker periodically to bound PaddleOCR's
     # memory growth; a read landing in the reload window is refused, so
-    # transient failures retry with a warning before the last error
-    # propagates (and the engine-level fallback takes over).
+    # connection failures retry with a warning before the last error
+    # propagates (and the engine-level fallback takes over). Only
+    # connection failures: retrying a timed-out inference would re-submit
+    # the same expensive work to a worker that is already struggling.
     def read_image(data, page_number)
       attempt = 0
       begin
         attempt += 1
         attempt_read(data, page_number)
-      rescue OcrError => e
+      rescue OcrConnectionError => e
         raise e if attempt >= @attempts
 
         Rails.logger.warn(JSON.generate({
@@ -105,8 +107,10 @@ module Extraction
       ) do |http|
         http.post("/read", data, { "Content-Type" => "application/octet-stream" })
       end
+    rescue Errno::ECONNREFUSED, Errno::ECONNRESET, Errno::EPIPE, Net::OpenTimeout => e
+      raise OcrConnectionError, "ocr sidecar unreachable at #{@base_url}: #{e.class.name}: #{e.message.to_s.first(120)}"
     rescue SystemCallError, IOError, Timeout::Error => e
-      raise OcrError, "ocr sidecar unreachable at #{@base_url}: #{e.class.name}: #{e.message.to_s.first(120)}"
+      raise OcrError, "ocr sidecar read failed at #{@base_url}: #{e.class.name}: #{e.message.to_s.first(120)}"
     end
   end
 end

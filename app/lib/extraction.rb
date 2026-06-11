@@ -14,4 +14,10 @@ module Extraction
   # binary, rasterization failure, unreadable bytes). Callers treat OCR
   # grounding as best-effort and fall back to the model's boxes.
   class OcrError < ExtractionError; end
+
+  # The sidecar could not be reached at all (connection refused or reset,
+  # typically a worker recycle). Safe to retry: no inference ran. A read
+  # timeout deliberately is NOT this class - retrying a slow inference
+  # re-submits the same expensive work to an already-struggling worker.
+  class OcrConnectionError < OcrError; end
 end
