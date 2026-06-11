@@ -4,11 +4,12 @@
 # in-memory (application, latest verification) pairs - queue sizes are a
 # day's filings, not a data warehouse.
 module ReviewerQueue
-  TABS = %w[needs_attention ready_to_approve unchecked decided].freeze
+  TABS = %w[needs_attention ready_to_approve failed unchecked decided].freeze
 
   TAB_LABELS = {
     "needs_attention" => "Needs attention",
     "ready_to_approve" => "Ready to approve",
+    "failed" => "Failed",
     "unchecked" => "Unchecked / errors",
     "decided" => "Decided"
   }.freeze
@@ -37,15 +38,18 @@ module ReviewerQueue
     return "decided" if verification&.decision.present?
     return "unchecked" if verification.nil? || verification.error?
 
-    if %w[pass pass_with_note].include?(verification.overall_verdict)
-      "ready_to_approve"
-    else
-      "needs_attention"
+    case verification.overall_verdict
+    when "pass", "pass_with_note" then "ready_to_approve"
+    # A failed check is a finding, not a judgment call: failed labels
+    # await rejection, they do not compete for review attention.
+    when "fail" then "failed"
+    else "needs_attention"
     end
   end
 
-  # Review mode walks the undecided work: completed verifications only,
-  # since the annotations are the point of the screen.
+  # Review mode walks the work that needs human judgment: needs-review
+  # findings and clean passes awaiting approval. Failed labels are
+  # excluded - their verdict is already made.
   def reviewable?(entry)
     %w[needs_attention ready_to_approve].include?(tab_for(entry))
   end

@@ -38,7 +38,7 @@ class ReviewerQueueTest < ActiveSupport::TestCase
 
     assert_equal "unchecked", ReviewerQueue.tab_for(entry_for(unchecked))
     assert_equal "unchecked", ReviewerQueue.tab_for(entry_for(errored))
-    assert_equal "needs_attention", ReviewerQueue.tab_for(entry_for(failing))
+    assert_equal "failed", ReviewerQueue.tab_for(entry_for(failing))
     assert_equal "needs_attention", ReviewerQueue.tab_for(entry_for(retake))
     assert_equal "ready_to_approve", ReviewerQueue.tab_for(entry_for(passing))
     assert_equal "decided", ReviewerQueue.tab_for(entry_for(decided))
@@ -64,12 +64,14 @@ class ReviewerQueueTest < ActiveSupport::TestCase
     assert_equal [ "26-2" ], ReviewerQueue.search(entries, "stone").map { |e| e.application.serial_number }
   end
 
-  test "reviewable covers undecided completed work only" do
+  test "reviewable covers undecided judgment work only - failed labels are excluded" do
+    needs_review = create_application(serial: "R-0").tap { |a| add_verification(a, verdict: "needs_review") }
     failing = create_application(serial: "R-1").tap { |a| add_verification(a, verdict: "fail") }
     unchecked = create_application(serial: "R-2")
     decided = create_application(serial: "R-3").tap { |a| add_verification(a, verdict: "fail", decision: "reject") }
 
-    assert ReviewerQueue.reviewable?(entry_for(failing))
+    assert ReviewerQueue.reviewable?(entry_for(needs_review))
+    assert_not ReviewerQueue.reviewable?(entry_for(failing)), "failed labels await rejection, not review"
     assert_not ReviewerQueue.reviewable?(entry_for(unchecked))
     assert_not ReviewerQueue.reviewable?(entry_for(decided))
   end
