@@ -6,12 +6,14 @@ import { Controller } from "@hotwired/stimulus"
 // clicking unfolds the application-vs-label comparison with its citation.
 //
 // Keyboard: A approve, R reject, B request better image, Space skip,
-// U undo the last decision (5s window), Esc exit.
+// U undo the last decision (5s window), Esc exit; 1/2 switch label side
+// when the item carries a back label.
 export default class extends Controller {
   static targets = [
     "workspace", "stage", "frame", "svg", "image", "caption", "fallback",
     "inspector", "empty", "controls", "progress", "summary",
-    "toast", "toastMessage", "srStatus", "srFindings"
+    "toast", "toastMessage", "srStatus", "srFindings",
+    "sideToggle", "sideHint"
   ]
   static values = { initial: Object, nextUrl: String, exitUrl: String }
 
@@ -158,6 +160,10 @@ export default class extends Controller {
       this.requestRetake()
     } else if (key === "u") {
       this.undo()
+    } else if (key === "1" && this.hasBackLabel()) {
+      this.showFront()
+    } else if (key === "2" && this.hasBackLabel()) {
+      this.showBack()
     }
   }
 
@@ -206,10 +212,10 @@ export default class extends Controller {
       .then((response) => response.json())
       .then((payload) => {
         this.next = payload
-        if (payload.artwork_url) {
+        ;[ payload.artwork_url, payload.back_artwork_url ].filter(Boolean).forEach((url) => {
           const img = new Image()
-          img.src = payload.artwork_url
-        }
+          img.src = url
+        })
       })
       .catch(() => { this.next = null })
   }
@@ -240,6 +246,8 @@ export default class extends Controller {
     this.controlsTarget.classList.remove("invisible")
 
     const app = payload.application
+    this.side = 1
+    this.updateSideControls()
     this.progressTarget.textContent = `${payload.remaining} in queue`
     this.captionTarget.innerHTML = `
       <p class="text-lg font-semibold tracking-tight">${this.escape(app.brand_name)}</p>
@@ -260,6 +268,7 @@ export default class extends Controller {
     }
 
     this.renderInspector(payload)
+    this.updateSideControls()
     this.renderFallback(payload)
     this.renderScreenReaderMirror(payload)
   }
@@ -322,7 +331,68 @@ export default class extends Controller {
     this.progressTarget.textContent = ""
     this.summaryTarget.textContent = ""
     this.svgTarget.replaceChildren()
+    this.current = null
+    this.updateSideControls()
     this.announce("Queue clear. Every submitted application has a decision.")
+  }
+
+  // --- label sides -----------------------------------------------------------
+
+  hasBackLabel() {
+    return Boolean(this.current?.back_artwork_url && this.current?.artwork_url)
+  }
+
+  showFront() { this.setSide(1) }
+  showBack() { this.setSide(2) }
+
+  setSide(side) {
+    if (!this.hasBackLabel() || side === this.side) return
+
+    this.side = side
+    this.clearHighlight()
+    const app = this.current.application
+    this.imageTarget.alt = `${side === 2 ? "Back" : "Front"} label artwork for ${app.brand_name}`
+    this.imageTarget.src = side === 2 ? this.current.back_artwork_url : this.current.artwork_url
+    if (this.imageTarget.complete) this.layoutOverlay()
+    this.updateSideControls()
+    this.announce(`Showing the ${side === 2 ? "back" : "front"} label.`)
+  }
+
+  // The toggle, the shortcut hint, and the inspector's side badges all
+  // follow the current item: visible only while a back label exists, and
+  // badges only on rows whose finding sits on the other side.
+  updateSideControls() {
+    const paired = this.hasBackLabel()
+    this.sideToggleTarget.classList.toggle("hidden", !paired)
+    this.sideToggleTarget.classList.toggle("inline-flex", paired)
+    this.sideHintTarget.classList.toggle("hidden", !paired)
+
+    this.sideToggleTarget.querySelectorAll("[data-side-button]").forEach((button) => {
+      const active = Number(button.dataset.sideButton) === this.side
+      button.setAttribute("aria-pressed", String(active))
+      button.classList.toggle("bg-ink", active)
+      button.classList.toggle("text-surface", active)
+      button.classList.toggle("text-ink-muted", !active)
+    })
+
+    this.inspectorTarget.querySelectorAll("[data-side-badge]").forEach((badge) => {
+      const page = Number(badge.dataset.boxPage)
+      const elsewhere = paired && page !== this.side
+      badge.classList.toggle("hidden", !elsewhere)
+      badge.textContent = elsewhere ? (page === 2 ? "back label" : "front label") : ""
+    })
+  }
+
+  // A row whose box sits on the other label switches the stage to it
+  // before spotlighting. The overlay rebuilds when the swapped image
+  // loads, so the spotlight is deferred until the new rects exist.
+  ensureSideFor(boxIndex) {
+    if (boxIndex === undefined || boxIndex === null || boxIndex === "") return
+    const box = (this.current?.boxes || [])[Number(boxIndex)]
+    if (box && box.page !== this.side) {
+      this.pendingHighlight = boxIndex
+      this.setSide(box.page)
+    }
   }
 
   // --- artwork overlay -----------------------------------------------------
@@ -340,7 +410,7 @@ export default class extends Controller {
     this.svgTarget.setAttribute("viewBox", `0 0 ${width} ${height}`)
 
     const svgNS = "http://www.w3.org/2000/svg"
-    const boxes = (this.current.boxes || []).filter((b) => b.page === 1)
+    const boxes = (this.current.boxes || []).filter((b) => b.page === (this.side || 1))
 
     // Every outline rides a light casing rect so it stays legible over
     // busy or dark artwork. The boxes draw first; the dim sheet draws
@@ -400,6 +470,12 @@ export default class extends Controller {
       this.spotlightDim = null
       this.spotlightHole = null
     }
+
+    if (this.pendingHighlight != null) {
+      const index = this.pendingHighlight
+      this.pendingHighlight = null
+      this.highlightBox(index)
+    }
   }
 
   placeRect(el, rect) {
@@ -451,7 +527,9 @@ export default class extends Controller {
                            focus-visible:-outline-offset-2 focus-visible:outline-focus">
               <span class="shrink-0 size-2 rounded-full" style="background: ${color}" aria-hidden="true"></span>
               <span class="flex-1 min-w-0 truncate text-sm font-medium">${this.escape(finding.label)}</span>
-              ${located ? "" : `<span class="shrink-0 text-xs px-1.5 py-0.5 rounded border border-dashed text-ink-faint border-line-strong">not on label</span>`}
+              ${located ? `<span data-side-badge data-box-page="${(payload.boxes || [])[boxIndex]?.page || 1}"
+                                 class="hidden shrink-0 text-xs px-1.5 py-0.5 rounded border border-dashed text-ink-faint border-line-strong"></span>`
+                        : `<span class="shrink-0 text-xs px-1.5 py-0.5 rounded border border-dashed text-ink-faint border-line-strong">not on label</span>`}
               <svg class="shrink-0 size-3.5 text-ink-faint transition-transform duration-150" viewBox="0 0 16 16" fill="none" aria-hidden="true" data-chevron>
                 <path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
@@ -520,6 +598,7 @@ export default class extends Controller {
       detail.classList.remove("hidden")
       button.setAttribute("aria-expanded", "true")
       button.querySelector("[data-chevron]")?.classList.add("rotate-90")
+      this.ensureSideFor(button.dataset.boxIndex)
       this.highlightBox(button.dataset.boxIndex)
     } else {
       this.clearHighlight()
@@ -527,6 +606,7 @@ export default class extends Controller {
   }
 
   rowEntered(event) {
+    this.ensureSideFor(event.currentTarget.dataset.boxIndex)
     this.highlightBox(event.currentTarget.dataset.boxIndex)
   }
 

@@ -10,6 +10,12 @@
           class: "shrink-0 hover:text-ink underline underline-offset-4 decoration-line-strong" %>
     <p class="shrink-0" data-review-mode-target="progress"></p>
     <p class="hidden xl:block text-ink-faint" aria-hidden="true">
+      <%# Shown by the controller only while the current item has a back
+          label - the legend follows the queue item, not the page load. %>
+      <span class="hidden" data-review-mode-target="sideHint">
+        <kbd class="px-1.5 py-0.5 rounded border border-line bg-raised text-ink-muted">1</kbd>/<kbd class="px-1.5 py-0.5 rounded border border-line bg-raised text-ink-muted">2</kbd> label side
+        <span class="mx-1">·</span>
+      </span>
       <kbd class="px-1.5 py-0.5 rounded border border-line bg-raised text-ink-muted">A</kbd> approve
       <span class="mx-1">·</span>
       <kbd class="px-1.5 py-0.5 rounded border border-line bg-raised text-ink-muted">R</kbd> reject
@@ -33,6 +39,19 @@
     <div class="flex-1 min-w-0 flex flex-col transition-opacity duration-150" data-review-mode-target="stage">
       <div class="flex-1 min-h-0 flex flex-col items-center justify-center gap-4 px-8 py-6">
         <div class="text-center" data-review-mode-target="caption"></div>
+        <%# Front/Back side switch - the controller shows it only when the
+            current item carries a back label. %>
+        <div class="hidden items-center rounded-lg border border-line bg-raised p-0.5 text-sm"
+             role="group" aria-label="Label side" data-review-mode-target="sideToggle">
+          <button type="button" data-action="review-mode#showFront" data-side-button="1" aria-pressed="true"
+                  class="rounded-md px-3 py-1 font-medium cursor-pointer transition duration-150">
+            Front
+          </button>
+          <button type="button" data-action="review-mode#showBack" data-side-button="2" aria-pressed="false"
+                  class="rounded-md px-3 py-1 font-medium cursor-pointer transition duration-150">
+            Back
+          </button>
+        </div>
         <div class="relative max-h-full min-h-0" data-review-mode-target="frame">
           <%# bg-white is intentional and scheme-independent: transparent
               artwork must render against the print-white substrate it will

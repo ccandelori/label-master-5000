@@ -79,6 +79,7 @@ module Reviewer
         },
         findings: findings_for(checks),
         artwork_url: artwork_url(application),
+        back_artwork_url: back_artwork_url(application),
         boxes: helpers.bbox_data(verification),
         decision_path: label_application_decision_path(application),
         remaining: remaining
@@ -113,6 +114,12 @@ module Reviewer
       elsif artwork.previewable?
         url_for(artwork.preview(resize_to_limit: [ 1400, 1800 ]).processed)
       end
+    end
+
+    # Validation guarantees a back label is a standalone image.
+    def back_artwork_url(application)
+      back = application.back_artwork
+      url_for(back) if back.attached? && back.image?
     end
   end
 end
