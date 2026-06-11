@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <title><%= content_for(:title) || "Label Verifier" %></title>
+    <title><%= content_for(:title) || "LabelMaster 5000" %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
@@ -19,7 +19,7 @@
     <header class="bg-raised border-b border-line">
       <div class="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between">
         <%= link_to root_path, class: "flex items-center gap-2 text-lg font-semibold text-ink" do %>
-          <span aria-hidden="true">☑</span> Label Verifier
+          <span aria-hidden="true">☑</span> LabelMaster 5000
         <% end %>
         <nav class="flex gap-2 text-base" aria-label="Site areas">
           <%= nav_link "Reviewer", reviewer_queue_path, area: :reviewer %>
