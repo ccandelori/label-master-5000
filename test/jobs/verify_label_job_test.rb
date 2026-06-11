@@ -6,11 +6,12 @@ class VerifyLabelJobTest < ActiveSupport::TestCase
   STATUTORY = Rules::Data.statutory_warning_text
 
   class StubExtractor
-    attr_reader :calls
+    attr_reader :calls, :model_id
 
-    def initialize(payload:, error: nil)
+    def initialize(payload:, error: nil, model_id: "stub-model")
       @payload = payload
       @error = error
+      @model_id = model_id
       @calls = 0
     end
 
@@ -21,7 +22,7 @@ class VerifyLabelJobTest < ActiveSupport::TestCase
       LabelExtractor::Result.new(
         facts: Extraction::FactsMapper.to_facts(@payload),
         raw: @payload,
-        model_id: "stub-model",
+        model_id: @model_id,
         latency_ms: 12
       )
     end
@@ -153,6 +154,21 @@ class VerifyLabelJobTest < ActiveSupport::TestCase
     assert_predicate second, :fail?
     assert_equal first.extraction, second.extraction
     assert_equal 2, app.verifications.count, "history must be preserved"
+  end
+
+  test "a different model never reuses another model's extraction" do
+    app = create_application({})
+    stub = StubExtractor.new(payload: payload({}))
+
+    with_extractor(stub) { VerifyLabelJob.perform_now(app.id) }
+    assert_equal 1, stub.calls
+
+    other_model = StubExtractor.new(payload: payload({}), model_id: "other-model")
+    second = with_extractor(other_model) { VerifyLabelJob.perform_now(app.id) }
+
+    assert_equal 1, other_model.calls, "a model must produce its own reading"
+    assert_not second.extraction_reused
+    assert_equal "other-model", second.model_id
   end
 
   test "OCR grounding re-anchors matchable boxes and records provenance" do

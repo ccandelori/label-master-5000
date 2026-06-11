@@ -1,12 +1,23 @@
 # frozen_string_literal: true
 
-# Vision-extraction configuration. The model is configuration, not code:
-# swap tiers (or point at an agency-authorized endpoint) without touching
-# the connector.
-# Opus 4.7: smaller tiers read label text fine but place bounding boxes
-# poorly; Opus-tier vision localizes precisely (verified by cropping its
-# claimed regions from real labels).
-Rails.application.config.x.extraction.model = ENV.fetch("EXTRACTION_MODEL", "claude-opus-4-7")
+# Vision-extraction configuration. Provider and model are configuration,
+# not code: swap providers or tiers (or point at an agency-authorized
+# endpoint) without touching the connectors.
+# Anthropic default Opus 4.7: smaller tiers read label text fine but
+# place bounding boxes poorly; Opus-tier vision localizes precisely
+# (verified by cropping its claimed regions from real labels).
+provider = ENV.fetch("EXTRACTION_PROVIDER", "anthropic")
+default_model = { "anthropic" => "claude-opus-4-7", "openai" => "gpt-5.4" }.fetch(provider) do
+  raise "unknown EXTRACTION_PROVIDER #{provider.inspect} (anthropic | openai)"
+end
+Rails.application.config.x.extraction.provider = provider
+Rails.application.config.x.extraction.model = ENV.fetch("EXTRACTION_MODEL", default_model)
+
+# Azure OpenAI (or any OpenAI-compatible endpoint): set the base URL here
+# and the key in OPENAI_API_KEY; nil uses the SDK's own default. Azure
+# deployments that authenticate via an api-key header can supply it
+# through the SDK's OPENAI_CUSTOM_HEADERS environment variable.
+Rails.application.config.x.extraction.openai_base_url = ENV["EXTRACTION_OPENAI_BASE_URL"]
 Rails.application.config.x.extraction.effort = ENV.fetch("EXTRACTION_EFFORT", "low")
 Rails.application.config.x.extraction.max_tokens = Integer(ENV.fetch("EXTRACTION_MAX_TOKENS", "4096"))
 Rails.application.config.x.extraction.max_retries = Integer(ENV.fetch("EXTRACTION_MAX_RETRIES", "2"))

@@ -5,7 +5,7 @@
 # payload with bounding boxes. The one class in the system that talks to
 # the API; everything else is pure.
 class LabelExtractor
-  Result = Data.define(:facts, :raw, :model_id, :latency_ms)
+  Result = Extraction::ExtractorResult
   Judgment = Data.define(:same_entity, :rationale)
 
   PDF_CONTENT_TYPE = "application/pdf"
@@ -17,6 +17,10 @@ class LabelExtractor
 
   def self.build
     new(client: Extraction::AnthropicClient.build, config: Rails.application.config.x.extraction)
+  end
+
+  def model_id
+    @config.model
   end
 
   # data: raw artwork bytes; content_type: one of the allowed upload types.
@@ -85,18 +89,11 @@ class LabelExtractor
   end
 
   def enforce_page_cap!(data)
-    pages = pdf_page_count(data)
+    pages = Extraction::PdfPages.page_count(data)
     return if pages <= @config.max_pdf_pages
 
     raise Extraction::PageLimitExceeded,
           "PDF has #{pages} pages; the limit is #{@config.max_pdf_pages}"
-  end
-
-  # Page-object count from the raw bytes. Crude but dependency-free; the
-  # cap exists to protect the latency budget, not for exactness.
-  def pdf_page_count(data)
-    count = data.scan(%r{/Type\s*/Page[^s]}).size
-    count.positive? ? count : 1
   end
 
   def with_retries(operation)
@@ -123,13 +120,7 @@ class LabelExtractor
   end
 
   def parse_json(text)
-    JSON.parse(strip_fences(text))
-  rescue JSON::ParserError => e
-    raise Extraction::ResponseParseError, "model response was not valid JSON: #{e.message}"
-  end
-
-  def strip_fences(text)
-    text.to_s.sub(/\A\s*```(?:json)?\s*/, "").sub(/\s*```\s*\z/, "")
+    Extraction::ModelResponse.parse_json(text)
   end
 
   def log_extraction(payload, latency)

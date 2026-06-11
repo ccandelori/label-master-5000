@@ -3,6 +3,13 @@
 module Extraction
   class ExtractionError < StandardError; end
 
+  # What every extractor's extract(data:, content_type:) returns,
+  # whichever provider produced it. raw conforms to Schema::RESPONSE_SCHEMA;
+  # model_id is the provider's model identifier, which also keys
+  # extraction reuse (one model's reading must never be reused as
+  # another's).
+  ExtractorResult = Data.define(:facts, :raw, :model_id, :latency_ms)
+
   # Raised before any API call when a PDF exceeds the configured page cap.
   class PageLimitExceeded < ExtractionError; end
 

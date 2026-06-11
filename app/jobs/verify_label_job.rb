@@ -19,7 +19,7 @@ class VerifyLabelJob < ApplicationJob
 
   # Test seam and deployment seam in one: the factory builds the real
   # connector by default.
-  class_attribute :extractor_factory, default: -> { LabelExtractor.build }
+  class_attribute :extractor_factory, default: -> { Extraction::ExtractorFactory.build }
   class_attribute :ocr_factory, default: -> { Extraction::OcrFactory.build }
 
   def perform(label_application_id)
@@ -27,7 +27,8 @@ class VerifyLabelJob < ApplicationJob
     raise ActiveRecord::RecordNotFound, "no artwork attached" unless application.artwork.attached?
 
     started = monotonic_ms
-    reused = reusable_extraction(application)
+    extractor = extractor_factory.call
+    reused = reusable_extraction(application, extractor.model_id)
 
     if reused
       verification = evaluate_and_persist(
@@ -46,7 +47,7 @@ class VerifyLabelJob < ApplicationJob
     else
       data = application.artwork.download
       content_type = application.artwork.content_type
-      result = extractor_factory.call.extract(data: data, content_type: content_type)
+      result = extractor.extract(data: data, content_type: content_type)
       verification = evaluate_and_persist(
         application: application,
         raw: refine_extraction(raw: result.raw, data: data, content_type: content_type, application: application),
@@ -106,11 +107,14 @@ class VerifyLabelJob < ApplicationJob
   end
 
   # The same artwork bytes (matched by blob checksum) always extract the
-  # same facts - skip the vision call and re-run only the rules stage.
-  def reusable_extraction(application)
+  # same facts - for the same model. Reuse is keyed to the configured
+  # extractor's model so one provider's reading is never passed off as
+  # another's, and provider comparisons stay honest.
+  def reusable_extraction(application, model_id)
     checksum = application.artwork.blob.checksum
 
     Verification.completed.with_extraction
+                .where(model_id: model_id)
                 .joins(label_application: { artwork_attachment: :blob })
                 .where(active_storage_blobs: { checksum: checksum })
                 .order(created_at: :desc)

@@ -8,6 +8,10 @@ class BatchesControllerTest < ActionDispatch::IntegrationTest
   STATUTORY = Rules::Data.statutory_warning_text
 
   class StubExtractor
+    def model_id
+      "stub-model"
+    end
+
     def extract(data:, content_type:)
       brand = data.include?("alpha") ? "ALPHA ALE" : "BETA BOURBON"
       payload = {
