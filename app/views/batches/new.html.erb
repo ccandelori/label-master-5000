@@ -42,6 +42,7 @@
     <div>
       <%= f.label :images, "Label images", class: "block font-medium mb-1" %>
       <%= f.file_field :images, multiple: true, accept: "image/jpeg,image/png,image/webp,application/pdf",
+            data: { controller: "artwork-downscale", action: "change->artwork-downscale#shrink" },
             class: "block w-full text-ink-muted file:mr-4 file:rounded-lg file:border-0 file:bg-panel file:px-4 file:py-2 file:font-medium hover:file:bg-line" %>
       <p class="text-ink-muted mt-2">Select all files at once; rows match images by filename.</p>
     </div>
