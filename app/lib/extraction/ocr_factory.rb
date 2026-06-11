@@ -8,10 +8,20 @@ module Extraction
   # inverted variants merged into the word pool); base_engine is the
   # single-pass form for targeted work like region crops.
   module OcrFactory
+    # Bump when anything that changes OCR output changes: engine models,
+    # enrichment passes, upscale factor. Stale cache rows simply stop
+    # being read.
+    CACHE_VERSION = 1
+
     module_function
 
     def build
       EnrichedOcr.new(engine: base_engine)
+    end
+
+    # Cache key for pools produced by build's engine configuration.
+    def cache_key
+      "#{Rails.application.config.x.extraction.ocr_engine}-enriched-v#{CACHE_VERSION}"
     end
 
     def base_engine

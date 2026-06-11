@@ -172,6 +172,16 @@ class BboxGrounderTest < ActiveSupport::TestCase
     assert_equal "ocr", result["fields"]["government_warning"]["bbox_source"]
   end
 
+  test "a field already pixel-anchored is not re-grounded or downgraded" do
+    anchored = field("DRAUGHT STOUT").merge(
+      "bbox" => [ 721, 1118, 480, 106 ], "bbox_basis" => [ 2433, 1807 ], "bbox_source" => "ocr"
+    )
+    # Empty page: re-matching would miss and flip the source back to model.
+    result = ground(payload(fields: { "fanciful_name" => anchored }), [ page([]) ])
+
+    assert_equal anchored, result["fields"]["fanciful_name"]
+  end
+
   test "gapped_match skips an unrelated word interleaved between the target's parts" do
     target = Extraction::BboxGrounder.tokenize("4.1% alc./vol.")
     words = [

@@ -19,6 +19,13 @@ module Extraction
       @engine = engine
     end
 
+    # Forwarded so the caching layer can refuse to persist a pool that a
+    # fallback engine contributed to. Engines without the concept (plain
+    # Tesseract) never degrade.
+    def degraded?
+      @engine.respond_to?(:degraded?) && @engine.degraded?
+    end
+
     def read(data:, content_type:)
       base = @engine.read(data: data, content_type: content_type)
       return base if content_type == OcrClient::PDF_CONTENT_TYPE

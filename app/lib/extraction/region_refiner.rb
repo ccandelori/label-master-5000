@@ -19,6 +19,10 @@ module Extraction
     # surrounding artwork - escalate moderately, stop at first hit.
     PADDINGS = [ PADDING, 0.6, 1.2, 2.0 ].freeze
     CROP_UPSCALE = 3.0
+    # Stamped on a field the full ladder missed, so reused extractions
+    # skip re-attempting genuinely unreadable print. Bump when the ladder
+    # or matching changes enough to deserve another try.
+    ALGORITHM_VERSION = 1
 
     module_function
 
@@ -59,7 +63,7 @@ module Extraction
         end
       end
 
-      field
+      field.merge("refine_attempted" => ALGORITHM_VERSION)
     rescue OcrError => e
       Rails.logger.warn(JSON.generate({
         event: "region_refine_field_failed", error: e.message.to_s.first(200)
@@ -93,6 +97,7 @@ module Extraction
     def candidate?(field)
       field.is_a?(Hash) &&
         field["bbox_source"] == "model" &&
+        field["refine_attempted"] != ALGORITHM_VERSION &&
         field["text"].to_s.strip.present? &&
         field["bbox"].is_a?(Array) && field["bbox"].size == 4 &&
         (field["page"] || 1) == 1

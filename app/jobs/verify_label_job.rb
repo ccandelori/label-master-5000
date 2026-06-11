@@ -74,7 +74,11 @@ class VerifyLabelJob < ApplicationJob
   def refine_extraction(raw:, data:, content_type:, application:)
     threshold = Rails.application.config.x.extraction.ocr_match_threshold
     engine = ocr_factory.call
-    pages = engine.read(data: data, content_type: content_type)
+    pages = Extraction::OcrCache.read_through(
+      checksum: application.artwork.blob.checksum,
+      engine_key: Extraction::OcrFactory.cache_key,
+      engine: engine
+    ) { engine.read(data: data, content_type: content_type) }
 
     refined = Extraction::BboxGrounder.ground(payload: raw, pages: pages, threshold: threshold)
     refined = Extraction::RegionRefiner.refine(

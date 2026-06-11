@@ -84,6 +84,31 @@ class RegionRefinerTest < ActiveSupport::TestCase
     assert_equal [ 70, 63, 270, 30 ], refined["bbox"]
   end
 
+  test "a full-ladder miss is stamped and not re-attempted" do
+    skip "imagemagick not available" unless magick?
+
+    data = File.binread(Rails.root.join("test/fixtures/files/ocr_label.png"))
+    field = { "text" => "NOWHERE TEXT", "bbox" => [ 100, 80, 350, 42 ],
+              "bbox_source" => "model", "page" => 1 }
+    engine = DeafUntilEngine.new(words: [], from_read: 1)
+
+    out = Extraction::RegionRefiner.refine(
+      payload: payload(field), data: data, content_type: "image/png",
+      engine: engine, threshold: 0.8
+    )
+    stamped = out["fields"]["brand_name"]
+    assert_equal Extraction::RegionRefiner::ALGORITHM_VERSION, stamped["refine_attempted"]
+    assert_equal "model", stamped["bbox_source"]
+    first_pass_reads = engine.reads
+
+    again = Extraction::RegionRefiner.refine(
+      payload: { "image_width" => 800, "image_height" => 1000, "fields" => { "brand_name" => stamped } },
+      data: data, content_type: "image/png", engine: engine, threshold: 0.8
+    )
+    assert_equal stamped, again["fields"]["brand_name"]
+    assert_equal first_pass_reads, engine.reads, "stamped field must not trigger new reads"
+  end
+
   test "fields already grounded or without text stay untouched" do
     skip "imagemagick not available" unless magick?
 

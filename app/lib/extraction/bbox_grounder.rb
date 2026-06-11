@@ -59,6 +59,11 @@ module Extraction
 
     def ground_field(field, pages_by_number, threshold)
       return field unless field.is_a?(Hash)
+      # Already pixel-anchored by a previous pass (reused extractions
+      # carry their refinement). Region-crop grounding found text the
+      # page pool lacks; re-matching here would only downgrade it back
+      # to a model estimate.
+      return field if field["bbox_source"] == "ocr" && field["bbox_basis"].is_a?(Array)
 
       target_tokens = tokenize(field["text"])
       page = pages_by_number[field["page"] || 1]
