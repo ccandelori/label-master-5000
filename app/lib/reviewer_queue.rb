@@ -47,11 +47,12 @@ module ReviewerQueue
     end
   end
 
-  # Review mode walks the work that needs human judgment: needs-review
-  # findings and clean passes awaiting approval. Failed labels are
-  # excluded - their verdict is already made.
+  # Review mode walks every undecided label a human still acts on:
+  # needs-review findings, clean passes awaiting approval, and failed
+  # labels awaiting their rejection - a reviewer confirms a failure in
+  # context rather than rubber-stamping it from a list.
   def reviewable?(entry)
-    %w[needs_attention ready_to_approve].include?(tab_for(entry))
+    %w[needs_attention ready_to_approve failed].include?(tab_for(entry))
   end
 
   def partition(entries)

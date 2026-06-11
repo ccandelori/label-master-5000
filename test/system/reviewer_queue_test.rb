@@ -2,7 +2,7 @@
 
 require "application_system_test_case"
 
-class ReviewerQueueTest < ApplicationSystemTestCase
+class ReviewerQueueFlowTest < ApplicationSystemTestCase
   def create_application(serial:, brand:)
     LabelApplication.create!(
       channel: "submitted",
@@ -32,9 +32,10 @@ class ReviewerQueueTest < ApplicationSystemTestCase
         note: "GOVERNMENT WARNING must appear in capital letters" }
     ])
 
-    # Failures live on their own tab, out of the review rotation.
+    # Failures live on their own tab and stay in the review rotation.
     visit reviewer_queue_path(tab: "failed")
     assert_text "DIRTY STOUT"
+    assert_text "Review"
     assert_no_text "CLEAN LAGER"
 
     # One-click approve from the ready-to-approve tab.
@@ -66,12 +67,12 @@ class ReviewerQueueTest < ApplicationSystemTestCase
     assert_match(/26-HUD/, page.html)
   end
 
-  test "failed labels do not enter review mode" do
-    failing = create_application(serial: "26-NOPE", brand: "FAILED STOUT")
+  test "failed labels enter review mode for their rejection" do
+    failing = create_application(serial: "26-YEP", brand: "FAILED STOUT")
     add_verification(failing, verdict: "fail")
 
     visit reviewer_review_path
-    assert_text "Queue clear"
-    assert_no_match(/26-NOPE/, page.html)
+    assert_text "Exit review mode"
+    assert_match(/26-YEP/, page.html)
   end
 end
