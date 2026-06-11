@@ -2,12 +2,22 @@
   <h2 class="font-semibold mb-3">Where each element was found</h2>
 
   <% if application.artwork.attached? && application.artwork.image? %>
-    <div class="relative inline-block" data-bbox-overlay-target="frame">
+    <% if application.back_artwork.attached? %>
+      <h3 class="text-sm font-medium text-ink-muted mb-1">Front label</h3>
+    <% end %>
+    <div class="relative inline-block" data-bbox-overlay-target="frame" data-page="1">
       <%= image_tag url_for(application.artwork), class: "max-w-full rounded border border-line",
-            data: { bbox_overlay_target: "image" }, alt: "Label artwork for #{application.brand_name}" %>
+            data: { bbox_overlay_target: "image" }, alt: "Front label artwork for #{application.brand_name}" %>
     </div>
+    <% if application.back_artwork.attached? %>
+      <h3 class="text-sm font-medium text-ink-muted mt-4 mb-1">Back label</h3>
+      <div class="relative inline-block" data-bbox-overlay-target="frame" data-page="2">
+        <%= image_tag url_for(application.back_artwork), class: "max-w-full rounded border border-line",
+              data: { bbox_overlay_target: "image" }, alt: "Back label artwork for #{application.brand_name}" %>
+      </div>
+    <% end %>
   <% elsif application.artwork.attached? && application.artwork.previewable? %>
-    <div class="relative inline-block" data-bbox-overlay-target="frame">
+    <div class="relative inline-block" data-bbox-overlay-target="frame" data-page="1">
       <%= image_tag url_for(application.artwork.preview(resize_to_limit: [ 800, 1100 ]).processed),
             class: "max-w-full rounded border border-line",
             data: { bbox_overlay_target: "image" }, alt: "First page of the label artwork PDF" %>

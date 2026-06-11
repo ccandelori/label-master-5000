@@ -130,6 +130,15 @@
     <% if application.artwork.attached? && application.persisted? %>
       <p class="mt-2 text-ink-muted">Current artwork: <%= application.artwork.filename %> (kept unless you choose a new file)</p>
     <% end %>
+
+    <%= f.label :back_artwork, "Back label artwork (optional)", class: "block mt-4 mb-1 font-medium" %>
+    <%= f.file_field :back_artwork, accept: "image/jpeg,image/png,image/webp",
+            data: { controller: "artwork-downscale", action: "change->artwork-downscale#shrink" },
+          class: "block w-full text-ink-muted file:mr-4 file:rounded-lg file:border-0 file:bg-panel file:px-4 file:py-2 file:font-medium hover:file:bg-line" %>
+    <p class="text-ink-muted mt-2">JPEG, PNG, or WebP - only when the product has a separate back label (not with PDF artwork).</p>
+    <% if application.back_artwork.attached? && application.persisted? %>
+      <p class="mt-2 text-ink-muted">Current back label: <%= application.back_artwork.filename %> (kept unless you choose a new file)</p>
+    <% end %>
   </fieldset>
 
   <%= f.submit application.persisted? ? "Save and re-check" : "Check this label",

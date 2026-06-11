@@ -3,23 +3,28 @@
 # Serves the evidence crop for one located field: the artwork clipped to
 # the region the pipeline claims the value sits in, so a human verifies
 # the find by looking at the actual pixels rather than trusting a box on
-# a thumbnail. Crops are cut on demand from the original artwork.
+# a thumbnail. Crops are cut on demand from the original artwork of the
+# page the field was read on (1 = front label, 2 = back label).
 class FieldCropsController < ApplicationController
   def show
     application = LabelApplication.find(params[:label_application_id])
     field = params[:field].to_s
     return head :not_found unless Extraction::Schema::FIELD_KEYS.include?(field)
-    return head :not_found unless application.artwork.attached? && application.artwork.image?
 
     verification = application.verifications.order(created_at: :desc).first
     slot = verification&.extraction&.dig("fields", field)
     bbox = slot && slot["bbox"]
-    return head :not_found unless bbox.is_a?(Array) && bbox.size == 4 && (slot["page"] || 1) == 1
+    return head :not_found unless bbox.is_a?(Array) && bbox.size == 4
 
-    data = application.artwork.download
+    page = slot["page"] || 1
+    attachment = page == 1 ? application.artwork : application.back_artwork
+    return head :not_found unless page <= 2 && attachment.attached? && attachment.image?
+
+    data = attachment.download
     image_w, image_h = Extraction::ImageVariants.dimensions(data)
     basis = slot["bbox_basis"] ||
-            [ verification.extraction["image_width"] || image_w, verification.extraction["image_height"] || image_h ]
+            Extraction::PageBasis.dimensions(verification.extraction, page) ||
+            [ image_w, image_h ]
     rect = Extraction::RegionRefiner.padded_rect(
       bbox, image_w, image_h, basis[0], basis[1], Extraction::RegionRefiner::PADDING
     )

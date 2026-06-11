@@ -23,11 +23,12 @@ class LabelExtractor
     @config.model
   end
 
-  # data: raw artwork bytes; content_type: one of the allowed upload types.
-  def extract(data:, content_type:)
-    enforce_page_cap!(data) if content_type == PDF_CONTENT_TYPE
+  # artworks: Array of Extraction::ArtworkSource, front label first; a
+  # source's 1-based position is its page.
+  def extract(artworks:)
+    artworks.each { |artwork| enforce_page_cap!(artwork.data) if artwork.pdf? }
 
-    params = request_params(data, content_type)
+    params = request_params(artworks)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
     payload = with_retries("label_extraction") { parse_json(@client.complete(params)) }
     latency = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond) - started
@@ -60,17 +61,15 @@ class LabelExtractor
 
   private
 
-  def request_params(data, content_type)
+  def request_params(artworks)
     {
       model: @config.model,
       max_tokens: @config.max_tokens,
       system_: Extraction::Schema::PROMPT,
       messages: [ {
         role: "user",
-        content: [
-          artwork_block(data, content_type),
-          { type: "text", text: "Extract the label contents as schema-conforming JSON." }
-        ]
+        content: artwork_blocks(artworks) +
+          [ { type: "text", text: "Extract the label contents as schema-conforming JSON." } ]
       } ],
       output_config: {
         effort: @config.effort,
@@ -79,12 +78,23 @@ class LabelExtractor
     }
   end
 
-  def artwork_block(data, content_type)
-    encoded = Base64.strict_encode64(data)
-    if content_type == PDF_CONTENT_TYPE
+  # A lone artwork goes unlabeled (the single-image request is unchanged);
+  # a front + back pair gets the shared page labels so the model reports
+  # each field's page as the image it appears on.
+  def artwork_blocks(artworks)
+    return [ artwork_block(artworks.first) ] if artworks.one?
+
+    artworks.each_with_index.flat_map do |artwork, index|
+      [ { type: "text", text: Extraction::Schema::PAGE_LABELS[index] }, artwork_block(artwork) ]
+    end
+  end
+
+  def artwork_block(artwork)
+    encoded = Base64.strict_encode64(artwork.data)
+    if artwork.pdf?
       { type: "document", source: { type: "base64", media_type: PDF_CONTENT_TYPE, data: encoded } }
     else
-      { type: "image", source: { type: "base64", media_type: content_type, data: encoded } }
+      { type: "image", source: { type: "base64", media_type: artwork.content_type, data: encoded } }
     end
   end
 

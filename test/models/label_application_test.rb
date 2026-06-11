@@ -72,4 +72,26 @@ class LabelApplicationTest < ActiveSupport::TestCase
     assert_not app.valid?
     assert app.errors.key?(:artwork)
   end
+
+  test "back artwork accepts images only" do
+    app = valid_application({})
+    app.artwork.attach(io: StringIO.new("front"), filename: "front.png", content_type: "image/png")
+    app.back_artwork.attach(io: StringIO.new("back"), filename: "back.png", content_type: "image/png")
+    assert_predicate app, :valid?
+
+    pdf_back = valid_application({})
+    pdf_back.artwork.attach(io: StringIO.new("front"), filename: "front.png", content_type: "image/png")
+    pdf_back.back_artwork.attach(io: StringIO.new("%PDF"), filename: "back.pdf", content_type: "application/pdf")
+    assert_not pdf_back.valid?
+    assert pdf_back.errors.key?(:back_artwork)
+  end
+
+  test "back artwork cannot accompany PDF front artwork" do
+    app = valid_application({})
+    app.artwork.attach(io: StringIO.new("%PDF"), filename: "label.pdf", content_type: "application/pdf")
+    app.back_artwork.attach(io: StringIO.new("back"), filename: "back.png", content_type: "image/png")
+
+    assert_not app.valid?
+    assert_match(/cannot accompany PDF/, app.errors[:back_artwork].join)
+  end
 end

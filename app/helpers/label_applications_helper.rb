@@ -26,13 +26,9 @@ module LabelApplicationsHelper
   def bbox_data(verification)
     checks_by_field = verification.field_checks.index_by(&:field)
     payload = verification.extraction || {}
-    # The coordinate basis the extractor reported its boxes in (the pixel
-    # dimensions of the image as the model viewed it).
-    basis = [ payload["image_width"] || 1000, payload["image_height"] || 1000 ]
     boxes = []
 
     application = verification.label_application
-    croppable = application&.artwork&.attached? && application.artwork.image?
 
     (payload["fields"] || {}).each do |key, field|
       next if field.nil? || !valid_bbox?(field["bbox"])
@@ -50,7 +46,7 @@ module LabelApplicationsHelper
         related_fields: Array(EXTRACTION_FIELD_TO_CHECKS[key]),
         label: field_label(key),
         bbox: field["bbox"],
-        basis: field_basis(field) || basis,
+        basis: field_basis(field) || page_basis(payload, field),
         page: field["page"] || 1,
         verdict: worst.verdict,
         verdict_label: verdict_label(worst.verdict),
@@ -60,7 +56,7 @@ module LabelApplicationsHelper
         extracted: worst.extracted || field["text"],
         # The evidence clip: the artwork cut to this claimed region, so a
         # human verifies the find by looking at the actual pixels.
-        crop_url: croppable && (field["page"] || 1) == 1 ? label_application_field_crop_path(application, field: key) : nil,
+        crop_url: croppable?(application, field) ? label_application_field_crop_path(application, field: key) : nil,
         # Every check behind this element, worst first - one located
         # element can carry several verdicts (the government warning box
         # answers wording, prefix, bold, and paragraph checks), and the
@@ -91,7 +87,7 @@ module LabelApplicationsHelper
         related_fields: [ check.field ],
         label: "Disclosure",
         bbox: field["bbox"],
-        basis: field_basis(field) || basis,
+        basis: field_basis(field) || page_basis(payload, field),
         page: field["page"] || 1,
         verdict: check.verdict,
         verdict_label: verdict_label(check.verdict),
@@ -117,8 +113,7 @@ module LabelApplicationsHelper
   def field_crop_tag(application, verification, check_field)
     key = extraction_key_for(check_field)
     slot = key && verification.extraction&.dig("fields", key)
-    return nil unless slot.is_a?(Hash) && valid_bbox?(slot["bbox"]) && (slot["page"] || 1) == 1
-    return nil unless application.artwork.attached? && application.artwork.image?
+    return nil unless slot.is_a?(Hash) && valid_bbox?(slot["bbox"]) && croppable?(application, slot)
 
     image_tag label_application_field_crop_path(application, field: key),
               class: "mb-1.5 max-h-14 w-auto max-w-full rounded border border-line bg-white",
@@ -145,12 +140,23 @@ module LabelApplicationsHelper
   end
 
   # OCR-grounded boxes carry their own coordinate basis (the raster
-  # dimensions of their page); model boxes fall back to the payload-level
-  # basis the extractor self-reported.
+  # dimensions of their page); model boxes fall back to the basis the
+  # extractor self-reported for the field's page.
   def field_basis(field)
     basis = field["bbox_basis"]
     return nil unless basis.is_a?(Array) && basis.size == 2
 
     basis.all? { |n| n.is_a?(Numeric) && n.positive? } ? basis : nil
+  end
+
+  def page_basis(payload, field)
+    Extraction::PageBasis.dimensions(payload, field["page"] || 1) || [ 1000, 1000 ]
+  end
+
+  # An evidence crop exists when the field's page has a standalone image
+  # blob to cut from (1 = front label, 2 = back label).
+  def croppable?(application, field)
+    attachment = (field["page"] || 1) == 1 ? application&.artwork : application&.back_artwork
+    (field["page"] || 1) <= 2 && attachment&.attached? && attachment.image?
   end
 end

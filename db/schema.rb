@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_06_11_192259) do
+ActiveRecord::Schema[8.0].define(version: 2026_06_11_225753) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -106,6 +106,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_06_11_192259) do
     t.datetime "updated_at", null: false
     t.text "error_message"
     t.text "rejection_notice"
+    t.string "artwork_fingerprint"
+    t.index ["artwork_fingerprint"], name: "index_verifications_on_artwork_fingerprint"
     t.index ["label_application_id"], name: "index_verifications_on_label_application_id"
   end
 

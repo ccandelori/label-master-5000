@@ -28,29 +28,23 @@ class VerifyLabelJob < ApplicationJob
 
     started = monotonic_ms
     extractor = extractor_factory.call
+    artworks = artwork_sources(application)
     reused = reusable_extraction(application, extractor.model_id)
 
     if reused
       verification = evaluate_and_persist(
         application: application,
-        raw: refine_extraction(
-          raw: reused.extraction,
-          data: application.artwork.download,
-          content_type: application.artwork.content_type,
-          application: application
-        ),
+        raw: refine_extraction(raw: reused.extraction, artworks: artworks, application: application),
         model_id: reused.model_id,
         reused: true,
         duplicate_of: reused.label_application_id == application.id ? nil : reused.label_application,
         started: started
       )
     else
-      data = application.artwork.download
-      content_type = application.artwork.content_type
-      result = extractor.extract(data: data, content_type: content_type)
+      result = extractor.extract(artworks: artworks)
       verification = evaluate_and_persist(
         application: application,
-        raw: refine_extraction(raw: result.raw, data: data, content_type: content_type, application: application),
+        raw: refine_extraction(raw: result.raw, artworks: artworks, application: application),
         model_id: result.model_id,
         reused: false,
         duplicate_of: nil,
@@ -64,12 +58,24 @@ class VerifyLabelJob < ApplicationJob
 
   private
 
-  def refine_extraction(raw:, data:, content_type:, application:)
+  # Front label first, optional back second; position is the page the
+  # rest of the pipeline sees.
+  def artwork_sources(application)
+    [ application.artwork, application.back_artwork ].select(&:attached?).map do |attachment|
+      Extraction::ArtworkSource.new(
+        data: attachment.download,
+        content_type: attachment.content_type,
+        checksum: attachment.blob.checksum
+      )
+    end
+  end
+
+  def refine_extraction(raw:, artworks:, application:)
     Extraction::Refinement.new(
       engine: ocr_factory.call,
       engine_key: Extraction::OcrFactory.cache_key,
       threshold: Rails.application.config.x.extraction.ocr_match_threshold
-    ).refine(raw: raw, data: data, content_type: content_type, application: application)
+    ).refine(raw: raw, artworks: artworks, application: application)
   end
 
   def evaluate_and_persist(application:, raw:, model_id:, reused:, duplicate_of:, started:)
@@ -82,6 +88,7 @@ class VerifyLabelJob < ApplicationJob
         extraction: raw,
         extraction_reused: reused,
         model_id: model_id,
+        artwork_fingerprint: artwork_fingerprint(application),
         latency_ms: monotonic_ms - started
       )
     end
@@ -95,6 +102,7 @@ class VerifyLabelJob < ApplicationJob
       extraction: raw,
       extraction_reused: reused,
       model_id: model_id,
+      artwork_fingerprint: artwork_fingerprint(application),
       latency_ms: monotonic_ms - started
     )
   end
@@ -106,19 +114,21 @@ class VerifyLabelJob < ApplicationJob
     facts.confidence.is_a?(Numeric) && facts.confidence < threshold
   end
 
-  # The same artwork bytes (matched by blob checksum) always extract the
-  # same facts - for the same model. Reuse is keyed to the configured
-  # extractor's model so one provider's reading is never passed off as
-  # another's, and provider comparisons stay honest.
+  # The same artwork bytes always extract the same facts - for the same
+  # model. Reuse keys on the artwork fingerprint (front checksum, plus
+  # the back label's when attached - the same front with a different back
+  # is a different reading) and the configured extractor's model, so one
+  # provider's reading is never passed off as another's.
   def reusable_extraction(application, model_id)
-    checksum = application.artwork.blob.checksum
-
     Verification.completed.with_extraction
-                .where(model_id: model_id)
-                .joins(label_application: { artwork_attachment: :blob })
-                .where(active_storage_blobs: { checksum: checksum })
+                .where(model_id: model_id, artwork_fingerprint: artwork_fingerprint(application))
                 .order(created_at: :desc)
                 .first
+  end
+
+  def artwork_fingerprint(application)
+    [ application.artwork, application.back_artwork ]
+      .select(&:attached?).map { |attachment| attachment.blob.checksum }.join("+")
   end
 
   def duplicate_note(other_application)
