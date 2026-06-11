@@ -78,37 +78,43 @@
                 <%= application.created_at.strftime("%b %-d, %H:%M") %>
               <% end %>
             </td>
+            <%# Every control here shares one box recipe (inline-block,
+                py-1, a border even when transparent) so row heights stay
+                identical across tabs - inline links with padding would
+                otherwise measure shorter than real buttons. %>
+            <% control = "inline-block align-middle rounded-lg border px-3 py-1 font-medium" %>
+            <% quiet_link = "inline-block align-middle border border-transparent py-1 underline underline-offset-2" %>
             <td class="px-4 py-3 text-right whitespace-nowrap">
               <% case @tab %>
               <% when "ready_to_approve" %>
-                <%= button_to "✓ Approve", label_application_decision_path(application),
+                <%= button_to "\u2713 Approve", label_application_decision_path(application),
                       params: { decision: { verification_id: verification.id, decision: "approve" } },
-                      form_class: "inline-block mr-2",
-                      class: "rounded-lg border border-pass/50 text-pass bg-pass-tint px-3 py-1.5 font-medium hover:opacity-85 cursor-pointer" %>
+                      form_class: "inline-block align-middle mr-2",
+                      class: "#{control} border-pass/50 text-pass bg-pass-tint hover:opacity-85 cursor-pointer" %>
                 <%= link_to "Review", reviewer_review_path(start: application.id),
-                      class: "rounded-lg bg-ink text-surface px-3 py-1.5 font-medium hover:opacity-90 mr-2" %>
-                <%= link_to "Details", application, class: "text-ink-muted underline underline-offset-2 hover:text-ink" %>
+                      class: "#{control} border-transparent bg-ink text-surface hover:opacity-90 mr-2" %>
+                <%= link_to "Details", application, class: "#{quiet_link} text-ink-muted hover:text-ink" %>
               <% when "needs_attention" %>
                 <%= link_to "Review", reviewer_review_path(start: application.id),
-                      class: "rounded-lg bg-ink text-surface px-3 py-1.5 font-medium hover:opacity-90 mr-2" %>
-                <%= link_to "Details", application, class: "text-ink-muted underline underline-offset-2 hover:text-ink" %>
+                      class: "#{control} border-transparent bg-ink text-surface hover:opacity-90 mr-2" %>
+                <%= link_to "Details", application, class: "#{quiet_link} text-ink-muted hover:text-ink" %>
               <% when "failed" %>
-                <%= button_to "✗ Reject", label_application_decision_path(application),
+                <%= button_to "\u2717 Reject", label_application_decision_path(application),
                       params: { decision: { verification_id: verification.id, decision: "reject" } },
-                      form_class: "inline-block mr-2",
-                      class: "rounded-lg border border-fail/50 text-fail bg-fail-tint px-3 py-1.5 font-medium hover:opacity-85 cursor-pointer" %>
-                <%= link_to "Details", application, class: "text-ink-muted underline underline-offset-2 hover:text-ink" %>
+                      form_class: "inline-block align-middle mr-2",
+                      class: "#{control} border-fail/50 text-fail bg-fail-tint hover:opacity-85 cursor-pointer" %>
+                <%= link_to "Details", application, class: "#{quiet_link} text-ink-muted hover:text-ink" %>
               <% when "unchecked" %>
                 <%= button_to "Run check", label_application_check_path(application),
-                      form_class: "inline-block mr-2",
-                      class: "rounded-lg border border-line-strong px-3 py-1.5 font-medium hover:bg-panel cursor-pointer" %>
-                <%= link_to "Details", application, class: "text-ink-muted underline underline-offset-2 hover:text-ink" %>
+                      form_class: "inline-block align-middle mr-2",
+                      class: "#{control} border-line-strong hover:bg-panel cursor-pointer" %>
+                <%= link_to "Details", application, class: "#{quiet_link} text-ink-muted hover:text-ink" %>
               <% else %>
                 <% if verification.rejection_notice.present? %>
                   <%= link_to "Notice", label_application_rejection_notice_path(application, download: 1),
-                        class: "font-medium text-ink underline underline-offset-2 hover:text-ink-muted mr-3" %>
+                        class: "#{quiet_link} font-medium text-ink hover:text-ink-muted mr-3" %>
                 <% end %>
-                <%= link_to "Details", application, class: "font-medium text-ink underline underline-offset-2 hover:text-ink-muted" %>
+                <%= link_to "Details", application, class: "#{quiet_link} font-medium text-ink hover:text-ink-muted" %>
               <% end %>
             </td>
           </tr>
