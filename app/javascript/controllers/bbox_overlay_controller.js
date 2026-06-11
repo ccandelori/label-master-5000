@@ -56,11 +56,11 @@ export default class extends Controller {
   }
 
   colorFor(verdict) {
-    if (verdict === "fail") return "border-red-600 hover:bg-red-500/20"
-    if (verdict === "needs_review") return "border-amber-500 hover:bg-amber-400/20"
-    if (verdict === "pass_with_note") return "border-teal-600 hover:bg-teal-500/20"
-    if (verdict === "not_required" || verdict === "not_applicable") return "border-stone-400 hover:bg-stone-400/20"
-    return "border-green-600 hover:bg-green-500/20"
+    if (verdict === "fail") return "border-fail hover:bg-fail/15"
+    if (verdict === "needs_review") return "border-warn hover:bg-warn/15"
+    if (verdict === "pass_with_note") return "border-pass hover:bg-pass/15"
+    if (verdict === "not_required" || verdict === "not_applicable") return "border-line-strong hover:bg-ink/10"
+    return "border-pass hover:bg-pass/15"
   }
 
   // Hover linking from the results table (rows carry data-field).
@@ -91,11 +91,11 @@ export default class extends Controller {
     const pop = document.createElement("div")
     pop.dataset.field = box.field
     pop.setAttribute("role", "dialog")
-    pop.className = "absolute z-10 max-w-72 rounded-lg border border-stone-300 bg-white p-3 text-sm shadow-lg"
+    pop.className = "absolute z-10 max-w-72 rounded-lg border border-line-strong bg-raised p-3 text-sm shadow-lg"
     pop.innerHTML = `
       <p class="font-semibold">${this.escape(box.label)} — ${this.escape(box.verdict_label)}</p>
-      ${box.note ? `<p class="mt-1 text-stone-700">${this.escape(box.note)}</p>` : ""}
-      ${box.citation ? `<p class="mt-1 text-stone-500">${this.escape(box.citation)}</p>` : ""}
+      ${box.note ? `<p class="mt-1 text-ink-muted">${this.escape(box.note)}</p>` : ""}
+      ${box.citation ? `<p class="mt-1 text-ink-faint">${this.escape(box.citation)}</p>` : ""}
     `
 
     const frameRect = this.frameTarget.getBoundingClientRect()

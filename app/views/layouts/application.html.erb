@@ -15,10 +15,10 @@
     <%= javascript_importmap_tags %>
   </head>
 
-  <body class="bg-stone-100 text-stone-900 text-base">
-    <header class="bg-white border-b border-stone-200">
+  <body class="bg-surface text-ink text-base">
+    <header class="bg-raised border-b border-line">
       <div class="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between">
-        <%= link_to root_path, class: "flex items-center gap-2 text-lg font-semibold text-stone-900" do %>
+        <%= link_to root_path, class: "flex items-center gap-2 text-lg font-semibold text-ink" do %>
           <span aria-hidden="true">☑</span> Label Verifier
         <% end %>
         <nav class="flex gap-2 text-base" aria-label="Site areas">
@@ -34,10 +34,10 @@
         <p class="mb-4"><%= area_tag(current_area) %></p>
       <% end %>
       <% if notice.present? %>
-        <p class="mb-6 rounded-lg bg-blue-50 text-blue-900 px-4 py-3" role="status"><%= notice %></p>
+        <p class="mb-6 rounded-lg bg-focus-tint text-focus px-4 py-3" role="status"><%= notice %></p>
       <% end %>
       <% if alert.present? %>
-        <p class="mb-6 rounded-lg bg-red-50 text-red-900 px-4 py-3" role="alert"><%= alert %></p>
+        <p class="mb-6 rounded-lg bg-fail-tint text-fail px-4 py-3" role="alert"><%= alert %></p>
       <% end %>
       <%= yield %>
     </main>

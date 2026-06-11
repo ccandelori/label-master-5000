@@ -4,14 +4,14 @@
 # alone (PRD story 32).
 module VerdictsHelper
   VERDICT_PRESENTATION = {
-    "pass" => { label: "Passed", glyph: "✓", classes: "bg-green-100 text-green-900" },
-    "pass_with_note" => { label: "Passed, with note", glyph: "✓", classes: "bg-teal-100 text-teal-900" },
-    "fail" => { label: "Failed", glyph: "✗", classes: "bg-red-100 text-red-900" },
-    "needs_review" => { label: "Needs review", glyph: "◎", classes: "bg-amber-100 text-amber-900" },
-    "not_required" => { label: "Not required", glyph: "–", classes: "bg-gray-100 text-gray-700" },
-    "not_applicable" => { label: "Not applicable", glyph: "–", classes: "bg-gray-100 text-gray-700" },
-    "request_retake" => { label: "Better image needed", glyph: "⚠", classes: "bg-amber-100 text-amber-900" },
-    "error" => { label: "Processing error", glyph: "⚠", classes: "bg-red-100 text-red-900" }
+    "pass" => { label: "Passed", glyph: "✓", classes: "bg-pass-tint text-pass" },
+    "pass_with_note" => { label: "Passed, with note", glyph: "✓", classes: "bg-pass-tint text-pass" },
+    "fail" => { label: "Failed", glyph: "✗", classes: "bg-fail-tint text-fail" },
+    "needs_review" => { label: "Needs review", glyph: "◎", classes: "bg-warn-tint text-warn" },
+    "not_required" => { label: "Not required", glyph: "–", classes: "bg-panel text-ink-muted" },
+    "not_applicable" => { label: "Not applicable", glyph: "–", classes: "bg-panel text-ink-muted" },
+    "request_retake" => { label: "Better image needed", glyph: "⚠", classes: "bg-warn-tint text-warn" },
+    "error" => { label: "Processing error", glyph: "⚠", classes: "bg-fail-tint text-fail" }
   }.freeze
 
   def verdict_chip(verdict)
