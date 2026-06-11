@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Runs the OCR sidecar. OCR_PORT must match the Rails app's
+# EXTRACTION_PADDLE_URL (default http://127.0.0.1:8765).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+# Without the virtualenv, idle instead of exiting so bin/dev's process
+# manager stays up; the Rails app falls back to Tesseract on its own.
+if [ ! -x .venv/bin/uvicorn ]; then
+  echo "ocr_service: no virtualenv - run ocr_service/bin/setup to enable PaddleOCR (using Tesseract fallback)"
+  exec tail -f /dev/null
+fi
+
+exec .venv/bin/uvicorn app:app --host 127.0.0.1 --port "${OCR_PORT:-8765}"

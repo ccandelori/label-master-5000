@@ -1,0 +1,6 @@
+paddlepaddle>=3.0,<4
+paddleocr>=3.0,<4
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+pillow>=10
+numpy>=1.26

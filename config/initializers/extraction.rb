@@ -24,3 +24,11 @@ Rails.application.config.x.extraction.min_confidence = Float(ENV.fetch("EXTRACTI
 # replace the model's estimate; below it the model's box is kept.
 Rails.application.config.x.extraction.ocr_match_threshold = Float(ENV.fetch("EXTRACTION_OCR_MATCH_THRESHOLD", "0.8"))
 Rails.application.config.x.extraction.ocr_dpi = Integer(ENV.fetch("EXTRACTION_OCR_DPI", "200"))
+
+# OCR engine selection. "paddle" reads via the local PaddleOCR sidecar
+# (ocr_service/) - far stronger on stylized, inverse, and rotated label
+# type - and falls back to Tesseract automatically when the sidecar is
+# unreachable. "tesseract" skips the sidecar entirely.
+Rails.application.config.x.extraction.ocr_engine = ENV.fetch("EXTRACTION_OCR_ENGINE", "paddle")
+Rails.application.config.x.extraction.paddle_url = ENV.fetch("EXTRACTION_PADDLE_URL", "http://127.0.0.1:8765")
+Rails.application.config.x.extraction.paddle_timeout_seconds = Integer(ENV.fetch("EXTRACTION_PADDLE_TIMEOUT", "60"))

@@ -89,17 +89,8 @@ module Extraction
     end
 
     def read_pdf(data)
-      Dir.mktmpdir("ocr-artwork") do |dir|
-        pdf_path = File.join(dir, "artwork.pdf")
-        File.binwrite(pdf_path, data)
-        run!(@pdftoppm, "-r", @dpi.to_s, "-png", pdf_path, File.join(dir, "page"))
-
-        # pdftoppm zero-pads page numbers when the document is long enough
-        # (page-1.png vs page-01.png), so sort numerically.
-        pngs = Dir[File.join(dir, "page-*.png")].sort_by { |path| path[/(\d+)\.png\z/, 1].to_i }
-        raise OcrError, "pdftoppm produced no page images" if pngs.empty?
-
-        pngs.each_with_index.map { |path, index| ocr_file(path, index + 1) }
+      PdfPages.rasterize(data: data, dpi: @dpi, pdftoppm: @pdftoppm) do |pages|
+        pages.map { |path, number| ocr_file(path, number) }
       end
     end
 
