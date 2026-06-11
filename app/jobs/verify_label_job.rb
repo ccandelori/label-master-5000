@@ -63,35 +63,12 @@ class VerifyLabelJob < ApplicationJob
 
   private
 
-  # OCR-dependent refinement: re-anchors boxes to word geometry, retries
-  # still-ungrounded fields with a targeted region crop, then reconciles
-  # the fanciful name and a missing name/address statement against the
-  # application's declared values. Strictly best-effort: any OCR failure
-  # (missing binary, unreadable artwork) logs a warning and returns the
-  # payload unchanged - it never fails a verification. Runs on reused
-  # extractions too: OCR is local and cheap, and reconciliation depends
-  # on the application, which can differ across duplicate artwork.
   def refine_extraction(raw:, data:, content_type:, application:)
-    threshold = Rails.application.config.x.extraction.ocr_match_threshold
-    engine = ocr_factory.call
-    pages = Extraction::OcrCache.read_through(
-      checksum: application.artwork.blob.checksum,
+    Extraction::Refinement.new(
+      engine: ocr_factory.call,
       engine_key: Extraction::OcrFactory.cache_key,
-      engine: engine
-    ) { engine.read(data: data, content_type: content_type) }
-
-    refined = Extraction::BboxGrounder.ground(payload: raw, pages: pages, threshold: threshold)
-    refined = Extraction::RegionRefiner.refine(
-      payload: refined, data: data, content_type: content_type, engine: engine, threshold: threshold
-    )
-    Extraction::FieldReconciler.reconcile(
-      payload: refined, pages: pages, application: application, threshold: threshold
-    )
-  rescue Extraction::OcrError => e
-    Rails.logger.warn(JSON.generate({
-      event: "extraction_refinement_failed", error: e.message.to_s.first(300)
-    }))
-    raw
+      threshold: Rails.application.config.x.extraction.ocr_match_threshold
+    ).refine(raw: raw, data: data, content_type: content_type, application: application)
   end
 
   def evaluate_and_persist(application:, raw:, model_id:, reused:, duplicate_of:, started:)
