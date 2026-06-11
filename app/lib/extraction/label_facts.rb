@@ -7,7 +7,8 @@ module Extraction
   # extractor could assess them and nil when it could not. model_texts
   # holds the vision model's own reading, keyed by field, for slots whose
   # text was replaced by OCR-located print: a declared value matches if
-  # either form agrees.
+  # either form agrees. field_pages maps each field to the label it was
+  # found on (1 = front/brand label, 2 = back) for placement rules.
   LabelFacts = Data.define(
     :brand_name,
     :fanciful_name,
@@ -25,6 +26,7 @@ module Extraction
     :vintage_year,
     :commodity_statement,
     :model_texts,
+    :field_pages,
     :legible,
     :confidence
   ) do
@@ -47,6 +49,7 @@ module Extraction
         vintage_year: h.fetch("vintage_year", nil),
         commodity_statement: h.fetch("commodity_statement", nil),
         model_texts: h.fetch("model_texts", {}),
+        field_pages: h.fetch("field_pages", {}),
         legible: h.fetch("legible", true),
         confidence: h.fetch("confidence", nil)
       )

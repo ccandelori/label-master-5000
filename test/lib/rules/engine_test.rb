@@ -381,6 +381,39 @@ module Rules
       assert_nil check(checks, "designation_origin_qualifier")
     end
 
+    test "wine placement is not checked for a single-label product" do
+      checks = Engine.evaluate(
+        application: wine_application({}),
+        facts: wine_facts("field_pages" => { "brand_name" => 1, "net_contents" => 1 })
+      )
+      assert_nil check(checks, "brand_label_placement")
+    end
+
+    test "wine placement passes when the brand label carries the mandatory trio" do
+      checks = Engine.evaluate(
+        application: wine_application({}),
+        facts: wine_facts("field_pages" => {
+          "brand_name" => 1, "class_type_designation" => 1,
+          "alcohol_statement" => 1, "government_warning" => 2
+        })
+      )
+      assert_equal "pass", check(checks, "brand_label_placement").verdict
+    end
+
+    test "wine brand name on the back label needs review" do
+      checks = Engine.evaluate(
+        application: wine_application({}),
+        facts: wine_facts("field_pages" => {
+          "brand_name" => 2, "class_type_designation" => 1, "alcohol_statement" => 1
+        })
+      )
+      placement = check(checks, "brand_label_placement")
+      assert_equal "needs_review", placement.verdict
+      assert_equal "27 CFR 4.32(a)", placement.citation
+      assert_match(/brand name/, placement.note)
+      assert_no_match(/designation/, placement.note)
+    end
+
     test "wine vintage without appellation fails" do
       checks = Engine.evaluate(
         application: wine_application(vintage_year: 2024),

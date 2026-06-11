@@ -15,6 +15,7 @@ module Rules
         result << vintage_match(application, facts)
         result << appellation_match(application, facts)
         result << varietals_match(application, facts)
+        result << brand_label_placement(facts)
         result.compact
       end
 
@@ -127,6 +128,35 @@ module Rules
           FieldCheck.new(field: "varietals", verdict: "needs_review", expected: expected.join(", "),
                          extracted: extracted.join(", "), citation: citation,
                          note: "Application lists varietals not found on the label: #{missing.join(', ')}")
+        end
+      end
+
+      # Items 27 CFR 4.32(a) requires on the brand label, by facts field.
+      BRAND_LABEL_ITEMS = {
+        "brand_name" => "brand name",
+        "class_type_designation" => "class/type designation",
+        "alcohol_statement" => "alcohol content statement"
+      }.freeze
+
+      # Only meaningful when the extraction saw a back label (any field on
+      # page 2 or later); placement on a single-label product is trivially
+      # satisfied and emits nothing. Violations are examiner judgment -
+      # which physical label is the brand label is a visual call.
+      def brand_label_placement(facts)
+        pages = facts.field_pages
+        return nil unless pages.values.any? { |page| page.to_i > 1 }
+
+        misplaced = BRAND_LABEL_ITEMS.keys.select { |key| pages[key].to_i > 1 }
+        expected = "Brand name, class/type designation, and alcohol content on the brand label"
+        if misplaced.empty?
+          FieldCheck.new(field: "brand_label_placement", verdict: "pass", expected: expected,
+                         extracted: "All on the brand label", citation: "27 CFR 4.32(a)", note: nil)
+        else
+          names = misplaced.map { |key| BRAND_LABEL_ITEMS[key] }
+          FieldCheck.new(field: "brand_label_placement", verdict: "needs_review", expected: expected,
+                         extracted: "On the back label: #{names.join(', ')}",
+                         citation: "27 CFR 4.32(a)",
+                         note: "Required on the brand label but found on the back label: #{names.join(', ')} - confirm which label is the brand label")
         end
       end
 

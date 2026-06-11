@@ -55,4 +55,18 @@ class FactsMapperTest < ActiveSupport::TestCase
 
     assert_equal 2021, Extraction::FactsMapper.to_facts(payload).vintage_year
   end
+
+  test "to_facts maps each field's page into field_pages" do
+    payload = {
+      "fields" => {
+        "brand_name" => { "text" => "ABC", "page" => 1 },
+        "government_warning" => { "text" => "GOVERNMENT WARNING: ...", "page" => 2 },
+        "net_contents" => { "text" => "750 mL" },
+        "appellation" => nil
+      }
+    }
+    facts = Extraction::FactsMapper.to_facts(payload)
+
+    assert_equal({ "brand_name" => 1, "government_warning" => 2 }, facts.field_pages)
+  end
 end

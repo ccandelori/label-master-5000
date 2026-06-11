@@ -28,6 +28,7 @@ module Extraction
         vintage_year: vintage_year(fields["vintage"]),
         commodity_statement: text_of(fields["commodity_statement"]),
         model_texts: model_texts_of(fields),
+        field_pages: field_pages_of(fields),
         legible: payload.fetch("legible", true),
         confidence: payload["confidence"]
       )
@@ -46,6 +47,18 @@ module Extraction
 
         text = field["model_text"].to_s.strip
         texts[key] = text unless text.empty?
+      end
+    end
+
+    # Which label each field was found on (1 = front/brand label, 2 =
+    # back), for placement rules. Fields without a usable page are
+    # omitted rather than guessed.
+    def field_pages_of(fields)
+      fields.each_with_object({}) do |(key, field), pages|
+        next unless field.is_a?(Hash)
+
+        page = field["page"]
+        pages[key] = page if page.is_a?(Integer) && page.positive?
       end
     end
 
