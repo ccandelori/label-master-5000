@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "erb"
 require "open3"
 
 module EvalCorpus
@@ -34,6 +35,17 @@ module EvalCorpus
       end
     end
 
+    # The form page's attachment hrefs carry raw filenames ("CE VALLEE
+    # LOIRE.png"); curl rejects unencoded spaces outright, so the request
+    # path is rebuilt with percent-encoded query values.
+    def self.attachment_request_path(path)
+      filename = path[/filename=([^&]+)/, 1].to_s
+      raise ArgumentError, "attachment path carries no filename: #{path.inspect}" if filename.empty?
+
+      filetype = path[/filetype=([^&]+)/, 1] || "l"
+      "publicViewAttachment.do?filename=#{ERB::Util.url_encode(filename)}&filetype=#{ERB::Util.url_encode(filetype)}"
+    end
+
     # Label image bytes for a publicViewAttachment path from the form
     # page. The endpoint requires the session cookie (and referer) of a
     # prior detail-page request; without them it returns an HTML error
@@ -42,9 +54,10 @@ module EvalCorpus
       filename = path[/filename=([^&]+)/, 1].to_s
       raise ArgumentError, "attachment path carries no filename: #{path.inspect}" if filename.empty?
 
+      request_path = self.class.attachment_request_path(path)
       cached_binary(ttb_id, filename) do
         ensure_session(ttb_id)
-        bytes = get(path.sub(%r{\A/colasonline}, ""))
+        bytes = get(request_path)
         raise FetchError, "#{path}: registry returned an error page instead of image bytes" if bytes.lstrip.start_with?("<")
 
         bytes

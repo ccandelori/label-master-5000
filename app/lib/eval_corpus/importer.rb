@@ -8,6 +8,13 @@ module EvalCorpus
   class Importer
     HARD_CAP = 50
 
+    # Raised when a record would persist without its label artwork; the
+    # surrounding transaction rolls the record back. A record without its
+    # label is unusable for evaluation, whatever path produced it.
+    class MissingArtwork < StandardError; end
+
+    EVAL_BATCH_PREFIX = "TTB registry eval"
+
     # TTB IDs are date-structured (YYJJJTTTNNNNNN); walking sequence
     # numbers across a few julian days of a known-public year discovers
     # approved records without scraping the search form.
@@ -22,19 +29,23 @@ module EvalCorpus
 
     def import(count:, ids_file:)
       count = [ count, HARD_CAP ].min
-      batch = Batch.find_or_create_by!(name: "TTB registry eval #{Date.current.iso8601}")
+      batch = Batch.find_or_create_by!(name: "#{EVAL_BATCH_PREFIX} #{Date.current.iso8601}")
       imported = 0
+      repaired = 0
 
       candidate_ids(ids_file).each do |ttb_id|
-        break if imported >= count
+        break if imported + repaired >= count
 
-        imported += 1 if import_one(ttb_id, batch)
+        case import_one(ttb_id, batch)
+        when :imported then imported += 1
+        when :repaired then repaired += 1
+        end
       end
 
       batch.update!(total_rows: batch.label_applications.count, status: "completed")
-      @io.puts "imported #{imported} record(s) into batch ##{batch.id} (#{batch.name})"
+      @io.puts "imported #{imported} record(s), repaired #{repaired} into batch ##{batch.id} (#{batch.name})"
       @io.puts "run verification with: bin/rails runner 'Batch.find(#{batch.id}).label_applications.find_each { |a| VerifyLabelJob.perform_now(a.id) }'"
-      imported
+      imported + repaired
     end
 
     private
@@ -54,26 +65,29 @@ module EvalCorpus
     end
 
     def import_one(ttb_id, batch)
-      if LabelApplication.exists?(serial_number: ttb_id)
-        @io.puts "#{ttb_id}: already imported, skipping"
-        return false
-      end
+      existing = LabelApplication.find_by(serial_number: ttb_id)
+      return repair_or_skip(existing, ttb_id) if existing
 
       parsed = RegistryRecord.parse_form(@client.form_html(ttb_id))
       if parsed.nil?
         @io.puts "#{ttb_id}: no parseable COLA (unknown id or unmapped product type), skipping"
-        return false
+        return nil
       end
 
       front, back = pick_artwork(parsed.image_attachments)
       if front.nil?
         @io.puts "#{ttb_id}: no label image on the form view, skipping"
-        return false
+        return nil
       end
 
       detail = parsed.imported ? RegistryRecord.parse_detail(@client.detail_html(ttb_id)) : {}
 
-      application = batch.label_applications.new(
+      # Built standalone, NOT via batch.label_applications.new: the
+      # association proxy keeps unsaved members in its target, and the
+      # closing batch.update! autosaves them - which is exactly how
+      # failed fetches once left artwork-less records behind.
+      application = LabelApplication.new(
+        batch: batch,
         serial_number: ttb_id,
         channel: "submitted",
         brand_name: parsed.brand_name,
@@ -91,15 +105,66 @@ module EvalCorpus
       attach(application, :artwork, ttb_id, front)
       attach(application, :back_artwork, ttb_id, back) if back
 
-      application.save!
+      save_with_artwork!(application)
       @io.puts "#{ttb_id}: imported #{parsed.brand_name.inspect} (#{parsed.beverage_type}#{back ? ", front+back" : ""})"
-      true
+      :imported
     rescue RegistryClient::FetchError => e
       @io.puts "#{ttb_id}: fetch failed (#{e.message}), skipping"
-      false
+      nil
     rescue ActiveRecord::RecordInvalid => e
       @io.puts "#{ttb_id}: invalid record (#{e.message}), skipping"
-      false
+      nil
+    rescue MissingArtwork => e
+      @io.puts "#{ttb_id}: #{e.message}, skipping"
+      nil
+    end
+
+    # An eval-batch record without artwork is the remnant of an import
+    # that failed mid-fetch; re-fetching completes it in place, keeping
+    # its metadata and batch. Anything else with this serial is done.
+    def repair_or_skip(existing, ttb_id)
+      if existing.artwork.attached? || !existing.batch&.name.to_s.start_with?(EVAL_BATCH_PREFIX)
+        @io.puts "#{ttb_id}: already imported, skipping"
+        return nil
+      end
+
+      parsed = RegistryRecord.parse_form(@client.form_html(ttb_id))
+      if parsed.nil?
+        @io.puts "#{ttb_id}: no parseable COLA for repair, skipping"
+        return nil
+      end
+
+      front, back = pick_artwork(parsed.image_attachments)
+      if front.nil?
+        @io.puts "#{ttb_id}: no label image on the form view, skipping"
+        return nil
+      end
+
+      attach(existing, :artwork, ttb_id, front)
+      attach(existing, :back_artwork, ttb_id, back) if back && !existing.back_artwork.attached?
+
+      save_with_artwork!(existing)
+      @io.puts "#{ttb_id}: repaired #{parsed.brand_name.inspect} (artwork attached)"
+      :repaired
+    rescue RegistryClient::FetchError => e
+      @io.puts "#{ttb_id}: fetch failed (#{e.message}), skipping"
+      nil
+    rescue ActiveRecord::RecordInvalid => e
+      @io.puts "#{ttb_id}: invalid record (#{e.message}), skipping"
+      nil
+    rescue MissingArtwork => e
+      @io.puts "#{ttb_id}: #{e.message}, skipping"
+      nil
+    end
+
+    # Importing is all-or-nothing per record: the save and its attachments
+    # commit together, and a record that would land without its label
+    # artwork rolls back instead of persisting.
+    def save_with_artwork!(application)
+      ApplicationRecord.transaction do
+        application.save!
+        raise MissingArtwork, "no artwork attached after save" unless application.artwork.attached?
+      end
     end
 
     # The brand/front image becomes artwork; a back-typed image becomes
