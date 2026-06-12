@@ -33,7 +33,7 @@ class DecisionsControllerTest < ActionDispatch::IntegrationTest
          params: { decision: { verification_id: verification.id, decision: "approve", note: "" } }
 
     assert_redirected_to label_application_path(application)
-    assert_match(/still in pre-review/, flash[:alert])
+    assert_match(/still in pre-check/, flash[:alert])
     assert_nil verification.reload.decision
   end
 end
