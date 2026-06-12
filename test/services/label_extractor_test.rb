@@ -53,6 +53,26 @@ class LabelExtractorTest < ActiveSupport::TestCase
     }.to_json
   end
 
+  test "an effort-capable model sends the configured effort" do
+    client = StubClient.new(responses: [ payload_json ])
+    extractor = LabelExtractor.new(client: client, config: config)
+    extractor.extract(artworks: [ source("fake-png-bytes", "image/png") ])
+
+    assert_equal "low", client.calls.first.dig(:output_config, :effort)
+  end
+
+  test "a model without effort support gets the identical request minus the effort key" do
+    haiku = Config.new(model: "claude-haiku-4-5", effort: "low", max_tokens: 4096, max_retries: 2, max_pdf_pages: 4)
+    client = StubClient.new(responses: [ payload_json ])
+    extractor = LabelExtractor.new(client: client, config: haiku)
+    extractor.extract(artworks: [ source("fake-png-bytes", "image/png") ])
+
+    params = client.calls.first
+    assert_not params[:output_config].key?(:effort), "effort must not be sent to a model that rejects it"
+    assert_equal "json_schema", params.dig(:output_config, :format, :type)
+    assert_equal "claude-haiku-4-5", params[:model]
+  end
+
   test "image extraction sends an image block and the schema" do
     client = StubClient.new(responses: [ payload_json ])
     extractor = LabelExtractor.new(client: client, config: config)

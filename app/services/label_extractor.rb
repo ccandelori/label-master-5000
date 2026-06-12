@@ -10,6 +10,11 @@ class LabelExtractor
 
   PDF_CONTENT_TYPE = "application/pdf"
 
+  # Only Opus-tier models accept an output effort setting; other tiers
+  # reject the whole request (HTTP 400 "This model does not support the
+  # effort parameter"), so it is sent only where supported.
+  EFFORT_CAPABLE_MODELS = [ "claude-opus-" ].freeze
+
   def initialize(client:, config:)
     @client = client
     @config = config
@@ -77,10 +82,14 @@ class LabelExtractor
           [ { type: "text", text: "Extract the label contents as schema-conforming JSON." } ]
       } ],
       output_config: {
-        effort: @config.effort,
+        effort: (@config.effort if effort_capable?),
         format: { type: "json_schema", schema: Extraction::Schema::RESPONSE_SCHEMA }
       }.compact
     }
+  end
+
+  def effort_capable?
+    EFFORT_CAPABLE_MODELS.any? { |prefix| @config.model.to_s.start_with?(prefix) }
   end
 
   # A lone artwork goes unlabeled (the single-image request is unchanged);
