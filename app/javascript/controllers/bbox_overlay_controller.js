@@ -61,8 +61,11 @@ export default class extends Controller {
       const el = document.createElement("button")
       el.type = "button"
       el.dataset.bboxBox = box.field
-      el.setAttribute("aria-label", `${box.label}: ${box.verdict_label}. Activate for details.`)
-      el.className = "absolute rounded-sm border-2 border-dashed cursor-pointer " + this.colorFor(box.verdict)
+      el.setAttribute("aria-label", `${box.label}: ${box.verdict_label}.${box.approximate ? " Location approximate." : ""} Activate for details.`)
+      // Stroke style is provenance: solid means OCR-located the print,
+      // dashed means the model's estimate (and reads a touch lighter).
+      el.className = "absolute rounded-sm border-2 cursor-pointer " +
+        (box.approximate ? "border-dashed opacity-80 " : "border-solid ") + this.colorFor(box.verdict)
       el.style.left = `${x * scaleX}px`
       el.style.top = `${y * scaleY}px`
       el.style.width = `${Math.max(w * scaleX, 8)}px`
@@ -97,7 +100,7 @@ export default class extends Controller {
     this.frameTargets.forEach((frame) => frame.querySelectorAll("[data-bbox-box]").forEach((el) => {
       const box = this.boxesValue.find((b) => b.field === el.dataset.bboxBox)
       const related = box && (box.field === field || (box.related_fields || []).includes(field))
-      el.style.borderStyle = related && on ? "solid" : "dashed"
+      // Width is the emphasis cue; stroke style stays with its provenance.
       el.style.borderWidth = related && on ? "3px" : "2px"
     }))
   }

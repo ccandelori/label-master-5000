@@ -15,6 +15,9 @@ class FieldCropsController < ApplicationController
     slot = verification&.extraction&.dig("fields", field)
     bbox = slot && slot["bbox"]
     return head :not_found unless bbox.is_a?(Array) && bbox.size == 4
+    # A model-estimated region is not evidence; cutting pixels from it
+    # manufactures misleading proof.
+    return head :not_found unless slot["bbox_source"] == "ocr"
 
     page = slot["page"] || 1
     attachment = page == 1 ? application.artwork : application.back_artwork

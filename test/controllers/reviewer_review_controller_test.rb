@@ -36,6 +36,36 @@ class ReviewerReviewControllerTest < ActionDispatch::IntegrationTest
     )
   end
 
+  test "payload boxes carry provenance for the approximate treatment" do
+    application = create_application(serial: "26-PROV", brand: "OLD TOM")
+    application.verifications.create!(
+      overall_verdict: "needs_review",
+      field_checks: [
+        { field: "brand_name", verdict: "pass", expected: "OLD TOM",
+          extracted: "OLD TOM", citation: nil, note: nil },
+        { field: "net_contents", verdict: "needs_review", expected: "750 mL",
+          extracted: "750mL", citation: "27 CFR 5.70", note: "Differs" }
+      ],
+      extraction: {
+        "fields" => {
+          "brand_name" => { "text" => "OLD TOM", "bbox" => [ 10, 10, 100, 20 ],
+                            "bbox_source" => "ocr", "bbox_basis" => [ 800, 1000 ], "page" => 1 },
+          "net_contents" => { "text" => "750mL", "bbox" => [ 10, 120, 80, 16 ],
+                              "bbox_source" => "model", "page" => 1 }
+        }
+      }
+    )
+
+    get reviewer_review_next_path
+    payload = response.parsed_body
+
+    located = payload["boxes"].find { |b| b["field"] == "brand_name" }
+    estimated = payload["boxes"].find { |b| b["field"] == "net_contents" }
+    assert_equal false, located["approximate"]
+    assert_equal true, estimated["approximate"]
+    assert_nil estimated["crop_url"], "an estimate never offers an evidence crop"
+  end
+
   test "the shell embeds the first undecided item, worst first" do
     passing = create_application(serial: "26-PASS", brand: "CLEAN GIN")
     add_verification(passing, verdict: "pass")

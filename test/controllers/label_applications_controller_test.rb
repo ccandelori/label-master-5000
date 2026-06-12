@@ -64,6 +64,28 @@ class LabelApplicationsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/Checking this label now/, response.body)
   end
 
+  test "show captions an approximate location instead of cropping it" do
+    post label_applications_path, params: valid_params({})
+    application = LabelApplication.last
+    application.verifications.create!(
+      overall_verdict: "needs_review",
+      field_checks: [
+        { field: "brand_name", verdict: "needs_review", expected: "OLD TOM DISTILLERY",
+          extracted: "OLD TOM", citation: "BAM Vol 2 1-1", note: "Differs from the application" }
+      ],
+      extraction: {
+        "image_width" => 800, "image_height" => 1000,
+        "fields" => { "brand_name" => { "text" => "OLD TOM", "bbox" => [ 10, 10, 100, 20 ],
+                                        "bbox_source" => "model", "page" => 1 } }
+      }
+    )
+
+    get label_application_path(application)
+    assert_response :success
+    assert_match(/Location approximate — not OCR-verified/, response.body)
+    assert_no_match(/field_crop/, response.body)
+  end
+
   test "varietals round-trip through the comma-separated form field" do
     post label_applications_path, params: valid_params(beverage_type: "wine", varietals_list: "Merlot, Syrah")
     assert_equal %w[Merlot Syrah], LabelApplication.last.varietals

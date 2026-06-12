@@ -429,7 +429,7 @@ export default class extends Controller {
 
       const el = document.createElementNS(svgNS, "rect")
       this.placeRect(el, rect)
-      el.setAttribute("class", "rv-box")
+      el.setAttribute("class", box.approximate ? "rv-box rv-box--approx" : "rv-box")
       el.style.stroke = this.colorFor(box.verdict)
       el.style.pointerEvents = "all"
       el.dataset.boxIndex = index
@@ -515,6 +515,7 @@ export default class extends Controller {
       const items = rows.map((finding) => {
         const boxIndex = boxIndexByField.get(finding.field)
         const located = boxIndex !== undefined
+        const approximate = located && (payload.boxes || [])[boxIndex]?.approximate
         const color = this.colorFor(finding.verdict)
         return `
           <li>
@@ -527,6 +528,7 @@ export default class extends Controller {
                            focus-visible:-outline-offset-2 focus-visible:outline-focus">
               <span class="shrink-0 size-2 rounded-full" style="background: ${color}" aria-hidden="true"></span>
               <span class="flex-1 min-w-0 truncate text-sm font-medium">${this.escape(finding.label)}</span>
+              ${approximate ? `<span class="shrink-0 text-xs px-1.5 py-0.5 rounded border border-dashed text-ink-faint border-line-strong">approximate</span>` : ""}
               ${located ? `<span data-side-badge data-box-page="${(payload.boxes || [])[boxIndex]?.page || 1}"
                                  class="hidden shrink-0 text-xs px-1.5 py-0.5 rounded border border-dashed text-ink-faint border-line-strong"></span>`
                         : `<span class="shrink-0 text-xs px-1.5 py-0.5 rounded border border-dashed text-ink-faint border-line-strong">not on label</span>`}
@@ -565,7 +567,9 @@ export default class extends Controller {
     const crop = box?.crop_url
       ? `<img src="${this.escape(box.crop_url)}" alt="Label region read for ${this.escape(finding.label)}"
               class="mb-2 max-h-24 w-auto max-w-full rounded border border-line bg-white" loading="lazy">`
-      : ""
+      : box?.approximate
+        ? `<p class="mb-2 text-xs text-ink-faint">Location approximate — not OCR-verified</p>`
+        : ""
     return `
       ${crop}
       <dl class="space-y-2 border-l border-line pl-3 ml-0.5">
