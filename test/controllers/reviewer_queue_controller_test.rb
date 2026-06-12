@@ -39,6 +39,16 @@ class ReviewerQueueControllerTest < ActionDispatch::IntegrationTest
     assert_match(/Review queue/, response.body)
   end
 
+  test "the queue subscribes to the live stream and morphs on refresh" do
+    get reviewer_queue_path
+    assert_response :success
+    assert_select "turbo-cable-stream-source[signed-stream-name=?]",
+                  Turbo::StreamsChannel.signed_stream_name(:reviewer_queue)
+    assert_select "meta[name=turbo-refresh-method][content=morph]"
+    assert_select "meta[name=turbo-refresh-scroll][content=preserve]"
+    assert_select "input#queue_search_q[data-turbo-permanent]"
+  end
+
   test "tabs partition the queue by work state" do
     create_application(channel: "submitted", serial: "REVIEW-1").tap { |a| add_verification(a, verdict: "needs_review") }
     create_application(channel: "submitted", serial: "FAIL-1").tap { |a| add_verification(a, verdict: "fail") }

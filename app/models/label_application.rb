@@ -19,6 +19,10 @@ class LabelApplication < ApplicationRecord
   # COLAs Online filing) and are what the reviewer queue consumes.
   enum :channel, { pre_review: "pre_review", submitted: "submitted" }
 
+  # New filings and channel promotions (Submit to TTB) change which rows
+  # the reviewer queue shows; a debounced refresh keeps open queues live.
+  after_commit -> { broadcast_refresh_later_to :reviewer_queue }
+
   validates :serial_number, :beverage_type, :brand_name, :applicant_name_address, :net_contents, presence: true
   validates :country_of_origin, presence: { message: "is required for imported products" }, if: :imported?
   validates :alcohol_content, :actual_alcohol_content,
