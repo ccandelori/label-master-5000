@@ -1,0 +1,131 @@
+# frozen_string_literal: true
+
+module EvalCorpus
+  # Builds an evaluation corpus from the public registry: approved labels
+  # whose declared data is real, so verification against them measures the
+  # false-flag rate. Idempotent by serial (the TTB ID); never enqueues
+  # verification - importing must not spend vision-API money.
+  class Importer
+    HARD_CAP = 50
+
+    # TTB IDs are date-structured (YYJJJTTTNNNNNN); walking sequence
+    # numbers across a few julian days of a known-public year discovers
+    # approved records without scraping the search form.
+    DISCOVERY_YEAR = "23"
+    DISCOVERY_DAYS = %w[001 010 020 032 045 060].freeze
+    DISCOVERY_TYPE = "001"
+
+    def initialize(client:, io:)
+      @client = client
+      @io = io
+    end
+
+    def import(count:, ids_file:)
+      count = [ count, HARD_CAP ].min
+      batch = Batch.find_or_create_by!(name: "TTB registry eval #{Date.current.iso8601}")
+      imported = 0
+
+      candidate_ids(ids_file).each do |ttb_id|
+        break if imported >= count
+
+        imported += 1 if import_one(ttb_id, batch)
+      end
+
+      batch.update!(total_rows: batch.label_applications.count, status: "completed")
+      @io.puts "imported #{imported} record(s) into batch ##{batch.id} (#{batch.name})"
+      @io.puts "run verification with: bin/rails runner 'Batch.find(#{batch.id}).label_applications.find_each { |a| VerifyLabelJob.perform_now(a.id) }'"
+      imported
+    end
+
+    private
+
+    def candidate_ids(ids_file)
+      if ids_file.present?
+        File.readlines(ids_file).map(&:strip).reject(&:empty?)
+      else
+        Enumerator.new do |yielder|
+          DISCOVERY_DAYS.each do |day|
+            (1..(HARD_CAP * 2)).each do |sequence|
+              yielder << "#{DISCOVERY_YEAR}#{day}#{DISCOVERY_TYPE}#{format('%06d', sequence)}"
+            end
+          end
+        end
+      end
+    end
+
+    def import_one(ttb_id, batch)
+      if LabelApplication.exists?(serial_number: ttb_id)
+        @io.puts "#{ttb_id}: already imported, skipping"
+        return false
+      end
+
+      parsed = RegistryRecord.parse_form(@client.form_html(ttb_id))
+      if parsed.nil?
+        @io.puts "#{ttb_id}: no parseable COLA (unknown id or unmapped product type), skipping"
+        return false
+      end
+
+      front, back = pick_artwork(parsed.image_attachments)
+      if front.nil?
+        @io.puts "#{ttb_id}: no label image on the form view, skipping"
+        return false
+      end
+
+      detail = parsed.imported ? RegistryRecord.parse_detail(@client.detail_html(ttb_id)) : {}
+
+      application = batch.label_applications.new(
+        serial_number: ttb_id,
+        channel: "submitted",
+        brand_name: parsed.brand_name,
+        fanciful_name: parsed.fanciful_name,
+        beverage_type: parsed.beverage_type,
+        imported: parsed.imported,
+        country_of_origin: detail[:origin],
+        applicant_name_address: parsed.applicant_name_address,
+        appellation: parsed.appellation,
+        varietals: parsed.varietals,
+        declared_class_type: parsed.declared_class_type,
+        vintage_year: parsed.beverage_type == "wine" ? detail[:vintage] : nil,
+        net_contents: RegistryRecord::NET_CONTENTS_SENTINEL
+      )
+      attach(application, :artwork, ttb_id, front)
+      attach(application, :back_artwork, ttb_id, back) if back
+
+      application.save!
+      @io.puts "#{ttb_id}: imported #{parsed.brand_name.inspect} (#{parsed.beverage_type}#{back ? ", front+back" : ""})"
+      true
+    rescue RegistryClient::FetchError => e
+      @io.puts "#{ttb_id}: fetch failed (#{e.message}), skipping"
+      false
+    rescue ActiveRecord::RecordInvalid => e
+      @io.puts "#{ttb_id}: invalid record (#{e.message}), skipping"
+      false
+    end
+
+    # The brand/front image becomes artwork; a back-typed image becomes
+    # back_artwork when it is a raster image (never PDFs).
+    def pick_artwork(attachments)
+      images = attachments.select { |a| a.path.to_s.match?(/filename=[^&]+\.(jpe?g|png|webp)/i) }
+      front = images.find { |a| a.image_type.to_s.match?(/brand|front/i) } || images.first
+      back = images.find { |a| a != front && a.image_type.to_s.match?(/back/i) }
+      [ front, back ]
+    end
+
+    def attach(application, name, ttb_id, attachment)
+      filename = attachment.path[/filename=([^&]+)/, 1]
+      bytes = @client.attachment(ttb_id, attachment.path)
+      application.public_send(name).attach(
+        io: StringIO.new(bytes), filename: filename,
+        content_type: content_type_for(filename)
+      )
+    end
+
+    def content_type_for(filename)
+      case File.extname(filename).downcase
+      when ".png" then "image/png"
+      when ".webp" then "image/webp"
+      else "image/jpeg"
+      end
+    end
+  end
+end
