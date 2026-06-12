@@ -63,6 +63,7 @@ module LabelApplicationsHelper
         bbox: field["bbox"],
         basis: field_basis(field) || page_basis(payload, field),
         page: field["page"] || 1,
+        approximate: approximate?(field),
         verdict: worst.verdict,
         verdict_label: verdict_label(worst.verdict),
         note: worst.note,
@@ -104,6 +105,7 @@ module LabelApplicationsHelper
         bbox: field["bbox"],
         basis: field_basis(field) || page_basis(payload, field),
         page: field["page"] || 1,
+        approximate: approximate?(field),
         verdict: check.verdict,
         verdict_label: verdict_label(check.verdict),
         note: check.note || field["text"],
@@ -124,15 +126,23 @@ module LabelApplicationsHelper
   end
 
   # The evidence clip for a check: the artwork cut to the region its value
-  # was read from. Nil when nothing was located or artwork is not an image.
+  # was read from. An approximate (model-estimated) region is not evidence,
+  # so it gets the caption instead of a crop; nil when nothing was located
+  # or the artwork is not an image.
   def field_crop_tag(application, verification, check_field)
     key = extraction_key_for(check_field)
     slot = key && verification.extraction&.dig("fields", key)
-    return nil unless slot.is_a?(Hash) && valid_bbox?(slot["bbox"]) && croppable?(application, slot)
+    return nil unless slot.is_a?(Hash) && valid_bbox?(slot["bbox"])
+    return approximate_location_caption if approximate?(slot)
+    return nil unless croppable?(application, slot)
 
     image_tag label_application_field_crop_path(application, field: key),
               class: "mb-1.5 max-h-14 w-auto max-w-full rounded border border-line bg-white",
               loading: "lazy", alt: "Label region read for #{field_label(check_field)}"
+  end
+
+  def approximate_location_caption
+    tag.p "Location approximate — not OCR-verified", class: "mb-1 text-xs text-ink-faint"
   end
 
   def check_detail(check)
@@ -168,10 +178,18 @@ module LabelApplicationsHelper
     Extraction::PageBasis.dimensions(payload, field["page"] || 1) || [ 1000, 1000 ]
   end
 
-  # An evidence crop exists when the field's page has a standalone image
-  # blob to cut from (1 = front label, 2 = back label).
+  # An evidence crop exists when the field was actually located by OCR
+  # (a model estimate is not evidence) and its page has a standalone
+  # image blob to cut from (1 = front label, 2 = back label).
   def croppable?(application, field)
+    return false if approximate?(field)
+
     attachment = (field["page"] || 1) == 1 ? application&.artwork : application&.back_artwork
     (field["page"] || 1) <= 2 && attachment&.attached? && attachment.image?
+  end
+
+  # Anything not anchored to OCR word geometry is the model's estimate.
+  def approximate?(field)
+    field["bbox_source"] != "ocr"
   end
 end

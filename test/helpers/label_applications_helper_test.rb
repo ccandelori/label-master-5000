@@ -122,4 +122,62 @@ class LabelApplicationsHelperTest < ActionView::TestCase
 
     assert_empty boxes
   end
+
+  test "boxes carry provenance: OCR-anchored is exact, anything else approximate" do
+    check = FieldCheck.new(
+      field: "brand_name", verdict: "pass", expected: "OLD TOM",
+      extracted: "OLD TOM", citation: "BAM Vol 2 1-1", note: nil
+    )
+    v = Verification.new(
+      extraction: {
+        "image_width" => 800, "image_height" => 1000,
+        "fields" => { "brand_name" => located("OLD TOM").merge("bbox_source" => "ocr") },
+        "disclosures" => []
+      },
+      field_checks: [ check ]
+    )
+    assert_equal false, bbox_data(v).first[:approximate]
+
+    v.extraction["fields"]["brand_name"]["bbox_source"] = "model"
+    assert_equal true, bbox_data(v).first[:approximate]
+
+    v.extraction["fields"]["brand_name"].delete("bbox_source")
+    assert_equal true, bbox_data(v).first[:approximate], "missing provenance is not evidence"
+  end
+
+  def application_with_artwork
+    app = LabelApplication.new(
+      channel: "submitted", serial_number: "26-HLP", beverage_type: "spirits",
+      imported: false, brand_name: "OLD TOM", applicant_name_address: "Old Tom Co., Bardstown, KY",
+      alcohol_content: 45.0, net_contents: "750 mL"
+    )
+    app.artwork.attach(io: File.open(Rails.root.join("test/fixtures/files/label.png")),
+                       filename: "label.png", content_type: "image/png")
+    app.save!
+    app
+  end
+
+  test "croppable? requires OCR provenance" do
+    app = application_with_artwork
+    ocr_slot = located("OLD TOM").merge("bbox_source" => "ocr")
+    model_slot = located("OLD TOM").merge("bbox_source" => "model")
+
+    assert croppable?(app, ocr_slot)
+    assert_not croppable?(app, model_slot)
+  end
+
+  test "field_crop_tag clips OCR finds and captions approximate ones" do
+    app = application_with_artwork
+    v = Verification.new(extraction: {
+      "image_width" => 800, "image_height" => 1000,
+      "fields" => { "brand_name" => located("OLD TOM").merge("bbox_source" => "ocr") }
+    })
+
+    assert_includes field_crop_tag(app, v, "brand_name"), "<img"
+
+    v.extraction["fields"]["brand_name"]["bbox_source"] = "model"
+    caption = field_crop_tag(app, v, "brand_name")
+    assert_includes caption, "Location approximate"
+    assert_not_includes caption, "<img"
+  end
 end

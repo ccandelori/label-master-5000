@@ -42,6 +42,17 @@ class FieldCropsControllerTest < ActionDispatch::IntegrationTest
     assert response.body.bytesize.positive?
   end
 
+  test "a model-estimated region serves no crop" do
+    app = create_application_with_artwork
+    add_verification(app, fields: {
+      "brand_name" => { "text" => "OLD TOM DISTILLERY", "bbox" => [ 100, 80, 350, 42 ],
+                        "bbox_source" => "model", "page" => 1 }
+    })
+
+    get label_application_field_crop_path(app, field: "brand_name")
+    assert_response :not_found, "cutting pixels from an estimate manufactures evidence"
+  end
+
   test "unknown fields and unlocated fields are not found" do
     app = create_application_with_artwork
     add_verification(app, fields: { "brand_name" => { "text" => "X", "bbox" => nil, "page" => 1 } })
