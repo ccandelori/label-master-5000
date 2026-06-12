@@ -4,7 +4,7 @@ class ApplicationController < ActionController::Base
 
   AREAS = {
     reviewer: { label: "Reviewer", classes: "bg-focus-tint text-focus" },
-    pre_review: { label: "Pre-review", classes: "bg-pass-tint text-pass" },
+    pre_review: { label: "Pre-check", classes: "bg-pass-tint text-pass" },
     rules: { label: "Rules reference", classes: "bg-panel text-ink-muted" }
   }.freeze
 

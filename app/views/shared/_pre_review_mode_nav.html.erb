@@ -1,4 +1,4 @@
-<nav class="inline-flex rounded-lg border border-line bg-raised p-1 mb-6" aria-label="Pre-review mode">
+<nav class="inline-flex rounded-lg border border-line bg-raised p-1 mb-6" aria-label="Pre-check mode">
   <% modes = [ [ "Single label", new_label_application_path, :single ], [ "Batch (CSV)", new_batch_path, :batch ] ] %>
   <% modes.each do |label, path, mode| %>
     <%= link_to label, path,

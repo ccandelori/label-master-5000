@@ -1,6 +1,6 @@
 module ApplicationHelper
   # Small colored chip identifying which of the three site areas a page
-  # belongs to (Reviewer / Pre-review / Rules reference).
+  # belongs to (Reviewer / Pre-check / Rules reference).
   def area_tag(area)
     config = ApplicationController::AREAS[area]
     return if config.nil?

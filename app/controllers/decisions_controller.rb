@@ -5,7 +5,7 @@ class DecisionsController < ApplicationController
 
   def create
     if @application.pre_review?
-      return respond_with_failure("Decisions are recorded on submitted applications only - this one is still in pre-review.")
+      return respond_with_failure("Decisions are recorded on submitted applications only - this one is still in pre-check.")
     end
 
     verification = @application.verifications.find(params.expect(decision: [ :verification_id ])[:verification_id])
