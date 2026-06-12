@@ -70,7 +70,7 @@ class BatchesControllerTest < ActionDispatch::IntegrationTest
 
   def with_stub_extractor
     original = VerifyLabelJob.extractor_factory
-    VerifyLabelJob.extractor_factory = -> { StubExtractor.new }
+    VerifyLabelJob.extractor_factory = ->(_provider, _model) { StubExtractor.new }
     yield
   ensure
     VerifyLabelJob.extractor_factory = original

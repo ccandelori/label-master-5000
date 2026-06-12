@@ -68,4 +68,46 @@ class LabelApplicationsControllerTest < ActionDispatch::IntegrationTest
     post label_applications_path, params: valid_params(beverage_type: "wine", varietals_list: "Merlot, Syrah")
     assert_equal %w[Merlot Syrah], LabelApplication.last.varietals
   end
+
+  test "creating with a demo model choice enqueues the override" do
+    assert_enqueued_with(job: VerifyLabelJob) do
+      post label_applications_path, params: valid_params({}).merge(demo_model: "anthropic:claude-haiku-4-5")
+    end
+    job_args = enqueued_jobs.last[:args]
+    assert_equal [ LabelApplication.last.id, "anthropic", "claude-haiku-4-5" ], job_args
+  end
+
+  test "the new form carries the demo model menu" do
+    get new_label_application_path
+    assert_response :success
+    assert_match(/Demo settings/, response.body)
+    assert_select "select[name=demo_model] option", minimum: 2
+  end
+
+  test "the pre-review record page offers a model re-check; submitted does not" do
+    post label_applications_path, params: valid_params({})
+    application = LabelApplication.last
+
+    get label_application_path(application)
+    assert_select "select[name=demo_model]"
+    assert_match(/Re-check/, response.body)
+
+    application.update!(channel: "submitted")
+    get label_application_path(application)
+    assert_select "select[name=demo_model]", count: 0
+  end
+
+  test "verification history names the model that produced each check" do
+    post label_applications_path, params: valid_params({})
+    application = LabelApplication.last
+    2.times do |i|
+      application.verifications.create!(
+        overall_verdict: "pass", field_checks: [], model_id: "claude-haiku-4-5",
+        created_at: Time.current - i.minutes
+      )
+    end
+
+    get label_application_path(application)
+    assert_match(/Claude Haiku 4.5/, response.body)
+  end
 end

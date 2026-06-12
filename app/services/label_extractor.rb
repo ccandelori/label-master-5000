@@ -15,8 +15,13 @@ class LabelExtractor
     @config = config
   end
 
-  def self.build
-    new(client: Extraction::AnthropicClient.build, config: Rails.application.config.x.extraction)
+  # model: the model id this instance speaks to; the rest of the
+  # configuration is shared. A shallow copy keeps the override scoped to
+  # this instance.
+  def self.build(model:)
+    config = Rails.application.config.x.extraction.dup
+    config.model = model
+    new(client: Extraction::AnthropicClient.build, config: config)
   end
 
   def model_id

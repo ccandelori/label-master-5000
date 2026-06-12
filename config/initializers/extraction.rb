@@ -18,6 +18,20 @@ Rails.application.config.x.extraction.model = ENV.fetch("EXTRACTION_MODEL", defa
 # deployments that authenticate via an api-key header can supply it
 # through the SDK's OPENAI_CUSTOM_HEADERS environment variable.
 Rails.application.config.x.extraction.openai_base_url = ENV["EXTRACTION_OPENAI_BASE_URL"]
+
+# The demo model menu: pre-review checks can run under any of these to
+# compare providers and tiers side by side. Each entry is provider +
+# model + display label; override the whole list with compact JSON in
+# EXTRACTION_DEMO_MODELS. The globally configured provider/model is
+# always an allowed choice even when absent from this list.
+Rails.application.config.x.extraction.demo_models = JSON.parse(
+  ENV.fetch("EXTRACTION_DEMO_MODELS", <<~JSON)
+    [{"provider": "anthropic", "model": "claude-opus-4-7", "label": "Claude Opus 4.7"},
+     {"provider": "anthropic", "model": "claude-haiku-4-5", "label": "Claude Haiku 4.5"},
+     {"provider": "openai", "model": "gpt-5.4", "label": "GPT-5.4"},
+     {"provider": "openai", "model": "gpt-5.4-mini", "label": "GPT-5.4 mini"}]
+  JSON
+).map { |entry| entry.slice("provider", "model", "label").freeze }.freeze
 Rails.application.config.x.extraction.effort = ENV.fetch("EXTRACTION_EFFORT", "low")
 Rails.application.config.x.extraction.max_tokens = Integer(ENV.fetch("EXTRACTION_MAX_TOKENS", "4096"))
 Rails.application.config.x.extraction.max_retries = Integer(ENV.fetch("EXTRACTION_MAX_RETRIES", "2"))

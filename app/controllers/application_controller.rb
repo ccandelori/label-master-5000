@@ -17,4 +17,17 @@ class ApplicationController < ActionController::Base
   def current_area
     @area
   end
+
+  # The pre-review demo's per-run model choice ("provider:model" from the
+  # configured menu). Returns [provider, model] or [nil, nil]; anything
+  # not on the menu, or any non-pre-review application, runs the default -
+  # the demo affordance must never steer reviewer-channel work.
+  def demo_model_override(application)
+    return [ nil, nil ] unless application.pre_review? && params[:demo_model].present?
+
+    provider, model = params[:demo_model].split(":", 2)
+    entry = Rails.application.config.x.extraction.demo_models
+                 .find { |e| e["provider"] == provider && e["model"] == model }
+    entry ? [ entry["provider"], entry["model"] ] : [ nil, nil ]
+  end
 end

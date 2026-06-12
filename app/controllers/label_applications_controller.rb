@@ -13,7 +13,8 @@ class LabelApplicationsController < ApplicationController
     @application = LabelApplication.new(application_params)
 
     if @application.save
-      VerifyLabelJob.perform_later(@application.id)
+      provider, model = demo_model_override(@application)
+      VerifyLabelJob.perform_later(@application.id, provider, model)
       redirect_to @application, notice: "Label submitted - checking now."
     else
       @stats = verification_stats
@@ -32,7 +33,8 @@ class LabelApplicationsController < ApplicationController
   # artwork; extraction is reused, so re-runs are fast and free.
   def update
     if @application.update(application_params)
-      VerifyLabelJob.perform_later(@application.id)
+      provider, model = demo_model_override(@application)
+      VerifyLabelJob.perform_later(@application.id, provider, model)
       redirect_to @application, notice: "Application updated - re-checking against the same artwork."
     else
       render :edit, status: :unprocessable_entity
