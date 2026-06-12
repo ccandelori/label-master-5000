@@ -6,6 +6,10 @@ class Verification < ApplicationRecord
   # Live update for anyone watching the application page when a background
   # verification completes.
   after_create_commit :broadcast_result
+  # Queue membership, ordering, and tab counts are all computed server-side,
+  # so any verification event (new result, decision, undo) refreshes every
+  # open queue via a debounced page-refresh broadcast; the page morphs.
+  after_commit :broadcast_queue_refresh
 
   enum :overall_verdict, {
     pass: "pass",
@@ -59,6 +63,10 @@ class Verification < ApplicationRecord
       locals: { application: label_application, verification: self }
     )
     broadcast_batch_row
+  end
+
+  def broadcast_queue_refresh
+    broadcast_refresh_later_to :reviewer_queue
   end
 
   def broadcast_batch_row

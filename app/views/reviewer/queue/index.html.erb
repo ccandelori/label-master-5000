@@ -1,4 +1,10 @@
 <% content_for :title, "Review queue" %>
+<%# Live queue: any verification result, decision, or filing broadcasts a
+    page refresh; morphing re-renders membership, ordering, and counts
+    server-side while preserving scroll. Scoped to this page - the record
+    and batch pages keep their targeted streams. %>
+<%= turbo_stream_from :reviewer_queue %>
+<% turbo_refreshes_with(method: :morph, scroll: :preserve) %>
 
 <div class="flex items-start justify-between flex-wrap gap-3 mb-6">
   <div>
@@ -28,7 +34,11 @@
   <%= form_with url: reviewer_queue_path, method: :get, class: "flex gap-2" do |f| %>
     <%= f.hidden_field :tab, value: @tab %>
     <%= f.label :q, "Search by serial or brand", class: "sr-only" %>
-    <%= f.search_field :q, value: @query, placeholder: "Serial or brand…",
+    <%# data-turbo-permanent (with a stable id): a morph would otherwise
+        discard text typed into the box. Only the input is permanent -
+        the form's hidden tab field must stay fresh across tab visits. %>
+    <%= f.search_field :q, value: @query, placeholder: "Serial or brand…", id: "queue_search_q",
+          data: { turbo_permanent: true },
           class: "rounded-lg border-line-strong w-56" %>
     <%= f.submit "Search", class: "rounded-lg border border-line-strong bg-raised px-4 py-2 font-medium hover:bg-panel cursor-pointer" %>
   <% end %>
