@@ -141,6 +141,20 @@
     <% end %>
   </fieldset>
 
+  <%# Demo-only: pre-review checks can run under any configured model to
+      compare providers side by side. Submitted (reviewer) work always
+      uses the default. %>
+  <% if application.new_record? || application.pre_review? %>
+    <details class="bg-raised rounded-xl border border-line px-6 py-4">
+      <summary class="cursor-pointer font-medium text-ink-muted">Demo settings (vision model)</summary>
+      <div class="mt-3 max-w-sm">
+        <label for="demo_model" class="block font-medium mb-1">Run this check with</label>
+        <%= select_tag :demo_model, demo_model_options, class: "w-full rounded-lg border-line-strong" %>
+        <p class="text-ink-muted mt-2">Not part of the filing - re-check under other models to compare readings.</p>
+      </div>
+    </details>
+  <% end %>
+
   <%= f.submit application.persisted? ? "Save and re-check" : "Check this label",
         class: "rounded-lg bg-ink text-surface px-6 py-3 text-lg font-medium hover:opacity-90 cursor-pointer" %>
 <% end %>

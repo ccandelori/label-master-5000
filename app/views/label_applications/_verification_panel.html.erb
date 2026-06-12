@@ -57,7 +57,7 @@
         </p>
       </div>
       <span class="text-ink-faint whitespace-nowrap">
-        <%= verification.extraction_reused? ? "reading reused · " : "" %>checked in <%= ((verification.latency_ms || 0) / 1000.0).round(1) %>s
+        <%= "#{demo_model_label(verification.model_id)} · " if verification.model_id.present? %><%= verification.extraction_reused? ? "reading reused · " : "" %>checked in <%= ((verification.latency_ms || 0) / 1000.0).round(1) %>s
       </span>
     </div>
 

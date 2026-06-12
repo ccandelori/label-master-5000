@@ -51,7 +51,7 @@ class SingleLabelVerificationTest < ApplicationSystemTestCase
 
   test "manufacturer pre-checks a label, submits to TTB, and an agent decides" do
     original = VerifyLabelJob.extractor_factory
-    VerifyLabelJob.extractor_factory = -> { StubExtractor.new(stub_payload) }
+    VerifyLabelJob.extractor_factory = ->(_provider, _model) { StubExtractor.new(stub_payload) }
 
     visit new_label_application_path
     fill_in "Serial number", with: "26-1042"
@@ -105,7 +105,7 @@ class SingleLabelVerificationTest < ApplicationSystemTestCase
                          { "page" => 2, "width" => 800, "height" => 1000 } ]
     payload["fields"]["government_warning"]["page"] = 2
     original = VerifyLabelJob.extractor_factory
-    VerifyLabelJob.extractor_factory = -> { StubExtractor.new(payload) }
+    VerifyLabelJob.extractor_factory = ->(_provider, _model) { StubExtractor.new(payload) }
 
     visit new_label_application_path
     fill_in "Serial number", with: "26-2042"

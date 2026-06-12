@@ -22,8 +22,20 @@
       · <%= @application.net_contents %>
     </p>
   </div>
-  <%= link_to "Edit and re-check", edit_label_application_path(@application),
-        class: "rounded-lg border border-line-strong bg-raised px-4 py-2 font-medium hover:bg-panel" %>
+  <div class="flex items-center gap-3 flex-wrap">
+    <%# Demo-only: re-check the same artwork under another model without
+        editing the application. Reviewer-channel records never see this. %>
+    <% if @application.pre_review? %>
+      <%= form_with url: label_application_check_path(@application), method: :post,
+            class: "flex items-center gap-2" do %>
+        <label for="demo_model" class="sr-only">Vision model for this re-check</label>
+        <%= select_tag :demo_model, demo_model_options, class: "rounded-lg border-line-strong" %>
+        <%= submit_tag "Re-check", class: "rounded-lg border border-line-strong bg-raised px-4 py-2 font-medium hover:bg-panel cursor-pointer" %>
+      <% end %>
+    <% end %>
+    <%= link_to "Edit and re-check", edit_label_application_path(@application),
+          class: "rounded-lg border border-line-strong bg-raised px-4 py-2 font-medium hover:bg-panel" %>
+  </div>
 </div>
 
 <div id="verification_panel">
@@ -38,6 +50,9 @@
       <% history.each do |verification| %>
         <li class="bg-raised rounded-lg border border-line px-4 py-3 flex items-center justify-between flex-wrap gap-2">
           <span class="text-ink-muted"><%= verification.created_at.strftime("%b %-d, %H:%M:%S") %></span>
+          <% if verification.model_id.present? %>
+            <span class="text-ink-faint"><%= demo_model_label(verification.model_id) %></span>
+          <% end %>
           <%= verdict_chip(verification.overall_verdict) %>
           <% if verification.decision %>
             <span class="text-ink-muted">Decision: <%= verification.decision.humanize %></span>

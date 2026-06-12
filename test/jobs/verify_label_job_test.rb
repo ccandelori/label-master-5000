@@ -93,7 +93,7 @@ class VerifyLabelJobTest < ActiveSupport::TestCase
 
   def with_extractor(stub)
     original = VerifyLabelJob.extractor_factory
-    VerifyLabelJob.extractor_factory = -> { stub }
+    VerifyLabelJob.extractor_factory = ->(_provider, _model) { stub }
     yield
   ensure
     VerifyLabelJob.extractor_factory = original
@@ -305,5 +305,28 @@ class VerifyLabelJobTest < ActiveSupport::TestCase
 
     assert_equal 1, stub.calls
     assert_predicate verification, :pass?
+  end
+
+  test "a per-run model override extracts on its own and reuses only within itself" do
+    app = create_application({})
+    default_stub = StubExtractor.new(payload: payload({}), model_id: "model-default")
+    demo_stub = StubExtractor.new(payload: payload({}), model_id: "model-demo")
+    original = VerifyLabelJob.extractor_factory
+    VerifyLabelJob.extractor_factory = ->(provider, model) do
+      assert_includes [ nil, "anthropic" ], provider
+      model == "model-demo" ? demo_stub : default_stub
+    end
+
+    first = VerifyLabelJob.perform_now(app.id)
+    overridden = VerifyLabelJob.perform_now(app.id, "anthropic", "model-demo")
+    repeated = VerifyLabelJob.perform_now(app.id, "anthropic", "model-demo")
+
+    assert_equal "model-default", first.model_id
+    assert_equal "model-demo", overridden.model_id
+    assert_not overridden.extraction_reused, "another model's extraction must not be reused"
+    assert repeated.extraction_reused, "the same model's extraction is reused"
+    assert_equal 1, demo_stub.calls
+  ensure
+    VerifyLabelJob.extractor_factory = original
   end
 end

@@ -18,16 +18,24 @@ class VerifyLabelJob < ApplicationJob
   end
 
   # Test seam and deployment seam in one: the factory builds the real
-  # connector by default.
-  class_attribute :extractor_factory, default: -> { Extraction::ExtractorFactory.build }
+  # connector by default. The two arguments are the per-run override
+  # (the pre-review demo's model menu); nil provider means the configured
+  # default.
+  class_attribute :extractor_factory, default: ->(provider, model) {
+    if provider
+      Extraction::ExtractorFactory.build_for(provider: provider, model: model)
+    else
+      Extraction::ExtractorFactory.build
+    end
+  }
   class_attribute :ocr_factory, default: -> { Extraction::OcrFactory.build }
 
-  def perform(label_application_id)
+  def perform(label_application_id, provider = nil, model = nil)
     application = LabelApplication.find(label_application_id)
     raise ActiveRecord::RecordNotFound, "no artwork attached" unless application.artwork.attached?
 
     started = monotonic_ms
-    extractor = extractor_factory.call
+    extractor = extractor_factory.call(provider, model)
     artworks = artwork_sources(application)
     reused = reusable_extraction(application, extractor.model_id)
 

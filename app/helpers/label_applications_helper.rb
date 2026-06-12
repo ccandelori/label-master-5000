@@ -23,6 +23,21 @@ module LabelApplicationsHelper
   # Builds the JSON the bounding-box overlay renders: one entry per located
   # element, carrying the worst verdict among its associated checks plus the
   # note and citation for the click-through annotation.
+  # Options for the pre-review demo's model select: [label, "provider:model"],
+  # with the globally configured model selected by default.
+  def demo_model_options
+    config = Rails.application.config.x.extraction
+    options = config.demo_models.map { |e| [ e["label"], "#{e["provider"]}:#{e["model"]}" ] }
+    options_for_select(options, "#{config.provider}:#{config.model}")
+  end
+
+  # The menu label for a model id, for showing which model produced a
+  # verification; ids outside the menu display as themselves.
+  def demo_model_label(model_id)
+    entry = Rails.application.config.x.extraction.demo_models.find { |e| e["model"] == model_id }
+    entry ? entry["label"] : model_id
+  end
+
   def bbox_data(verification)
     checks_by_field = verification.field_checks.index_by(&:field)
     payload = verification.extraction || {}
