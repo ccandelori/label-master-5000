@@ -8,7 +8,7 @@ module Extraction
   # same prompt and response schema, so swapping providers changes the
   # reading, never the pipeline.
   #
-  # build_for is the per-run override (the pre-review demo's model menu):
+  # build_for is the per-run override from the validation model menu:
   # the combo must be the configured default or one of the demo_models
   # entries - an unknown combo raises rather than silently reading with
   # something else.

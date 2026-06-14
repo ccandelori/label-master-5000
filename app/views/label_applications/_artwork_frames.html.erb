@@ -1,0 +1,34 @@
+<% image_class = local_assigns.fetch(:image_class, "max-w-full rounded border border-line bg-white") %>
+
+<% if application.artwork.attached? && application.artwork.image? %>
+  <% if application.back_artwork.attached? %>
+    <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-faint mb-2">Front label</h3>
+  <% end %>
+  <div class="relative inline-block" data-bbox-overlay-target="frame" data-page="1">
+    <%= image_tag url_for(application.artwork), class: image_class,
+          data: { bbox_overlay_target: "image" }, alt: "Front label artwork for #{application.brand_name}" %>
+  </div>
+  <% if application.back_artwork.attached? %>
+    <h3 class="text-xs font-semibold uppercase tracking-wide text-ink-faint mt-5 mb-2">Back label</h3>
+    <div class="relative inline-block" data-bbox-overlay-target="frame" data-page="2">
+      <%= image_tag url_for(application.back_artwork), class: image_class,
+            data: { bbox_overlay_target: "image" }, alt: "Back label artwork for #{application.brand_name}" %>
+    </div>
+  <% end %>
+<% elsif application.artwork.attached? && application.artwork.previewable? %>
+  <div class="relative inline-block" data-bbox-overlay-target="frame" data-page="1">
+    <%= image_tag url_for(application.artwork.preview(resize_to_limit: [ 800, 1100 ]).processed),
+          class: image_class,
+          data: { bbox_overlay_target: "image" }, alt: "First page of the label artwork PDF" %>
+    <p class="text-ink-faint mt-2 text-sm">PDF, page 1 shown. Locations apply to page 1 only.</p>
+  </div>
+<% elsif application.artwork.attached? %>
+  <div class="rounded border border-line bg-panel p-6 text-center text-ink-faint">
+    <p><%= application.artwork.filename %></p>
+    <p class="mt-1">Preview unavailable in this environment.</p>
+  </div>
+<% else %>
+  <div class="rounded border border-line bg-panel p-6 text-center text-ink-faint">
+    <p>No artwork attached.</p>
+  </div>
+<% end %>

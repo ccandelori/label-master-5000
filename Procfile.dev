@@ -1,3 +1,3 @@
 web: bin/rails server
 css: bin/rails tailwindcss:watch
-ocr: bash ocr_service/bin/serve
+# ocr sidecar removed — VLM only (no PaddleOCR refinement)

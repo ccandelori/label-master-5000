@@ -1,28 +1,25 @@
-<% content_for :title, "Review queue" %>
-<%# Live queue: any verification result, decision, or filing broadcasts a
+<% content_for :title, "Validation history" %>
+<%# Live history: any verification result, decision, or filing broadcasts a
     page refresh; morphing re-renders membership, ordering, and counts
     server-side while preserving scroll. Scoped to this page - the record
     and batch pages keep their targeted streams. %>
-<%= turbo_stream_from :reviewer_queue %>
+<%= turbo_stream_from :validation_history %>
 <% turbo_refreshes_with(method: :morph, scroll: :preserve) %>
 
 <div class="flex items-start justify-between flex-wrap gap-3 mb-6">
   <div>
-    <h1 class="text-2xl font-semibold">Review queue</h1>
+    <h1 class="text-2xl font-semibold">Validation history</h1>
     <p class="text-ink-muted mt-1 max-w-2xl">
-      Applications submitted to TTB, checked field by field against the label
-      artwork. Worst findings first; open a record for the full detail, or
-      work the queue in review mode.
+      Past validation runs, grouped by outcome. Open a record to inspect the
+      label artwork, field evidence, and rule findings.
     </p>
   </div>
-  <%= link_to "Enter review mode", reviewer_review_path,
-        class: "rounded-lg bg-ink text-surface px-5 py-2.5 font-medium hover:opacity-90" %>
 </div>
 
 <div class="flex items-center justify-between flex-wrap gap-3 mb-4">
-  <nav class="inline-flex rounded-lg border border-line-strong bg-raised p-1" aria-label="Queue view">
+  <nav class="inline-flex rounded-lg border border-line-strong bg-raised p-1" aria-label="History view">
     <% ReviewerQueue::TABS.each do |tab| %>
-      <%= link_to reviewer_queue_path(tab: tab, q: @query.presence),
+      <%= link_to validation_history_path(history_params(tab: tab)),
             class: "px-4 py-1.5 rounded-md font-medium #{tab == @tab ? 'bg-ink text-surface' : 'text-ink-muted hover:bg-panel'}",
             aria: { current: tab == @tab ? "page" : nil } do %>
         <%= ReviewerQueue::TAB_LABELS.fetch(tab) %>
@@ -31,16 +28,44 @@
     <% end %>
   </nav>
 
-  <%= form_with url: reviewer_queue_path, method: :get, class: "flex gap-2" do |f| %>
+  <%= form_with url: validation_history_path, method: :get, class: "flex gap-2 flex-wrap items-end" do |f| %>
     <%= f.hidden_field :tab, value: @tab %>
-    <%= f.label :q, "Search by serial or brand", class: "sr-only" %>
+    <%= f.hidden_field :sort, value: @sort %>
+    <%= f.hidden_field :direction, value: @direction %>
+    <div>
+      <%= f.label :q, "Search", class: "block text-sm font-medium mb-1 text-ink-muted" %>
     <%# data-turbo-permanent (with a stable id): a morph would otherwise
         discard text typed into the box. Only the input is permanent -
         the form's hidden tab field must stay fresh across tab visits. %>
-    <%= f.search_field :q, value: @query, placeholder: "Serial or brand…", id: "queue_search_q",
-          data: { turbo_permanent: true },
-          class: "rounded-lg border-line-strong w-56" %>
-    <%= f.submit "Search", class: "rounded-lg border border-line-strong bg-raised px-4 py-2 font-medium hover:bg-panel cursor-pointer" %>
+      <%= f.search_field :q, value: @filters[:q], placeholder: "Serial or brand...", id: "queue_search_q",
+            data: { turbo_permanent: true },
+            class: "rounded-lg border-line-strong w-48" %>
+    </div>
+    <div>
+      <%= f.label :serial, "Serial", class: "block text-sm font-medium mb-1 text-ink-muted" %>
+      <%= f.search_field :serial, value: @filters[:serial], class: "rounded-lg border-line-strong w-32" %>
+    </div>
+    <div>
+      <%= f.label :brand, "Brand", class: "block text-sm font-medium mb-1 text-ink-muted" %>
+      <%= f.search_field :brand, value: @filters[:brand], class: "rounded-lg border-line-strong w-40" %>
+    </div>
+    <div>
+      <%= f.label :beverage_type, "Type", class: "block text-sm font-medium mb-1 text-ink-muted" %>
+      <%= f.select :beverage_type,
+            options_for_select([ [ "Any type", "" ], [ "Malt", "malt" ], [ "Wine", "wine" ], [ "Spirits", "spirits" ] ], @filters[:beverage_type]),
+            {}, class: "rounded-lg border-line-strong w-32" %>
+    </div>
+    <div>
+      <%= f.label :verdict, "Result", class: "block text-sm font-medium mb-1 text-ink-muted" %>
+      <%= f.select :verdict,
+            options_for_select(history_result_options, @filters[:verdict]),
+            {}, class: "rounded-lg border-line-strong w-44" %>
+    </div>
+    <%= f.submit "Filter", class: "rounded-lg border border-line-strong bg-raised px-4 py-2 font-medium hover:bg-panel cursor-pointer" %>
+    <% if @filters.values.any?(&:present?) %>
+      <%= link_to "Clear", validation_history_path(history_params(q: nil, serial: nil, brand: nil, beverage_type: nil, verdict: nil)),
+            class: "rounded-lg border border-line-strong bg-raised px-4 py-2 font-medium hover:bg-panel" %>
+    <% end %>
   <% end %>
 </div>
 
@@ -48,20 +73,21 @@
   <section class="bg-raised rounded-xl border border-line p-8 text-center">
     <p class="text-lg font-medium mb-1">Nothing in <%= ReviewerQueue::TAB_LABELS.fetch(@tab).downcase %>.</p>
     <p class="text-ink-muted">
-      <%= @query.present? ? "No matches for “#{@query}” here." : "Submitted applications appear as they are filed and checked." %>
+      <%= @query.present? ? "No matches for “#{@query}” here." : "Validation runs appear here after they start." %>
     </p>
   </section>
 <% else %>
   <div class="bg-raised rounded-xl border border-line overflow-hidden">
     <table class="w-full text-left">
-      <caption class="sr-only">Submitted applications - <%= ReviewerQueue::TAB_LABELS.fetch(@tab) %></caption>
+      <caption class="sr-only">Validation history - <%= ReviewerQueue::TAB_LABELS.fetch(@tab) %></caption>
       <thead>
         <tr class="border-b border-line text-ink-muted">
-          <th scope="col" class="px-4 py-3 font-medium">Serial</th>
-          <th scope="col" class="px-4 py-3 font-medium">Brand</th>
-          <th scope="col" class="px-4 py-3 font-medium">Type</th>
-          <th scope="col" class="px-4 py-3 font-medium">Check result</th>
-          <th scope="col" class="px-4 py-3 font-medium"><%= @tab == "decided" ? "Decision" : "Submitted" %></th>
+          <th scope="col" class="px-4 py-3" aria-sort="<%= history_aria_sort("serial") %>"><%= sortable_history_header("Serial", "serial") %></th>
+          <th scope="col" class="px-4 py-3" aria-sort="<%= history_aria_sort("brand") %>"><%= sortable_history_header("Brand", "brand") %></th>
+          <th scope="col" class="px-4 py-3" aria-sort="<%= history_aria_sort("beverage_type") %>"><%= sortable_history_header("Type", "beverage_type") %></th>
+          <th scope="col" class="px-4 py-3" aria-sort="<%= history_aria_sort("verdict") %>"><%= sortable_history_header("Check result", "verdict") %></th>
+          <% time_sort = @tab == "decided" ? "decision" : "run_at" %>
+          <th scope="col" class="px-4 py-3" aria-sort="<%= history_aria_sort(time_sort) %>"><%= sortable_history_header(@tab == "decided" ? "Decision" : "Run", time_sort) %></th>
           <th scope="col" class="px-4 py-3 text-right"><span class="sr-only">Actions</span></th>
         </tr>
       </thead>
@@ -85,7 +111,7 @@
                 <%= verification.decision.humanize %>
                 <span class="text-ink-faint"><%= verification.decided_at&.strftime("%b %-d, %H:%M") %></span>
               <% else %>
-                <%= application.created_at.strftime("%b %-d, %H:%M") %>
+                <%= (verification&.created_at || application.created_at).strftime("%b %-d, %H:%M") %>
               <% end %>
             </td>
             <%# Every control here shares one box recipe (inline-block,
@@ -94,39 +120,40 @@
                 otherwise measure shorter than real buttons. %>
             <% control = "inline-block align-middle rounded-lg border px-3 py-1 font-medium" %>
             <% quiet_link = "inline-block align-middle border border-transparent py-1 underline underline-offset-2" %>
+            <% details_link = "#{control} border-line-strong bg-raised hover:bg-panel" %>
+            <% details_path = label_application_path(application, anchor: "check_workspace") %>
             <td class="px-4 py-3 text-right whitespace-nowrap">
               <% case @tab %>
               <% when "ready_to_approve" %>
-                <%= button_to "✓ Approve", label_application_decision_path(application),
-                      params: { decision: { verification_id: verification.id, decision: "approve" } },
-                      form_class: "inline-block align-middle mr-2",
-                      class: "#{control} border-pass/50 text-pass bg-pass-tint hover:opacity-85 cursor-pointer" %>
-                <%= link_to "Review", reviewer_review_path(start: application.id),
-                      class: "#{control} border-transparent bg-ink text-surface hover:opacity-90 mr-2" %>
-                <%= link_to "Details", application, class: "#{quiet_link} text-ink-muted hover:text-ink" %>
+                <% if application.reviewer_visible? %>
+                  <%= button_to "Approve", label_application_decision_path(application),
+                        params: { decision: { verification_id: verification.id, decision: "approve" } },
+                        form_class: "inline-block align-middle mr-2",
+                        class: "#{control} border-pass/50 text-pass bg-pass-tint hover:opacity-85 cursor-pointer" %>
+                <% end %>
+                <%= link_to "Details", details_path, class: details_link %>
               <% when "needs_attention" %>
-                <%= link_to "Review", reviewer_review_path(start: application.id),
-                      class: "#{control} border-transparent bg-ink text-surface hover:opacity-90 mr-2" %>
-                <%= link_to "Details", application, class: "#{quiet_link} text-ink-muted hover:text-ink" %>
+                <%= link_to "Details", details_path,
+                      class: "#{control} border-transparent bg-ink text-surface hover:opacity-90" %>
               <% when "failed" %>
-                <%= button_to "✗ Reject", label_application_decision_path(application),
-                      params: { decision: { verification_id: verification.id, decision: "reject" } },
-                      form_class: "inline-block align-middle mr-2",
-                      class: "#{control} border-fail/50 text-fail bg-fail-tint hover:opacity-85 cursor-pointer" %>
-                <%= link_to "Review", reviewer_review_path(start: application.id),
-                      class: "#{control} border-transparent bg-ink text-surface hover:opacity-90 mr-2" %>
-                <%= link_to "Details", application, class: "#{quiet_link} text-ink-muted hover:text-ink" %>
+                <% if application.reviewer_visible? %>
+                  <%= button_to "Reject", label_application_decision_path(application),
+                        params: { decision: { verification_id: verification.id, decision: "reject" } },
+                        form_class: "inline-block align-middle mr-2",
+                        class: "#{control} border-fail/50 text-fail bg-fail-tint hover:opacity-85 cursor-pointer" %>
+                <% end %>
+                <%= link_to "Details", details_path, class: details_link %>
               <% when "unchecked" %>
-                <%= button_to "Run check", label_application_check_path(application),
+                <%= button_to "Run validation", label_application_check_path(application),
                       form_class: "inline-block align-middle mr-2",
                       class: "#{control} border-line-strong hover:bg-panel cursor-pointer" %>
-                <%= link_to "Details", application, class: "#{quiet_link} text-ink-muted hover:text-ink" %>
+                <%= link_to "Details", details_path, class: details_link %>
               <% else %>
                 <% if verification.rejection_notice.present? %>
                   <%= link_to "Notice", label_application_rejection_notice_path(application, download: 1),
                         class: "#{quiet_link} font-medium text-ink hover:text-ink-muted mr-3" %>
                 <% end %>
-                <%= link_to "Details", application, class: "#{quiet_link} font-medium text-ink hover:text-ink-muted" %>
+                <%= link_to "Details", details_path, class: details_link %>
               <% end %>
             </td>
           </tr>

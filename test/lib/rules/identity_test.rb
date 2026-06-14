@@ -42,6 +42,15 @@ module Rules
       assert_equal "pass", result.verdict
     end
 
+    test "passes when compact application address omits commas" do
+      result = check(
+        { applicant_name_address: "CREDO PROPERTIES LLC 5220 ETON PL Mechanicsburg PA 17055", imported: true },
+        "IMPORTED BY CREDO PROPERTIES LLC MECHANICSBURG, PA"
+      )
+
+      assert_equal "pass", result.verdict
+    end
+
     test "passes when the label omits the entity suffix from the application" do
       result = check(
         { applicant_name_address: "Old Tom Distilling Co., Bardstown, KY" },
@@ -58,6 +67,19 @@ module Rules
       )
 
       assert_equal "pass", result.verdict
+    end
+
+    test "passes with note when imported label uses shortened applicant trade name with city and state" do
+      result = check(
+        {
+          imported: true,
+          applicant_name_address: "DIAGEO AMERICAS SUPPLY, INC., 3 WORLD TRADE CENTER STE 41-C, New York, NY, 10007"
+        },
+        "Imported by Diageo, New York, NY"
+      )
+
+      assert_equal "pass_with_note", result.verdict
+      assert_match(/shortened importer name/, result.note)
     end
 
     test "needs review when the name matches but city and state are missing" do
@@ -106,6 +128,34 @@ module Rules
       )
 
       assert_equal "pass", result.verdict
+    end
+
+    test "high-confidence near identity match passes with note as likely character noise" do
+      result = Checks::Identity.match_verdict(
+        field: "brand_name", expected: "BROUWERIJ TIJ", extracted: "BROUWERU TIJ",
+        citation: "BAM", confidence: 0.96
+      )
+
+      assert_equal "pass_with_note", result.verdict
+      assert_match(/Near match/, result.note)
+    end
+
+    test "near identity match without high confidence still needs review" do
+      result = Checks::Identity.match_verdict(
+        field: "brand_name", expected: "BROUWERIJ TIJ", extracted: "BROUWERU TIJ",
+        citation: "BAM", confidence: 0.70
+      )
+
+      assert_equal "needs_review", result.verdict
+    end
+
+    test "high-confidence semantic mismatch still needs review" do
+      result = Checks::Identity.match_verdict(
+        field: "brand_name", expected: "OLD TOM", extracted: "YOUNG TOM",
+        citation: "BAM", confidence: 0.99
+      )
+
+      assert_equal "needs_review", result.verdict
     end
   end
 end

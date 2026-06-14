@@ -1,16 +1,12 @@
 Rails.application.routes.draw do
-  # Three areas share one unauthenticated app for demo purposes; a real
-  # deployment would split the reviewer and manufacturer surfaces into
-  # separately authenticated portals.
-  root "reviewer/queue#index"
+  root "label_applications#new"
 
-  namespace :reviewer do
-    get "queue", to: "queue#index", as: :queue
-    get "review", to: "review#show", as: :review
-    get "review/next", to: "review#next_item", as: :review_next, defaults: { format: :json }
-  end
+  get "validation", to: "label_applications#new", as: :validation
+  get "history", to: "reviewer/queue#index", as: :validation_history
+  get "data-quality", to: "reviewer/data_quality#index", as: :data_quality
 
   get "rules", to: "rules#index"
+  get "up/dependencies" => "runtime_dependencies#show", as: :runtime_dependencies_health_check
 
   resources :label_applications, only: %i[new create show edit update] do
     resource :decision, only: %i[create destroy]
@@ -19,11 +15,12 @@ Rails.application.routes.draw do
     resource :check, only: :create
     resource :field_crop, only: :show
   end
+  resource :sample_validation, only: :create
 
   resources :batches, only: %i[new create show] do
-    member do
-      get :export, defaults: { format: :csv }
-      post :retry_failed
+    scope module: :batches do
+      resource :export, only: :show, defaults: { format: :csv }
+      resource :retry, only: :create
     end
     resource :submission, only: :create, controller: "batch_submissions"
   end

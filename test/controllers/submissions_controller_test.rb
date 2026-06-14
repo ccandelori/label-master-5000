@@ -14,7 +14,7 @@ class SubmissionsControllerTest < ActionDispatch::IntegrationTest
     )
   end
 
-  test "submitting a pre-review application flips it into the reviewer queue" do
+  test "submitting a validation application keeps it visible in history" do
     application = create_application(channel: "pre_review")
 
     post label_application_submission_path(application)
@@ -22,7 +22,7 @@ class SubmissionsControllerTest < ActionDispatch::IntegrationTest
     assert application.reload.submitted?
 
     # Not yet verified, so it surfaces under the unchecked tab.
-    get reviewer_queue_path(tab: "unchecked")
+    get validation_history_path(tab: "unchecked")
     assert_match(/PROMOTED PILS/, response.body)
   end
 

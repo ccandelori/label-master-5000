@@ -3,21 +3,27 @@
 # EXTRACTION_PADDLE_URL (default http://127.0.0.1:8765).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+stop_requested=0
 
-# Without the virtualenv, idle instead of exiting so bin/dev's process
-# manager stays up; the Rails app falls back to Tesseract on its own.
+trap 'stop_requested=1' INT TERM
+
 if [ ! -x .venv/bin/uvicorn ]; then
-  echo "ocr_service: no virtualenv - run ocr_service/bin/setup to enable PaddleOCR (using Tesseract fallback)"
-  exec tail -f /dev/null
+  echo "ocr_service: no virtualenv - run ocr_service/bin/setup"
+  exit 78
 fi
 
 # PaddleOCR's CPU memory arena grows with the largest images it has seen
-# and never shrinks (multi-gigabyte after a batch of upscaled reads), so
-# the process is recycled after a bounded number of requests. uvicorn
-# exits cleanly when the limit is hit and the loop brings it back; the
-# Rails client retries through the reload window.
+# and never shrinks. Set OCR_MAX_READS to recycle the worker after a
+# bounded number of reads; by default the worker stays up so ordinary
+# batches do not hit a reload window mid-verification.
 while true; do
-  .venv/bin/uvicorn app:app --host 127.0.0.1 --port "${OCR_PORT:-8765}" \
-    --limit-max-requests "${OCR_MAX_REQUESTS:-20}"
-  echo "ocr_service: worker recycled after ${OCR_MAX_REQUESTS:-20} requests, restarting"
+  set +e
+  .venv/bin/uvicorn app:app --host 127.0.0.1 --port "${OCR_PORT:-8765}"
+  status=$?
+  set -e
+  if [ "$stop_requested" -eq 1 ]; then
+    echo "ocr_service: stop requested, exiting"
+    exit "$status"
+  fi
+  echo "ocr_service: worker exited with status ${status} after ${OCR_MAX_READS:-0} reads, restarting"
 done

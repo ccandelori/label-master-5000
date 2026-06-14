@@ -29,7 +29,10 @@ module EvalCorpus
 
     def import(count:, ids_file:)
       count = [ count, HARD_CAP ].min
-      batch = Batch.find_or_create_by!(name: "#{EVAL_BATCH_PREFIX} #{Date.current.iso8601}")
+      batch = Batch.find_or_create_by!(name: "#{EVAL_BATCH_PREFIX} #{Date.current.iso8601}") do |record|
+        record.source_kind = "registry_eval"
+      end
+      batch.update!(source_kind: "registry_eval") unless batch.registry_eval?
       imported = 0
       repaired = 0
 
@@ -90,6 +93,7 @@ module EvalCorpus
         batch: batch,
         serial_number: ttb_id,
         channel: "submitted",
+        source_kind: "registry_eval",
         brand_name: parsed.brand_name,
         fanciful_name: parsed.fanciful_name,
         beverage_type: parsed.beverage_type,
@@ -106,6 +110,7 @@ module EvalCorpus
       attach(application, :back_artwork, ttb_id, back) if back
 
       save_with_artwork!(application)
+      quarantine_artwork_if_needed(application)
       @io.puts "#{ttb_id}: imported #{parsed.brand_name.inspect} (#{parsed.beverage_type}#{back ? ", front+back" : ""})"
       :imported
     rescue RegistryClient::FetchError => e
@@ -142,8 +147,12 @@ module EvalCorpus
 
       attach(existing, :artwork, ttb_id, front)
       attach(existing, :back_artwork, ttb_id, back) if back && !existing.back_artwork.attached?
+      existing.source_kind = "registry_eval"
+      batch = existing.batch
+      batch.update!(source_kind: "registry_eval") unless batch.registry_eval?
 
       save_with_artwork!(existing)
+      quarantine_artwork_if_needed(existing)
       @io.puts "#{ttb_id}: repaired #{parsed.brand_name.inspect} (artwork attached)"
       :repaired
     rescue RegistryClient::FetchError => e
@@ -168,11 +177,16 @@ module EvalCorpus
     end
 
     # The brand/front image becomes artwork; a back-typed image becomes
-    # back_artwork when it is a raster image (never PDFs).
+    # back_artwork when it is a raster image (never PDFs). Registry Image
+    # Type text is reconciled with filename cues because real forms can
+    # contradict themselves.
     def pick_artwork(attachments)
-      images = attachments.select { |a| a.path.to_s.match?(/filename=[^&]+\.(jpe?g|png|webp)/i) }
-      front = images.find { |a| a.image_type.to_s.match?(/brand|front/i) } || images.first
-      back = images.find { |a| a != front && a.image_type.to_s.match?(/back/i) }
+      front, back = ArtworkRoleResolver.pick_front_back(attachments)
+      Array(attachments).each do |attachment|
+        next unless ArtworkRoleResolver.role_conflict?(attachment)
+
+        @io.puts "attachment role conflict: #{attachment.path}"
+      end
       [ front, back ]
     end
 
@@ -183,6 +197,15 @@ module EvalCorpus
         io: StringIO.new(bytes), filename: filename,
         content_type: content_type_for(filename)
       )
+    end
+
+    def quarantine_artwork_if_needed(application)
+      reasons = ReviewData::ArtworkQuality.import_reasons_for(application: application)
+      return if reasons.empty?
+
+      application.quarantine!(reasons: reasons)
+      labels = ReviewData::ArtworkQuality.labels_for(reasons).join("; ")
+      @io.puts "#{application.serial_number}: quarantined imported artwork (#{labels})"
     end
 
     def content_type_for(filename)

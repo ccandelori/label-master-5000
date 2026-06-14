@@ -1,0 +1,30 @@
+name: wrapped_warning
+application:
+  serial_number: CORPUS-WRAPPED
+  beverage_type: spirits
+  channel: submitted
+  imported: false
+  brand_name: OLD TOM DISTILLERY
+  applicant_name_address: Old Tom Distilling Co., Bardstown, KY
+  alcohol_content: 45.0
+  net_contents: 750 mL
+  declared_class_type: Kentucky Straight Bourbon Whiskey
+ocr_pages:
+  - number: 1
+    width: 900
+    height: 1200
+    words:
+      - { text: OLD TOM DISTILLERY, x: 100, y: 80, width: 240, height: 40, confidence: 95.0 }
+      - { text: Kentucky Straight Bourbon Whiskey, x: 100, y: 140, width: 340, height: 24, confidence: 94.0 }
+      - { text: 45% ALC./VOL. (90 PROOF), x: 100, y: 190, width: 260, height: 24, confidence: 94.0 }
+      - { text: 750 mL, x: 100, y: 240, width: 80, height: 24, confidence: 94.0 }
+      - { text: DISTILLED AND BOTTLED BY OLD TOM DISTILLING CO., x: 100, y: 290, width: 500, height: 24, confidence: 94.0 }
+      - { text: BARDSTOWN KY, x: 100, y: 320, width: 170, height: 24, confidence: 94.0 }
+      - { text: "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems.", x: 100, y: 850, width: 600, height: 120, confidence: 94.0 }
+vlm_adjudications: []
+expected:
+  overall_verdict: needs_review
+  field_verdicts:
+    government_warning_text: pass
+    government_warning_bold: needs_review
+    brand_name: pass

@@ -20,6 +20,14 @@ module Extraction
       run!(data, "-colorspace", "gray", "-negate")
     end
 
+    def rotate(data, degrees:)
+      run!(data, "-rotate", degrees.to_s)
+    end
+
+    def enhance_contrast(data)
+      run!(data, "-colorspace", "gray", "-auto-level", "-contrast-stretch", "2%x2%")
+    end
+
     # rect is [x, y, width, height] in the image's own pixel space.
     def crop(data, rect:, upscale_factor:)
       x, y, w, h = rect.map(&:round)

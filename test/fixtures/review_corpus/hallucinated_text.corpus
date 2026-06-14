@@ -1,0 +1,30 @@
+name: hallucinated_text
+application:
+  serial_number: CORPUS-HALLUCINATION
+  beverage_type: spirits
+  channel: submitted
+  imported: false
+  brand_name: REAL BRAND
+  applicant_name_address: Real Distilling Co., Austin, TX
+  alcohol_content: 40.0
+  net_contents: 750 mL
+  declared_class_type: Vodka
+ocr_pages:
+  - number: 1
+    width: 900
+    height: 1200
+    words:
+      - { text: REAL BRAND, x: 100, y: 80, width: 220, height: 40, confidence: 95.0 }
+vlm_adjudications:
+  - field: government_warning_text
+    status: ambiguous
+    page: 1
+    reason: model cannot confirm exact warning text
+    model_id: gpt-5.4-mini
+expected:
+  overall_verdict: fail
+  field_verdicts:
+    brand_name: pass
+    government_warning_text: needs_review
+  absent_extraction_text:
+    - HALLUCINATED RESERVE

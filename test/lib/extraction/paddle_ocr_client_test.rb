@@ -3,12 +3,36 @@
 require "test_helper"
 
 class PaddleOcrClientTest < ActiveSupport::TestCase
+  class StubResponse
+    attr_reader :code, :body
+
+    def initialize(code:, body:, headers:)
+      @code = code
+      @body = body
+      @headers = headers
+    end
+
+    def [](key)
+      @headers[key]
+    end
+  end
+
+  class StubSuccessResponse < Net::HTTPSuccess
+    attr_reader :body
+
+    def initialize(body:)
+      super("1.1", "200", "OK")
+      @body = body
+    end
+  end
+
   test "parse_page maps the sidecar response to a Page of Words" do
     payload = {
       "width" => 1566,
       "height" => 823,
       "words" => [
-        { "text" => "BOURBON", "x" => 619, "y" => 467, "width" => 319, "height" => 79 },
+        { "text" => "BOURBON", "x" => 619, "y" => 467, "width" => 319, "height" => 79,
+          "confidence" => 0.93 },
         { "text" => "  ", "x" => 0, "y" => 0, "width" => 1, "height" => 1 },
         { "text" => "WHISKEY", "x" => 640, "y" => 550, "width" => 280, "height" => 60 }
       ]
@@ -21,6 +45,7 @@ class PaddleOcrClientTest < ActiveSupport::TestCase
     assert_equal %w[BOURBON WHISKEY], page.words.map(&:text), "blank entries are dropped"
     first = page.words.first
     assert_equal [ 619, 467, 319, 79 ], [ first.x, first.y, first.width, first.height ]
+    assert_in_delta 0.93, first.confidence
   end
 
   test "parse_page raises when dimensions are missing" do
@@ -73,6 +98,83 @@ class PaddleOcrClientTest < ActiveSupport::TestCase
       client.read(data: "bytes", content_type: "image/png")
     end
     assert_equal 1, attempts, "a slow inference must not be re-submitted"
+  end
+
+  test "read retries busy sidecar responses before returning pages" do
+    client = Extraction::PaddleOcrClient.new(
+      base_url: "http://127.0.0.1:1", pdftoppm: "pdftoppm", dpi: 200, timeout_seconds: 1,
+      attempts: 3, backoff_seconds: 0
+    )
+    attempts = 0
+    client.define_singleton_method(:post_read) do |_data|
+      attempts += 1
+      if attempts == 1
+        StubResponse.new(code: "429", body: '{"error":"ocr sidecar busy"}', headers: { "Retry-After" => "0" })
+      else
+        StubSuccessResponse.new(body: {
+          "width" => 20,
+          "height" => 10,
+          "words" => [ { "text" => "READY", "x" => 1, "y" => 2, "width" => 3, "height" => 4 } ]
+        }.to_json)
+      end
+    end
+
+    pages = client.read(data: "bytes", content_type: "image/png")
+
+    assert_equal 2, attempts
+    assert_equal [ "READY" ], pages.first.words.map(&:text)
+  end
+
+  test "read serializes concurrent sidecar requests to match sidecar capacity" do
+    client = Extraction::PaddleOcrClient.new(
+      base_url: "http://127.0.0.1:1", pdftoppm: "pdftoppm", dpi: 200, timeout_seconds: 1,
+      attempts: 1, backoff_seconds: 0
+    )
+    mutex = Mutex.new
+    active_requests = 0
+    max_active_requests = 0
+    client.define_singleton_method(:post_read) do |_data|
+      mutex.synchronize do
+        active_requests += 1
+        max_active_requests = [ max_active_requests, active_requests ].max
+      end
+      sleep 0.05
+      StubSuccessResponse.new(body: {
+        "width" => 20,
+        "height" => 10,
+        "words" => [ { "text" => "READY", "x" => 1, "y" => 2, "width" => 3, "height" => 4 } ]
+      }.to_json)
+    ensure
+      mutex.synchronize { active_requests -= 1 }
+    end
+
+    threads = 2.times.map do
+      Thread.new { client.read(data: "bytes", content_type: "image/png") }
+    end
+    threads.each(&:join)
+
+    assert_equal 1, max_active_requests
+  end
+
+  test "read raises backpressure after repeated busy responses" do
+    client = Extraction::PaddleOcrClient.new(
+      base_url: "http://127.0.0.1:1", pdftoppm: "pdftoppm", dpi: 200, timeout_seconds: 1,
+      attempts: 2, backoff_seconds: 0
+    )
+    attempts = 0
+    client.define_singleton_method(:post_read) do |_data|
+      attempts += 1
+      StubResponse.new(code: "429", body: '{"error":"ocr sidecar busy"}', headers: { "Retry-After" => "0" })
+    end
+
+    error = assert_raises(Extraction::OcrBackpressureError) do
+      client.read(data: "bytes", content_type: "image/png")
+    end
+
+    assert_equal 2, attempts
+    assert_match(/busy/, error.message)
+    assert_kind_of Extraction::ExtractionError, error
+    assert_not_kind_of Extraction::OcrError, error
   end
 
   test "read returns word boxes from a running sidecar" do

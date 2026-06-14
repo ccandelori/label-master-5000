@@ -1,11 +1,23 @@
-<h1 class="text-2xl font-semibold mb-2">Pre-check a batch of labels</h1>
+<h1 class="text-2xl font-semibold mb-2">Validate a batch of applications</h1>
 <p class="text-ink-muted mb-6 max-w-2xl">
-  Upload a CSV of applications and the label images they reference. Everything
-  is validated up front — processing only starts when the whole batch is clean.
-  Once checked, submit the batch to TTB in one click.
+  Upload an internal batch CSV with label images, or upload application PDFs
+  that already include their label artwork. Everything is validated up front;
+  processing only starts when the whole batch is clean.
 </p>
 
 <%= render "shared/pre_review_mode_nav", active: :batch %>
+
+<% if defined?(@ocr_ready) && @ocr_ready %>
+  <% if @ocr_ready.ok? %>
+    <div class="mb-6 rounded-lg bg-pass-tint text-pass px-4 py-3" role="status">
+      OCR ready · <%= @ocr_ready.latency_ms.round %>ms
+    </div>
+  <% else %>
+    <div class="mb-6 rounded-lg bg-fail-tint text-fail px-4 py-3" role="alert">
+      OCR unavailable · <%= @ocr_ready.error_message %>
+    </div>
+  <% end %>
+<% end %>
 
 <% if @ingest_errors.any? %>
   <div class="mb-6 rounded-lg bg-fail-tint text-fail px-4 py-3" role="alert">
@@ -28,26 +40,46 @@
       <%= f.label :name, "Batch name (optional)", class: "block font-medium mb-1" %>
       <%= f.text_field :name, class: "w-full sm:w-96 rounded-lg border-line-strong", placeholder: "June shipment - Janet's Imports" %>
     </div>
+    <div class="max-w-md">
+      <label for="demo_model" class="block font-medium mb-1">Refinement model</label>
+      <%= select_tag :demo_model, demo_model_options, class: "w-full rounded-lg border-line-strong" %>
+    </div>
     <div>
-      <%= f.label :csv_file, "Applications CSV", class: "block font-medium mb-1" %>
-      <%= f.file_field :csv_file, accept: "text/csv,.csv",
+      <%= f.label :application_pdfs, "Application PDFs", class: "block font-medium mb-1" %>
+      <%= f.file_field :application_pdfs, multiple: true, accept: "application/pdf,.pdf",
             class: "block w-full text-ink-muted file:mr-4 file:rounded-lg file:border-0 file:bg-panel file:px-4 file:py-2 file:font-medium hover:file:bg-line" %>
       <p class="text-ink-muted mt-2">
-        Required columns: <code class="text-sm">serial_number, beverage_type, brand_name,
-        applicant_name_address, net_contents, image_filename</code>.
-        Optional: alcohol content, imports, wine fields (varietals separated by semicolons),
-        and formula columns.
+        Upload printable COLA/application PDFs directly. The app reads the application fields and verifies only the attached label pages.
       </p>
     </div>
-    <div>
-      <%= f.label :images, "Label images", class: "block font-medium mb-1" %>
-      <%= f.file_field :images, multiple: true, accept: "image/jpeg,image/png,image/webp,application/pdf",
-            data: { controller: "artwork-downscale", action: "change->artwork-downscale#shrink" },
-            class: "block w-full text-ink-muted file:mr-4 file:rounded-lg file:border-0 file:bg-panel file:px-4 file:py-2 file:font-medium hover:file:bg-line" %>
-      <p class="text-ink-muted mt-2">Select all files at once; rows match images by filename.</p>
-    </div>
+
+    <details class="rounded-lg border border-line bg-panel/40">
+      <summary class="cursor-pointer px-4 py-3 font-medium">Advanced CSV/image import</summary>
+      <div class="space-y-4 border-t border-line px-4 py-4">
+        <div>
+          <%= f.label :csv_file, "Applications CSV", class: "block font-medium mb-1" %>
+          <%= f.file_field :csv_file, accept: "text/csv,.csv",
+                class: "block w-full text-ink-muted file:mr-4 file:rounded-lg file:border-0 file:bg-panel file:px-4 file:py-2 file:font-medium hover:file:bg-line" %>
+          <p class="text-ink-muted mt-2">
+            Required columns: <code class="text-sm">serial_number, beverage_type, brand_name,
+            applicant_name_address, net_contents, image_filename</code>.
+          </p>
+        </div>
+        <div>
+          <%= f.label :images, "Label images", class: "block font-medium mb-1" %>
+          <%= f.file_field :images, multiple: true, accept: "image/jpeg,image/png,image/webp,application/pdf",
+                data: { controller: "artwork-downscale", action: "change->artwork-downscale#shrink" },
+                class: "block w-full text-ink-muted file:mr-4 file:rounded-lg file:border-0 file:bg-panel file:px-4 file:py-2 file:font-medium hover:file:bg-line" %>
+        </div>
+        <div>
+          <%= f.label :manifest_file, "Manifest JSON", class: "block font-medium mb-1" %>
+          <%= f.file_field :manifest_file, accept: "application/json,.json",
+                class: "block w-full text-ink-muted file:mr-4 file:rounded-lg file:border-0 file:bg-panel file:px-4 file:py-2 file:font-medium hover:file:bg-line" %>
+        </div>
+      </div>
+    </details>
   </fieldset>
 
-  <%= f.submit "Validate and start the batch",
+  <%= f.submit "Start validation",
         class: "rounded-lg bg-ink text-surface px-6 py-3 text-lg font-medium hover:opacity-90 cursor-pointer" %>
 <% end %>

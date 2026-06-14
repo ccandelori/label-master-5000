@@ -51,10 +51,13 @@ module Rules
 
         entry = rules.dig("designations", "entries").find do |e|
           e["kind"] == "semi_generic" &&
-            e["names"].any? { |n| designation.include?(Parsing::TextNormalizer.normalize(n)) }
+            e["names"].any? do |n|
+              Rules::Checks::Designation.designation_name_present?(designation, Parsing::TextNormalizer.normalize(n))
+            end
         end
         return nil if entry.nil?
         return nil unless facts.appellation.to_s.strip.empty?
+        return nil if protected_origin_statement?(entry, facts)
 
         rule = presence_rule(rules, "semi_generic_requires_appellation")
         FieldCheck.new(
@@ -63,6 +66,14 @@ module Rules
           extracted: facts.class_type_designation,
           citation: rule["citation"], note: rule["note"]
         )
+      end
+
+      def protected_origin_statement?(entry, facts)
+        produced_in = entry.dig("origin_rule", "produced_in")
+        return false if produced_in.to_s.strip.empty?
+
+        origin = Parsing::TextNormalizer.normalize(facts.country_of_origin_statement)
+        origin.include?(Parsing::TextNormalizer.normalize(produced_in))
       end
 
       def vintage_match(application, facts)
@@ -104,7 +115,8 @@ module Rules
         else
           Identity.match_verdict(field: "appellation", expected: expected,
                                  extracted: facts.appellation, citation: citation,
-                                 model_text: facts.model_texts["appellation"])
+                                 model_text: facts.model_texts["appellation"],
+                                 confidence: facts.field_confidences["appellation"])
         end
       end
 
@@ -114,12 +126,19 @@ module Rules
         return nil if expected.empty? && extracted.empty?
 
         citation = "TTB F 5100.31 item 10; 27 CFR 4.23"
-        unlisted = extracted.reject { |v| expected.any? { |e| Parsing::TextNormalizer.equivalent?(e, v) } }
-        missing = expected.reject { |e| extracted.any? { |v| Parsing::TextNormalizer.equivalent?(e, v) } }
+        qualified = extracted.select { |v| expected.any? { |e| qualified_varietal_match?(e, v) } }
+        unlisted = extracted.reject { |v| expected.any? { |e| varietal_match?(e, v) } }
+        missing = expected.reject { |e| extracted.any? { |v| varietal_match?(e, v) } }
 
         if unlisted.empty? && missing.empty?
-          FieldCheck.new(field: "varietals", verdict: "pass", expected: expected.join(", "),
-                         extracted: extracted.join(", "), citation: citation, note: nil)
+          if qualified.any?
+            FieldCheck.new(field: "varietals", verdict: "pass_with_note", expected: expected.join(", "),
+                           extracted: extracted.join(", "), citation: citation,
+                           note: "Label varietal wording includes the declared varietal with additional modifier text")
+          else
+            FieldCheck.new(field: "varietals", verdict: "pass", expected: expected.join(", "),
+                           extracted: extracted.join(", "), citation: citation, note: nil)
+          end
         elsif unlisted.any?
           FieldCheck.new(field: "varietals", verdict: "fail", expected: expected.join(", "),
                          extracted: extracted.join(", "), citation: citation,
@@ -162,6 +181,19 @@ module Rules
 
       def presence_rule(rules, key)
         Array(rules["presence_rules"]).find { |r| r["key"] == key } || {}
+      end
+
+      def varietal_match?(expected, extracted)
+        Parsing::TextNormalizer.equivalent?(expected, extracted) ||
+          qualified_varietal_match?(expected, extracted)
+      end
+
+      def qualified_varietal_match?(expected, extracted)
+        expected_tokens = Parsing::TextNormalizer.normalize(expected).split
+        extracted_tokens = Parsing::TextNormalizer.normalize(extracted).split
+        return false if expected_tokens.empty? || extracted_tokens.size <= expected_tokens.size
+
+        extracted_tokens.each_cons(expected_tokens.size).any? { |tokens| tokens == expected_tokens }
       end
     end
   end

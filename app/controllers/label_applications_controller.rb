@@ -6,6 +6,7 @@ class LabelApplicationsController < ApplicationController
 
   def new
     @application = LabelApplication.new
+    @samples = LabelApplication.validation_samples
     @stats = verification_stats
   end
 
@@ -13,17 +14,19 @@ class LabelApplicationsController < ApplicationController
     @application = LabelApplication.new(application_params)
 
     if @application.save
-      provider, model = demo_model_override(@application)
-      VerifyLabelJob.perform_later(@application.id, provider, model)
-      redirect_to @application, notice: "Label submitted - checking now."
+      selection = validation_mode_selection(@application)
+      @application.verify_later(provider: selection.provider, model: selection.model, mode: selection.mode)
+      redirect_to @application, notice: "Validation started."
     else
+      @samples = LabelApplication.validation_samples
       @stats = verification_stats
       render :new, status: :unprocessable_entity
     end
   end
 
   def show
-    @verification = @application.latest_verification
+    @verification = @application.submitted? ? @application.review_verification : @application.latest_verification
+    @verification_attempt = @application.latest_verification_attempt
   end
 
   def edit
@@ -33,9 +36,9 @@ class LabelApplicationsController < ApplicationController
   # artwork; extraction is reused, so re-runs are fast and free.
   def update
     if @application.update(application_params)
-      provider, model = demo_model_override(@application)
-      VerifyLabelJob.perform_later(@application.id, provider, model)
-      redirect_to @application, notice: "Application updated - re-checking against the same artwork."
+      selection = validation_mode_selection(@application)
+      @application.verify_later(provider: selection.provider, model: selection.model, mode: selection.mode)
+      redirect_to @application, notice: "Application updated. Revalidating against the same artwork."
     else
       render :edit, status: :unprocessable_entity
     end
@@ -47,10 +50,8 @@ class LabelApplicationsController < ApplicationController
     @application = LabelApplication.find(params[:id])
   end
 
-  # The form pages are always manufacturer territory; a record's own page
-  # follows its channel, so a submitted application reads as reviewer work.
   def set_area
-    @area = @application&.submitted? ? :reviewer : :pre_review
+    @area = :pre_review
   end
 
   def application_params

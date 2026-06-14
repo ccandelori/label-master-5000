@@ -1,9 +1,10 @@
 # frozen_string_literal: true
 
 module Extraction
-  # The extraction prompt and response schema. The extractor reads what is
-  # on the label and where - it knows nothing about compliance rules or the
-  # application, by design (data minimization and a stable rules boundary).
+  # The extraction prompt and response schema. The system prompt stays about
+  # reading what is on the label; per-application search targets are
+  # added to the user message by FieldGrounding so the rules boundary remains
+  # stable while the VLM actively hunts for declared values.
   module Schema
     FIELD_KEYS = %w[
       brand_name fanciful_name class_type_designation alcohol_statement
@@ -21,24 +22,10 @@ module Extraction
       "additionalProperties" => false,
       "properties" => {
         "text" => { "type" => %w[string null] },
-        # Pixel coordinates of the image as the model views it; the
-        # top-level image_width/image_height report that basis, so the
-        # data carries its own coordinate system (the API may resize
-        # images, and models ignore instructed coordinate conventions
-        # inconsistently). The structured-output API only supports
-        # minItems of 0 or 1, so the four-number arity is asked for in
-        # the description and enforced at render time (bbox_data drops
-        # malformed boxes).
-        "bbox" => {
-          "type" => %w[array null],
-          "items" => { "type" => "number" },
-          "description" => "Exactly four numbers [x, y, width, height] in pixels of the image " \
-                           "as you see it, with (0, 0) at the top-left corner"
-        },
         "page" => { "type" => %w[integer null] },
         "confidence" => { "type" => %w[number null] }
       },
-      "required" => %w[text bbox page confidence]
+      "required" => %w[text page confidence]
     }.freeze
 
     # One shared $defs entry instead of inlining FIELD_SCHEMA thirteen
@@ -55,16 +42,16 @@ module Extraction
         "confidence" => { "type" => "number" },
         "image_width" => {
           "type" => "integer",
-          "description" => "Width in pixels of the first image as you see it - the bbox basis for page 1"
+          "description" => "Width in pixels of the first image as you see it"
         },
         "image_height" => {
           "type" => "integer",
-          "description" => "Height in pixels of the first image as you see it - the bbox basis for page 1"
+          "description" => "Height in pixels of the first image as you see it"
         },
-        # Per-page coordinate bases for multi-image requests. Nullable
+        # Per-page image metadata for multi-image requests. Nullable
         # rather than optional: OpenAI strict mode requires every property
         # listed in required, and old payloads without the key stay valid
-        # for consumers (PageBasis falls back to the top-level pair).
+        # for consumers.
         "pages" => {
           "type" => %w[array null],
           "items" => {
@@ -78,7 +65,7 @@ module Extraction
             "required" => %w[page width height]
           },
           "description" => "One entry per image: its 1-based page and the pixel dimensions " \
-                           "of that image as you see it - the bbox basis for fields on that page"
+                           "of that image as you see it"
         },
         "fields" => {
           "type" => "object",
@@ -111,14 +98,14 @@ module Extraction
       one image (or a multi-page PDF), also fill pages: one entry per
       image with its 1-based page number and that image's pixel
       dimensions as you see it; otherwise set pages to null. Then, for
-      each field, report the literal text as printed, a bounding box
-      [x, y, width, height] in pixels of the image it appears on with
-      (0, 0) at the top-left corner, the page number (1-based: the image
-      as labeled, or the PDF page), and your confidence from 0 to 1. Use
-      null for anything not present on the label.
+      each field, report the literal text as printed, the page number
+      (1-based: the image as labeled, or the PDF page), and your
+      confidence from 0 to 1. Use null for anything not present on the
+      label. Do not return bounding boxes or coordinates; OCR supplies
+      review geometry when it can ground the text.
 
       Field notes:
-      - brand_name: the most prominent product name.
+      - brand_name: the most prominent product name (largest, most prominent typography).
       - fanciful_name: a secondary product name, if any - a distinctive
         coined name for the product, not a marketing slogan, tagline, or
         seasonal-edition phrase. Null when only slogans appear.
@@ -126,11 +113,10 @@ module Extraction
         "Kentucky Straight Bourbon Whiskey", "Table Wine".
       - alcohol_statement: the full statement, e.g. "45% ALC./VOL. (90 PROOF)".
       - net_contents: e.g. "750 mL" or "1 PINT, 4 FL. OZ.".
-      - name_address_statement: the full bottler/importer statement including
-        any phrase such as "BOTTLED BY" or "IMPORTED BY".
-      - country_of_origin_statement: e.g. "PRODUCT OF SCOTLAND".
+      - name_address_statement: **Scan the entire label carefully (bottom, sides, back, small print) for the full bottler/importer/producer statement.** These almost always include a phrase such as "BOTTLED BY", "PRODUCED BY", "IMPORTED BY", "VINTED & BOTTLED BY", "BREWED BY", "PACKED BY", "MANUFACTURED BY", "MADE BY", etc. Extract the *entire contiguous block* verbatim, including the company name and full address as printed. Do not truncate.
+      - country_of_origin_statement: e.g. "PRODUCT OF SCOTLAND". Look for origin claims, often near the name/address or in a dedicated statement.
       - government_warning: the complete health warning statement verbatim,
-        preserving its capitalization.
+        preserving its capitalization. Usually in a box or distinct block; extract the full text including the "GOVERNMENT WARNING" prefix if present.
       - commodity_statement: e.g. "70% NEUTRAL SPIRITS DISTILLED FROM GRAIN".
       - appellation: a wine appellation of origin, e.g. "Napa Valley".
       - vintage: a wine vintage year as printed, e.g. "2021".
@@ -138,10 +124,15 @@ module Extraction
       - disclosures: each standalone disclosure statement, e.g.
         "CONTAINS SULFITES", preserving capitalization.
 
+      **Special instruction for reconciliation fields (name_address_statement, country_of_origin_statement, and any field that must match a declared value):** Be extremely thorough. These statements can be in small, stylized, or low-contrast text, on side panels, the back label, or near the bottom. Search *all text regions* of the image(s). Report the full exact printed wording.
+
       warning_attributes: assess visually where possible, otherwise null:
       - prefix_all_caps: is "GOVERNMENT WARNING" printed in all capitals?
       - prefix_bold: is that prefix in bold type relative to the rest?
       - continuous_paragraph: does the warning run as one continuous paragraph?
+        Set false only when the warning is split into separate blocks, columns,
+        bullets, or separated by intervening artwork/blank space. Normal line
+        wrapping inside one warning block is still a continuous paragraph.
 
       Set legible to false and lower confidence when glare, blur, angle, or
       resolution prevent a trustworthy reading.

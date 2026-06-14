@@ -1,59 +1,53 @@
 # frozen_string_literal: true
 
-require "csv"
-
 class BatchesController < ApplicationController
-  before_action :set_batch, only: %i[show export retry_failed]
+  before_action :set_batch, only: :show
   before_action { @area = :pre_review }
 
   def new
     @batch = Batch.new
     @ingest_errors = []
+    @ocr_ready = Extraction::RuntimeDependencies.check_ocr_ready
   end
 
   def create
     csv_file = params.dig(:batch, :csv_file)
+    manifest_file = params.dig(:batch, :manifest_file)
     images = Array(params.dig(:batch, :images)).reject(&:blank?)
+    application_pdfs = Array(params.dig(:batch, :application_pdfs)).reject(&:blank?)
     name = params.dig(:batch, :name).presence || "Batch #{Time.current.strftime('%b %-d, %H:%M')}"
+
+    if application_pdfs.any?
+      return create_from_application_pdfs(name: name, application_pdfs: application_pdfs, manifest_file: manifest_file)
+    end
 
     if csv_file.blank? || images.empty?
       return render_ingest_failure(name, [ missing_inputs_error(csv_file, images) ])
     end
 
-    result = BatchIngest.parse(csv_file.read, images.map { |i| i.original_filename })
+    result = BatchIngest.parse(
+      csv_file.read,
+      images.map { |image| image.original_filename },
+      manifest_text: manifest_file&.read
+    )
     return render_ingest_failure(name, result.errors) unless result.valid?
 
-    @batch = create_batch!(name, result.rows, images)
-    @batch.label_applications.find_each { |application| VerifyLabelJob.perform_later(application.id) }
+    readiness = Extraction::RuntimeDependencies.check_ocr_ready
+    return render_ingest_failure(name, [ ocr_readiness_error(readiness) ]) unless readiness.ok?
+
+    selection = selected_pre_review_validation_mode
+    @batch = Batch.create_from_ingest!(name: name, rows: result.rows, images: images)
+    @batch.verify_later(provider: selection.provider, model: selection.model, mode: selection.mode)
     redirect_to @batch, notice: "#{result.rows.size} labels queued - results fill in live."
   end
 
   def show
-    @applications = @batch.label_applications.order(:row_number).includes(:verifications, artwork_attachment: :blob)
+    @applications = @batch.label_applications.order(:row_number)
+                          .includes(:verification_attempts, :verifications, artwork_attachment: :blob)
     @verdict_filter = params[:verdict].presence
     if @verdict_filter
       @applications = @applications.select { |a| a.latest_verification&.overall_verdict == @verdict_filter }
     end
-  end
-
-  def export
-    respond_to do |format|
-      format.csv do
-        send_data export_csv, filename: "#{@batch.name.parameterize}-results.csv", type: "text/csv"
-      end
-    end
-  end
-
-  def retry_failed
-    retried = 0
-    @batch.label_applications.find_each do |application|
-      latest = application.latest_verification
-      next unless latest.nil? || latest.error?
-
-      VerifyLabelJob.perform_later(application.id)
-      retried += 1
-    end
-    redirect_to @batch, notice: "Re-queued #{retried} #{'row'.pluralize(retried)}."
   end
 
   private
@@ -67,49 +61,39 @@ class BatchesController < ApplicationController
     BatchIngest::RowError.new(row_number: nil, kind: :missing_input, message: message)
   end
 
+  def create_from_application_pdfs(name:, application_pdfs:, manifest_file:)
+    result = ApplicationPdfIngest.parse(
+      sources: application_pdfs.map { |pdf| ApplicationPdfIngest::Source.from_upload(pdf) },
+      manifest_text: manifest_file&.read
+    )
+    return render_ingest_failure(name, result.errors) unless result.valid?
+
+    readiness = Extraction::RuntimeDependencies.check_ocr_ready
+    return render_ingest_failure(name, [ ocr_readiness_error(readiness) ]) unless readiness.ok?
+
+    selection = selected_pre_review_validation_mode
+    @batch = Batch.create_from_application_pdfs!(
+      name: name,
+      rows: result.rows,
+      channel: "pre_review",
+      source_kind: "application_pdf_upload"
+    )
+    @batch.verify_later(provider: selection.provider, model: selection.model, mode: selection.mode)
+    redirect_to @batch, notice: "#{result.rows.size} application PDFs queued - results fill in live."
+  end
+
   def render_ingest_failure(name, errors)
     @batch = Batch.new(name: name)
     @ingest_errors = errors
+    @ocr_ready = Extraction::RuntimeDependencies.check_ocr_ready
     render :new, status: :unprocessable_entity
   end
 
-  def create_batch!(name, rows, images)
-    images_by_name = images.index_by { |i| i.original_filename }
-
-    Batch.transaction do
-      batch = Batch.create!(name: name, status: "processing", total_rows: rows.size)
-      rows.each do |row|
-        application = batch.label_applications.build(row.attributes.merge(row_number: row.row_number))
-        upload = images_by_name.fetch(row.image_filename)
-        upload.rewind
-        application.artwork.attach(
-          io: upload, filename: upload.original_filename, content_type: upload.content_type
-        )
-        application.save!
-      end
-      batch
-    end
-  end
-
-  def export_csv
-    CSV.generate do |csv|
-      csv << %w[row serial_number brand_name beverage_type overall_verdict decision findings]
-      @batch.label_applications.order(:row_number).each do |application|
-        verification = application.latest_verification
-        findings = verification&.field_checks.to_a
-                                .select { |c| %w[fail needs_review].include?(c.verdict) }
-                                .map { |c| "#{c.field}: #{c.note} (#{c.citation})" }
-                                .join(" | ")
-        csv << [
-          application.row_number,
-          application.serial_number,
-          application.brand_name,
-          application.beverage_type,
-          verification&.overall_verdict || "pending",
-          verification&.decision,
-          findings
-        ]
-      end
-    end
+  def ocr_readiness_error(readiness)
+    BatchIngest::RowError.new(
+      row_number: nil,
+      kind: :ocr_unavailable,
+      message: readiness.error_message
+    )
   end
 end

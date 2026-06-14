@@ -46,6 +46,12 @@ module Rules
               extracted: nil, citation: citation,
               note: "Optional at or under 14% when designated Table Wine or Light Wine"
             )
+          elsif facts.weak_field?("alcohol_statement")
+            FieldCheck.new(
+              field: "alcohol_content", verdict: "needs_review", expected: stated(application),
+              extracted: nil, citation: citation,
+              note: "Alcohol content evidence is ambiguous; confirm the label visually"
+            )
           else
             FieldCheck.new(
               field: "alcohol_content", verdict: "fail", expected: stated(application),
@@ -53,6 +59,14 @@ module Rules
             )
           end
         else
+          if facts.weak_field?("alcohol_statement")
+            return FieldCheck.new(
+              field: "alcohol_content", verdict: "needs_review", expected: stated(application),
+              extracted: nil, citation: citation,
+              note: "Alcohol content evidence is ambiguous; confirm the label visually"
+            )
+          end
+
           FieldCheck.new(
             field: "alcohol_content", verdict: "fail", expected: stated(application),
             extracted: nil, citation: citation, note: "No alcohol content statement found on the label"

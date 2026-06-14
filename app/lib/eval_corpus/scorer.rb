@@ -14,7 +14,7 @@ module EvalCorpus
     # The registry never exposes declared net contents, so imports carry
     # a sentinel whose match check predictably asks for review; that one
     # check is excluded when scoring a sentinel-bearing positive.
-    SENTINEL_NOTE = "Could not read a volume from the application value"
+    SENTINEL_NOTE = Rules::Checks::NetContentsCheck::APPLICATION_VALUE_UNREADABLE_NOTE
 
     MUTANT_SERIAL = /\A(?<parent>.+)-MUT-(?<type>[A-Z]+)\z/
 

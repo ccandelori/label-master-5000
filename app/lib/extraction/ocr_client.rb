@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "open3"
 require "tempfile"
 require "tmpdir"
 
@@ -11,7 +10,12 @@ module Extraction
   # rasterized page. PDFs are rasterized with pdftoppm first, one OCR pass
   # per page. Runs entirely on this host - artwork never leaves the system.
   class OcrClient
-    Word = Data.define(:text, :x, :y, :width, :height)
+    Word = Data.define(:text, :x, :y, :width, :height) do
+      def confidence
+        nil
+      end
+    end
+    WordWithConfidence = Data.define(:text, :x, :y, :width, :height, :confidence)
     Page = Data.define(:number, :width, :height, :words)
 
     PDF_CONTENT_TYPE = "application/pdf"
@@ -20,17 +24,20 @@ module Extraction
     TSV_WORD_LEVEL = 5
     TSV_COLUMNS = 12
 
-    def initialize(tesseract:, pdftoppm:, dpi:)
+    def initialize(tesseract:, pdftoppm:, dpi:, timeout_seconds:)
       @tesseract = tesseract
       @pdftoppm = pdftoppm
       @dpi = dpi
+      @timeout_seconds = timeout_seconds
     end
 
     def self.build
+      config = Rails.application.config.x.extraction
       new(
         tesseract: "tesseract",
         pdftoppm: "pdftoppm",
-        dpi: Rails.application.config.x.extraction.ocr_dpi
+        dpi: config.ocr_dpi,
+        timeout_seconds: config.ocr_timeout_seconds
       )
     end
 
@@ -69,13 +76,29 @@ module Extraction
           height = h
         when TSV_WORD_LEVEL
           text = cols[11].to_s.strip
-          words << Word.new(text: text, x: left, y: top, width: w, height: h) unless text.empty?
+          confidence = Float(cols[10], exception: false)
+          unless text.empty?
+            words << build_word(text: text, x: left, y: top, width: w, height: h, confidence: confidence)
+          end
         end
       end
 
       raise OcrError, "tesseract TSV reported no page dimensions" if width.nil? || height.nil?
 
       Page.new(number: page_number, width: width, height: height, words: words)
+    end
+
+    def self.build_word(text:, x:, y:, width:, height:, confidence:)
+      return Word.new(text: text, x: x, y: y, width: width, height: height) if confidence.nil? || confidence.negative?
+
+      WordWithConfidence.new(
+        text: text,
+        x: x,
+        y: y,
+        width: width,
+        height: height,
+        confidence: confidence
+      )
     end
 
     private
@@ -100,7 +123,7 @@ module Extraction
     end
 
     def run!(*command)
-      stdout, stderr, status = Open3.capture3(*command)
+      stdout, stderr, status = run_with_timeout(command)
       unless status.success?
         raise OcrError,
               "#{command.first} exited #{status.exitstatus}: #{stderr.to_s.strip.first(300)}"
@@ -109,6 +132,57 @@ module Extraction
       stdout
     rescue Errno::ENOENT => e
       raise OcrError, "#{command.first} is not installed: #{e.message}"
+    end
+
+    def run_with_timeout(command)
+      Tempfile.create("ocr-stdout", binmode: true) do |stdout_file|
+        Tempfile.create("ocr-stderr", binmode: true) do |stderr_file|
+          pid = Process.spawn(*command, out: stdout_file.path, err: stderr_file.path)
+          status = wait_for_process(pid, command)
+          stdout_file.rewind
+          stderr_file.rewind
+          return [ stdout_file.read, stderr_file.read, status ]
+        end
+      end
+    end
+
+    def wait_for_process(pid, command)
+      deadline = monotonic_seconds + @timeout_seconds.to_f
+
+      loop do
+        waited = Process.waitpid(pid, Process::WNOHANG)
+        return $? if waited
+
+        if monotonic_seconds >= deadline
+          terminate_process(pid)
+          raise OcrError, "#{command.first} timed out after #{@timeout_seconds}s"
+        end
+
+        sleep 0.01
+      end
+    end
+
+    def terminate_process(pid)
+      signal_process("TERM", pid)
+      sleep 0.05
+      signal_process("KILL", pid)
+      reap_process(pid)
+    end
+
+    def signal_process(signal, pid)
+      Process.kill(signal, pid)
+    rescue Errno::ESRCH
+      nil
+    end
+
+    def reap_process(pid)
+      Process.waitpid(pid)
+    rescue Errno::ECHILD
+      nil
+    end
+
+    def monotonic_seconds
+      Process.clock_gettime(Process::CLOCK_MONOTONIC)
     end
   end
 end

@@ -1,0 +1,118 @@
+<% content_for :title, "Data quality" %>
+
+<header class="mb-6">
+  <h1 class="text-2xl font-semibold">Data quality</h1>
+  <p class="text-ink-muted mt-1 max-w-3xl">
+    Source provenance, results visibility, and quarantined artwork associations.
+  </p>
+</header>
+
+<section class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" aria-label="Data quality summary">
+  <div class="rounded-lg border border-line bg-raised p-4">
+    <p class="text-sm text-ink-muted">Applications</p>
+    <p class="mt-1 text-3xl font-semibold"><%= LabelApplication.count %></p>
+  </div>
+  <div class="rounded-lg border border-line bg-raised p-4">
+    <p class="text-sm text-ink-muted">Visible in results</p>
+    <p class="mt-1 text-3xl font-semibold"><%= @reviewer_visible_count %></p>
+  </div>
+  <div class="rounded-lg border border-line bg-raised p-4">
+    <p class="text-sm text-ink-muted">Quarantined</p>
+    <p class="mt-1 text-3xl font-semibold"><%= @quarantined_count %></p>
+  </div>
+</section>
+
+<section class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+  <div class="rounded-lg border border-line bg-raised overflow-hidden">
+    <div class="border-b border-line px-5 py-3">
+      <h2 class="font-semibold">Sources</h2>
+    </div>
+    <table class="w-full text-left">
+      <thead>
+        <tr class="border-b border-line text-ink-muted">
+          <th scope="col" class="px-5 py-3 font-medium">Source</th>
+          <th scope="col" class="px-5 py-3 text-right font-medium">Records</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @source_counts.each do |source_kind, count| %>
+          <tr class="border-t border-line/60">
+            <td class="px-5 py-3"><%= source_kind.humanize %></td>
+            <td class="px-5 py-3 text-right tabular-nums"><%= count %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="rounded-lg border border-line bg-raised overflow-hidden">
+    <div class="border-b border-line px-5 py-3">
+      <h2 class="font-semibold">Quarantine reasons</h2>
+    </div>
+    <% if @quarantine_counts.empty? %>
+      <p class="px-5 py-4 text-ink-muted">No quarantined records.</p>
+    <% else %>
+      <table class="w-full text-left">
+        <thead>
+          <tr class="border-b border-line text-ink-muted">
+            <th scope="col" class="px-5 py-3 font-medium">Reason</th>
+            <th scope="col" class="px-5 py-3 text-right font-medium">Records</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @quarantine_counts.each do |reason, count| %>
+            <tr class="border-t border-line/60">
+              <td class="px-5 py-3"><%= ReviewData::ArtworkQuality.label_for(reason) %></td>
+              <td class="px-5 py-3 text-right tabular-nums"><%= count %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% end %>
+  </div>
+</section>
+
+<section class="rounded-lg border border-line bg-raised overflow-hidden" aria-label="Quarantined applications">
+  <div class="flex items-center justify-between gap-3 border-b border-line px-5 py-3">
+    <h2 class="font-semibold">Quarantined applications</h2>
+    <span class="text-sm text-ink-muted">Showing latest <%= @quarantined_applications.size %></span>
+  </div>
+  <% if @quarantined_applications.empty? %>
+    <p class="px-5 py-4 text-ink-muted">No quarantined records.</p>
+  <% else %>
+    <table class="w-full text-left">
+      <thead>
+        <tr class="border-b border-line text-ink-muted">
+          <th scope="col" class="px-5 py-3 font-medium">Serial</th>
+          <th scope="col" class="px-5 py-3 font-medium">Brand</th>
+          <th scope="col" class="px-5 py-3 font-medium">Source</th>
+          <th scope="col" class="px-5 py-3 font-medium">Batch</th>
+          <th scope="col" class="px-5 py-3 font-medium">Reasons</th>
+          <th scope="col" class="px-5 py-3 text-right font-medium">Checked</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @quarantined_applications.each do |application| %>
+          <tr class="border-t border-line/60 align-top">
+            <td class="px-5 py-3 font-medium">
+              <%= link_to application.serial_number, application, class: "underline underline-offset-2 hover:text-ink-muted" %>
+            </td>
+            <td class="px-5 py-3"><%= application.brand_name %></td>
+            <td class="px-5 py-3 text-ink-muted"><%= application.source_kind.humanize %></td>
+            <td class="px-5 py-3 text-ink-muted"><%= application.batch&.name || "No batch" %></td>
+            <td class="px-5 py-3">
+              <ul class="space-y-1">
+                <% application.quarantine_reasons.each do |reason| %>
+                  <li><%= ReviewData::ArtworkQuality.label_for(reason) %></li>
+                <% end %>
+              </ul>
+            </td>
+            <td class="px-5 py-3 text-right text-ink-muted whitespace-nowrap">
+              <%= application.quarantined_at.strftime("%b %-d, %H:%M") %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
+</section>

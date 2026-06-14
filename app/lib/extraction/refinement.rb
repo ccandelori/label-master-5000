@@ -13,8 +13,10 @@ module Extraction
   # its blob checksum, and reconciliation depends on the application,
   # which can differ across duplicate artwork.
   class Refinement
-    def initialize(engine:, engine_key:, threshold:)
+    def initialize(engine:, region_engine:, region_refiner:, engine_key:, threshold:)
       @engine = engine
+      @region_engine = region_engine
+      @region_refiner = region_refiner
       @engine_key = engine_key
       @threshold = threshold
     end
@@ -23,15 +25,24 @@ module Extraction
     # position is its page (a front PDF contributes all its pages and,
     # by validation, never has a back companion).
     def refine(raw:, artworks:, application:)
-      pages = pooled_pages(artworks)
+      context = { label_application_id: application.id, engine_key: @engine_key }
+      pages = instrument_stage("ocr_pooled_pages", context) do
+        pooled_pages(artworks)
+      end
 
-      payload = BboxGrounder.ground(payload: raw, pages: pages, threshold: @threshold)
-      payload = RegionRefiner.refine(
-        payload: payload, sources_by_page: sources_by_page(artworks), engine: @engine, threshold: @threshold
-      )
-      FieldReconciler.reconcile(
-        payload: payload, pages: pages, application: application, threshold: @threshold
-      )
+      payload = instrument_stage("ocr_bbox_grounding", context) do
+        BboxGrounder.ground(payload: raw, pages: pages, threshold: @threshold)
+      end
+      payload = instrument_stage("ocr_region_refinement", context) do
+        @region_refiner.refine(
+          payload: payload, sources_by_page: sources_by_page(artworks), engine: @region_engine, threshold: @threshold
+        )
+      end
+      instrument_stage("ocr_field_reconciliation", context) do
+        FieldReconciler.reconcile(
+          payload: payload, pages: pages, application: application, threshold: @threshold
+        )
+      end
     rescue OcrError => e
       Rails.logger.warn(JSON.generate({
         event: "extraction_refinement_failed", error: e.message.to_s.first(300)
@@ -46,20 +57,7 @@ module Extraction
     # cache boundary, so a blob reused as the front of another application
     # still hits the same cache row.
     def pooled_pages(artworks)
-      offset = 0
-      artworks.flat_map do |artwork|
-        pages = OcrCache.read_through(
-          checksum: artwork.checksum, engine_key: @engine_key, engine: @engine
-        ) { @engine.read(data: artwork.data, content_type: artwork.content_type) }
-
-        renumbered = pages.map do |page|
-          OcrClient::Page.new(
-            number: page.number + offset, width: page.width, height: page.height, words: page.words
-          )
-        end
-        offset += pages.size
-        renumbered
-      end
+      OcrPagePool.read(artworks: artworks, engine: @engine, engine_key: @engine_key)
     end
 
     # Region crops need the original bytes of the page they cut from;
@@ -67,6 +65,15 @@ module Extraction
     def sources_by_page(artworks)
       artworks.each_with_index.reject { |artwork, _| artwork.pdf? }.to_h do |artwork, index|
         [ index + 1, artwork ]
+      end
+    end
+
+    def instrument_stage(stage, payload)
+      ActiveSupport::Notifications.instrument(
+        "verification.stage.label_verifier",
+        payload.merge(stage: stage)
+      ) do
+        yield
       end
     end
   end

@@ -1,55 +1,68 @@
 <%= turbo_stream_from @batch %>
+<% turbo_refreshes_with(method: :morph, scroll: :preserve) %>
+<% content_for :main_class, "w-full max-w-none px-5 py-8" %>
+<% if @batch.processing? %>
+  <% content_for :head do %>
+    <meta name="turbo-cache-control" content="no-cache">
+  <% end %>
+<% end %>
 
-<div class="flex items-start justify-between flex-wrap gap-3 mb-4">
-  <div>
-    <h1 class="text-2xl font-semibold"><%= @batch.name %></h1>
-    <p class="text-ink-muted mt-1"><%= @batch.total_rows %> labels</p>
+<div data-controller="batch-live"
+     data-batch-live-active-value="<%= @batch.processing? %>"
+     data-batch-live-interval-value="3000">
+  <div class="flex items-start justify-between flex-wrap gap-3 mb-4">
+    <div>
+      <h1 class="text-2xl font-semibold"><%= @batch.name %></h1>
+      <p class="text-ink-muted mt-1"><%= @batch.total_rows %> labels</p>
+    </div>
+    <div class="flex gap-2">
+      <%= button_to "Retry pending/error rows", batch_retry_path(@batch),
+            class: "rounded-lg border border-line-strong bg-raised px-4 py-2 font-medium hover:bg-panel cursor-pointer" %>
+      <%= link_to "Export results CSV", batch_export_path(@batch),
+            class: "rounded-lg border border-line-strong bg-raised px-4 py-2 font-medium hover:bg-panel" %>
+      <% if @batch.label_applications.pre_review.exists? %>
+        <%= button_to "Submit batch to TTB", batch_submission_path(@batch),
+              class: "rounded-lg bg-ink text-surface px-4 py-2 font-medium hover:opacity-90 cursor-pointer" %>
+      <% end %>
+    </div>
   </div>
-  <div class="flex gap-2">
-    <%= button_to "Retry failed rows", retry_failed_batch_path(@batch),
-          class: "rounded-lg border border-line-strong bg-raised px-4 py-2 font-medium hover:bg-panel cursor-pointer" %>
-    <%= link_to "Export results CSV", export_batch_path(@batch),
-          class: "rounded-lg border border-line-strong bg-raised px-4 py-2 font-medium hover:bg-panel" %>
-    <% if @batch.label_applications.pre_review.exists? %>
-      <%= button_to "Submit batch to TTB", batch_submission_path(@batch),
-            class: "rounded-lg bg-ink text-surface px-4 py-2 font-medium hover:opacity-90 cursor-pointer" %>
+
+  <%= render "batches/progress", batch: @batch %>
+
+  <nav class="flex flex-wrap gap-2 my-4" aria-label="Filter by result">
+    <% filters = [ [ nil, "All" ], [ "fail", "Failed" ], [ "needs_review", "Needs review" ],
+                   [ "pass", "Passed" ], [ "pass_with_note", "Passed with note" ],
+                   [ "request_retake", "Retake" ], [ "error", "Errors" ] ] %>
+    <% filters.each do |value, label| %>
+      <%= link_to label, batch_path(@batch, verdict: value),
+            class: "px-3 py-1.5 rounded-full border #{params[:verdict].presence == value ? 'bg-ink text-surface border-ink' : 'bg-raised border-line-strong hover:bg-panel'}" %>
+    <% end %>
+  </nav>
+
+  <div class="bg-raised rounded-xl border border-line overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-left">
+        <caption class="sr-only">Batch results, one row per label application</caption>
+        <thead>
+          <tr class="border-b border-line text-ink-muted">
+            <th scope="col" class="px-4 py-3 font-medium">Row</th>
+            <th scope="col" class="px-4 py-3 font-medium">Serial</th>
+            <th scope="col" class="px-4 py-3 font-medium">Brand</th>
+            <th scope="col" class="px-4 py-3 font-medium">Type</th>
+            <th scope="col" class="px-4 py-3 font-medium">Result</th>
+            <th scope="col" class="px-4 py-3 font-medium">Time</th>
+            <th scope="col" class="px-4 py-3"><span class="sr-only">Open</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @applications.each do |application| %>
+            <%= render "batches/row", application: application, verification: application.latest_verification %>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <% if @applications.empty? %>
+      <p class="px-4 py-6 text-ink-muted">No rows match this filter yet.</p>
     <% end %>
   </div>
-</div>
-
-<%= render "batches/progress", batch: @batch %>
-
-<nav class="flex flex-wrap gap-2 my-4" aria-label="Filter by result">
-  <% filters = [ [ nil, "All" ], [ "fail", "Failed" ], [ "needs_review", "Needs review" ],
-                 [ "pass", "Passed" ], [ "pass_with_note", "Passed with note" ],
-                 [ "request_retake", "Retake" ], [ "error", "Errors" ] ] %>
-  <% filters.each do |value, label| %>
-    <%= link_to label, batch_path(@batch, verdict: value),
-          class: "px-3 py-1.5 rounded-full border #{params[:verdict].presence == value ? 'bg-ink text-surface border-ink' : 'bg-raised border-line-strong hover:bg-panel'}" %>
-  <% end %>
-</nav>
-
-<div class="bg-raised rounded-xl border border-line overflow-hidden">
-  <table class="w-full text-left">
-    <caption class="sr-only">Batch results, one row per label application</caption>
-    <thead>
-      <tr class="border-b border-line text-ink-muted">
-        <th scope="col" class="px-4 py-3 font-medium">Row</th>
-        <th scope="col" class="px-4 py-3 font-medium">Serial</th>
-        <th scope="col" class="px-4 py-3 font-medium">Brand</th>
-        <th scope="col" class="px-4 py-3 font-medium">Type</th>
-        <th scope="col" class="px-4 py-3 font-medium">Result</th>
-        <th scope="col" class="px-4 py-3 font-medium">Time</th>
-        <th scope="col" class="px-4 py-3"><span class="sr-only">Open</span></th>
-      </tr>
-    </thead>
-    <tbody>
-      <% @applications.each do |application| %>
-        <%= render "batches/row", application: application, verification: application.latest_verification %>
-      <% end %>
-    </tbody>
-  </table>
-  <% if @applications.empty? %>
-    <p class="px-4 py-6 text-ink-muted">No rows match this filter yet.</p>
-  <% end %>
 </div>

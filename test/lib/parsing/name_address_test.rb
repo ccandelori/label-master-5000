@@ -19,6 +19,14 @@ class NameAddressTest < ActiveSupport::TestCase
     assert_equal "nd", parts.state
   end
 
+  test "parses compact applicant street city state zip text without commas" do
+    parts = Parsing::NameAddress.parse("CREDO PROPERTIES LLC 5220 ETON PL Mechanicsburg PA 17055")
+
+    assert_equal "credo properties llc", parts.name
+    assert_equal "mechanicsburg", parts.city
+    assert_equal "pa", parts.state
+  end
+
   test "parses a full state name and a city-state segment" do
     parts = Parsing::NameAddress.parse("Lone Star Spirits, Houston Texas")
 

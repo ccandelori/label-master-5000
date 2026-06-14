@@ -2,13 +2,15 @@
 
 class Verification < ApplicationRecord
   belongs_to :label_application
+  has_one :verification_attempt, dependent: :nullify
 
   # Live update for anyone watching the application page when a background
   # verification completes.
   after_create_commit :broadcast_result
-  # Queue membership, ordering, and tab counts are all computed server-side,
+  after_update_commit :broadcast_result, if: :result_changed?
+  # History membership, ordering, and tab counts are all computed server-side,
   # so any verification event (new result, decision, undo) refreshes every
-  # open queue via a debounced page-refresh broadcast; the page morphs.
+  # open history page via a debounced page-refresh broadcast; the page morphs.
   after_commit :broadcast_queue_refresh
 
   enum :overall_verdict, {
@@ -55,18 +57,28 @@ class Verification < ApplicationRecord
 
   private
 
+  def result_changed?
+    (previous_changes.keys & %w[overall_verdict field_checks extraction model_id latency_ms error_message]).any?
+  end
+
   def broadcast_result
+    broadcast_replace_to(
+      label_application,
+      target: "validation_status_header",
+      partial: "label_applications/validation_status_header",
+      locals: { application: label_application, verification: self, attempt: label_application.latest_verification_attempt }
+    )
     broadcast_replace_to(
       label_application,
       target: "verification_panel",
       partial: "label_applications/verification_panel",
-      locals: { application: label_application, verification: self }
+      locals: { application: label_application, verification: self, attempt: label_application.latest_verification_attempt }
     )
     broadcast_batch_row
   end
 
   def broadcast_queue_refresh
-    broadcast_refresh_later_to :reviewer_queue
+    broadcast_refresh_later_to :validation_history
   end
 
   def broadcast_batch_row

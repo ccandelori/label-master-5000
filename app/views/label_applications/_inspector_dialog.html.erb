@@ -1,0 +1,34 @@
+<dialog data-inspector-dialog-target="dialog"
+        class="m-0 h-dvh w-dvw max-h-none max-w-none bg-surface text-ink backdrop:bg-ink/55">
+  <div class="h-full min-h-0 flex flex-col">
+    <header class="flex items-center justify-between gap-4 border-b border-line bg-raised px-5 py-3">
+      <div class="min-w-0">
+        <p class="text-xs font-semibold uppercase tracking-wide text-ink-faint">Inspect label</p>
+        <h2 class="truncate text-lg font-semibold"><%= application.brand_name %></h2>
+      </div>
+      <button type="button"
+              data-action="inspector-dialog#close"
+              class="rounded-lg border border-line-strong bg-raised px-3 py-1.5 text-sm font-medium hover:bg-panel cursor-pointer
+                     focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus">
+        Close
+      </button>
+    </header>
+
+    <div class="min-h-0 flex-1 grid grid-cols-1 lg:grid-cols-[minmax(480px,1fr)_390px]">
+      <div class="min-h-0 overflow-auto bg-panel px-6 py-6 text-center">
+        <%= render "label_applications/artwork_frames",
+              application: application,
+              image_class: "max-h-[78vh] max-w-full rounded-sm border border-line bg-white shadow-xl shadow-ink/15" %>
+      </div>
+
+      <aside class="min-h-0 overflow-y-auto border-l border-line bg-raised" aria-label="Verification findings">
+        <div class="sticky top-0 z-10 border-b border-line bg-raised px-5 py-3">
+          <p class="font-semibold">Evidence</p>
+          <p class="text-sm text-ink-faint">Review the checks against the label artwork.</p>
+        </div>
+        <%= render "label_applications/findings_groups", application: application, verification: verification %>
+        <div class="pb-4"></div>
+      </aside>
+    </div>
+  </div>
+</dialog>

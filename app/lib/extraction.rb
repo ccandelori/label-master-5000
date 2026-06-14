@@ -4,9 +4,10 @@ module Extraction
   class ExtractionError < StandardError; end
 
   # What every extractor's extract(artworks:) returns, whichever provider
-  # produced it. raw conforms to Schema::RESPONSE_SCHEMA; model_id is the
-  # provider's model identifier, which also keys extraction reuse (one
-  # model's reading must never be reused as another's).
+  # produced it. raw conforms to the provider request's JSON schema
+  # (Schema::RESPONSE_SCHEMA plus application-specific regulatory evidence
+  # when available); model_id is the provider's model identifier, which also
+  # keys extraction reuse.
   ExtractorResult = Data.define(:facts, :raw, :model_id, :latency_ms)
 
   # One artwork raster as the pipeline passes it around: front label
@@ -34,4 +35,16 @@ module Extraction
   # timeout deliberately is NOT this class - retrying a slow inference
   # re-submits the same expensive work to an already-struggling worker.
   class OcrConnectionError < OcrError; end
+
+  # The sidecar is healthy but at capacity. This is operational
+  # backpressure, not an OCR-quality failure, so it must bypass engine
+  # fallback and let the job retry instead of persisting degraded output.
+  class OcrBackpressureError < ExtractionError
+    attr_reader :retry_after_seconds
+
+    def initialize(message, retry_after_seconds:)
+      super(message)
+      @retry_after_seconds = retry_after_seconds
+    end
+  end
 end

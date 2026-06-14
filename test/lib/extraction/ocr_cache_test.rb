@@ -47,6 +47,28 @@ class OcrCacheTest < ActiveSupport::TestCase
     assert_equal 0, OcrReading.count
   end
 
+  test "disabled cache runs the block without reading or writing rows" do
+    Extraction::OcrCache.read_through(
+      checksum: "abc123", engine_key: "paddle-enriched-v1", engine: HealthyEngine.new
+    ) { pages }
+    runs = 0
+    original = Extraction::OcrCache.enabled?
+    Extraction::OcrCache.enabled = false
+
+    result = Extraction::OcrCache.read_through(
+      checksum: "abc123", engine_key: "paddle-enriched-v1", engine: HealthyEngine.new
+    ) do
+      runs += 1
+      pages
+    end
+
+    assert_equal "VODKA", result.first.words.first.text
+    assert_equal 1, runs
+    assert_equal 1, OcrReading.count
+  ensure
+    Extraction::OcrCache.enabled = original
+  end
+
   test "different engine keys cache independently" do
     %w[paddle-enriched-v1 tesseract-enriched-v1].each do |key|
       Extraction::OcrCache.read_through(

@@ -9,6 +9,10 @@ class EnrichedOcrTest < ActiveSupport::TestCase
     Extraction::OcrClient::Word.new(text: text, x: x, y: y, width: w, height: h)
   end
 
+  def confident_word(text, x, y, w, h, confidence)
+    Extraction::OcrClient.build_word(text: text, x: x, y: y, width: w, height: h, confidence: confidence)
+  end
+
   def page(words, width:, height:)
     [ Extraction::OcrClient::Page.new(number: 1, width: width, height: height, words: words) ]
   end
@@ -35,7 +39,7 @@ class EnrichedOcrTest < ActiveSupport::TestCase
     data = File.binread(Rails.root.join("test/fixtures/files/ocr_label.png"))
     engine = SequenceEngine.new(responses: [
       page([ word("BASE", 10, 10, 20, 10) ], width: 800, height: 1000),
-      page([ word("UPSCALED", 100, 100, 50, 20) ], width: 1600, height: 2000),
+      page([ confident_word("UPSCALED", 100, 100, 50, 20, 87.0) ], width: 1600, height: 2000),
       page([ word("INVERTED", 5, 6, 7, 8) ], width: 800, height: 1000)
     ])
 
@@ -49,6 +53,7 @@ class EnrichedOcrTest < ActiveSupport::TestCase
     upscaled = merged.words[1]
     assert_equal [ 50, 50, 25, 10 ], [ upscaled.x, upscaled.y, upscaled.width, upscaled.height ],
                  "upscaled-pass geometry maps back to the original basis"
+    assert_equal 87.0, upscaled.confidence
     assert_equal [ 5, 6, 7, 8 ], [ merged.words[2].x, merged.words[2].y, merged.words[2].width, merged.words[2].height ]
   end
 

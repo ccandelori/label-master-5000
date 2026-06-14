@@ -21,7 +21,10 @@ module EvalCorpus
     module_function
 
     def mutate(source, io:)
-      batch = Batch.find_or_create_by!(name: "Mutations of #{source.serial_number}")
+      batch = Batch.find_or_create_by!(name: "Mutations of #{source.serial_number}") do |record|
+        record.source_kind = "mutation"
+      end
+      batch.update!(source_kind: "mutation") unless batch.mutation?
       created = mutations_for(source).filter_map do |type, changes|
         serial = "#{source.serial_number}-MUT-#{type}"
         if LabelApplication.exists?(serial_number: serial)
@@ -32,7 +35,7 @@ module EvalCorpus
         clone = batch.label_applications.new(
           source.attributes
                 .except("id", "batch_id", "row_number", "created_at", "updated_at")
-                .merge("serial_number" => serial, "channel" => "submitted")
+                .merge("serial_number" => serial, "channel" => "submitted", "source_kind" => "mutation")
                 .merge(changes)
         )
         clone.artwork.attach(source.artwork.blob)

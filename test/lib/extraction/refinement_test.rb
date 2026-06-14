@@ -4,12 +4,16 @@ require "test_helper"
 
 class RefinementTest < ActiveSupport::TestCase
   class StubEngine
+    attr_reader :calls
+
     def initialize(pages: [], error: nil)
       @pages = pages
       @error = error
+      @calls = 0
     end
 
     def read(data:, content_type:)
+      @calls += 1
       raise @error if @error
 
       @pages
@@ -48,7 +52,21 @@ class RefinementTest < ActiveSupport::TestCase
   end
 
   def refinement(engine)
-    Extraction::Refinement.new(engine: engine, engine_key: "test-v1", threshold: 0.8)
+    refinement_with_region_engine(engine, engine)
+  end
+
+  def refinement_with_region_engine(engine, region_engine)
+    refinement_with_region_refiner(engine, region_engine, Extraction::RegionRefiner)
+  end
+
+  def refinement_with_region_refiner(engine, region_engine, region_refiner)
+    Extraction::Refinement.new(
+      engine: engine,
+      region_engine: region_engine,
+      region_refiner: region_refiner,
+      engine_key: "test-v1",
+      threshold: 0.8
+    )
   end
 
   test "grounds the payload against the engine's pages and caches the pool" do
@@ -105,5 +123,65 @@ class RefinementTest < ActiveSupport::TestCase
     )
 
     assert_equal raw, out
+  end
+
+  test "region crops use the dedicated fast engine instead of the page-pool engine" do
+    skip "imagemagick not available" unless system("which magick > /dev/null 2>&1")
+
+    app = application_with_artwork
+    fixture = Rails.root.join("test/fixtures/files/ocr_label.png").binread
+    app.artwork.attach(io: StringIO.new(fixture), filename: "ocr_label.png", content_type: "image/png")
+    app.save!
+
+    page_engine = StubEngine.new(pages: [ Extraction::OcrClient::Page.new(number: 1, width: 800, height: 1000, words: []) ])
+    region_engine = StubEngine.new(pages: [ Extraction::OcrClient::Page.new(
+      number: 1, width: 999, height: 999,
+      words: [
+        Extraction::OcrClient::Word.new(text: "OLD", x: 210, y: 25, width: 150, height: 90),
+        Extraction::OcrClient::Word.new(text: "TOM", x: 390, y: 25, width: 150, height: 90)
+      ]
+    ) ])
+    raw = {
+      "image_width" => 800, "image_height" => 1000,
+      "fields" => {
+        "brand_name" => {
+          "text" => "OLD TOM", "bbox" => [ 100, 80, 240, 42 ], "bbox_source" => "model", "page" => 1
+        }
+      }
+    }
+
+    out = refinement_with_region_engine(page_engine, region_engine).refine(
+      raw: raw, artworks: sources_for(app), application: app
+    )
+
+    assert_equal 1, page_engine.calls
+    assert_equal 1, region_engine.calls
+    assert_equal "ocr", out.dig("fields", "brand_name", "bbox_source")
+  end
+
+  test "no-op region refiner avoids crop OCR after page grounding misses" do
+    app = application_with_artwork
+    page_engine = StubEngine.new(pages: [ Extraction::OcrClient::Page.new(number: 1, width: 800, height: 1000, words: []) ])
+    region_engine = StubEngine.new(pages: [ Extraction::OcrClient::Page.new(
+      number: 1, width: 999, height: 999,
+      words: [ Extraction::OcrClient::Word.new(text: "OLD TOM", x: 10, y: 20, width: 120, height: 30) ]
+    ) ])
+    raw = {
+      "image_width" => 800, "image_height" => 1000,
+      "fields" => {
+        "brand_name" => {
+          "text" => "OLD TOM", "bbox" => [ 100, 80, 240, 42 ], "bbox_source" => "model", "page" => 1
+        }
+      }
+    }
+
+    out = refinement_with_region_refiner(page_engine, region_engine, Extraction::NoopRegionRefiner).refine(
+      raw: raw, artworks: sources_for(app), application: app
+    )
+
+    assert_equal 1, page_engine.calls
+    assert_equal 0, region_engine.calls
+    assert_equal "model", out.dig("fields", "brand_name", "bbox_source")
+    assert_nil out.dig("fields", "brand_name", "refine_attempted")
   end
 end

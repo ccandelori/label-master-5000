@@ -23,6 +23,11 @@ module Extraction
     def read(data:, content_type:)
       @primary.read(data: data, content_type: content_type)
     rescue OcrError => e
+      ActiveSupport::Notifications.instrument(
+        "verification.ocr_engine.label_verifier",
+        engine: "fallback",
+        error: e.message.to_s.first(200)
+      )
       Rails.logger.warn(JSON.generate({
         event: "ocr_primary_failed", error: e.message.to_s.first(200)
       }))

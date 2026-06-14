@@ -77,8 +77,8 @@ class VerificationTest < ActiveSupport::TestCase
   end
 end
 
-# Queue liveness: verification events and filings refresh every open
-# reviewer queue. Refresh broadcasts are debounced onto a scheduled task,
+# History liveness: verification events and filings refresh every open
+# history page. Refresh broadcasts are debounced onto a scheduled task,
 # so each action waits on the debouncer before asserting.
 class VerificationQueueBroadcastTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
@@ -96,14 +96,14 @@ class VerificationQueueBroadcastTest < ActiveSupport::TestCase
   end
 
   def drain_refresh_debounce
-    Turbo::StreamsChannel.refresh_debouncer_for(:reviewer_queue).wait
+    Turbo::StreamsChannel.refresh_debouncer_for(:validation_history).wait
   end
 
-  test "a new verification refreshes the reviewer queue" do
+  test "a new verification refreshes history" do
     app = nil
     perform_enqueued_jobs { app = application; drain_refresh_debounce }
 
-    assert_turbo_stream_broadcasts :reviewer_queue, count: 1 do
+    assert_turbo_stream_broadcasts :validation_history, count: 1 do
       perform_enqueued_jobs do
         app.verifications.create!(overall_verdict: "pass", field_checks: [])
         drain_refresh_debounce
@@ -111,14 +111,14 @@ class VerificationQueueBroadcastTest < ActiveSupport::TestCase
     end
   end
 
-  test "recording a decision refreshes the reviewer queue" do
+  test "recording a decision refreshes history" do
     verification = nil
     perform_enqueued_jobs do
       verification = application.verifications.create!(overall_verdict: "fail", field_checks: [])
       drain_refresh_debounce
     end
 
-    assert_turbo_stream_broadcasts :reviewer_queue, count: 1 do
+    assert_turbo_stream_broadcasts :validation_history, count: 1 do
       perform_enqueued_jobs do
         verification.record_decision(decision: "reject", note: nil)
         drain_refresh_debounce
@@ -126,8 +126,8 @@ class VerificationQueueBroadcastTest < ActiveSupport::TestCase
     end
   end
 
-  test "filing an application refreshes the reviewer queue" do
-    assert_turbo_stream_broadcasts :reviewer_queue, count: 1 do
+  test "filing an application refreshes history" do
+    assert_turbo_stream_broadcasts :validation_history, count: 1 do
       perform_enqueued_jobs do
         application
         drain_refresh_debounce

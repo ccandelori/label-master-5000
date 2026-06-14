@@ -70,7 +70,7 @@ designations:
       max_abv_exclusive: 0.5
     - names: ["Amber Ale", "Amber Lager", "Barley Wine Ale", "Barley Wine Style Ale", "Bitter Ale",
               "Bock Beer", "Brown Ale", "Cream Ale", "Cream Stout", "Dry Beer", "Export Ale",
-              "Export Beer", "Golden Ale", "Golden Lager", "Ice Beer", "Imperial Stout",
+              "Export Beer", "Golden Ale", "Golden Lager", "Ice Beer", "Imperial Stout", "IPA",
               "India Pale Ale", "Pale Ale", "Rye Beer", "Stock Ale", "Wheat Beer"]
       kind: type
       sufficient: true

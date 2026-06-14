@@ -1,9 +1,8 @@
 import { Controller } from "@hotwired/stimulus"
 
-// Draws verdict-colored outlines over the label artwork at the pixel
-// coordinates the extractor reported, scaled to the displayed image size.
-// Hovering a results-table row highlights its outline; clicking an outline
-// opens an annotation with the verdict, reason, and citation.
+// Applies a spotlight mask over the label artwork at the pixel coordinates
+// the extractor reported, scaled to the displayed image size. Hovering a
+// finding row reveals only that region; the text itself stays unobscured.
 export default class extends Controller {
   static targets = ["image", "frame"]
   static values = { boxes: Array }
@@ -49,42 +48,79 @@ export default class extends Controller {
   renderFrame(frame, image) {
     if (!image || image.naturalWidth === 0) return
 
-    frame.querySelectorAll("[data-bbox-box]").forEach((el) => el.remove())
+    frame.querySelectorAll("[data-bbox-generated]").forEach((el) => el.remove())
     const page = Number(frame.dataset.page || 1)
+    const width = image.clientWidth
+    const height = image.clientHeight
+    if (width === 0 || height === 0) return
+
+    const svgNS = "http://www.w3.org/2000/svg"
+    const svg = document.createElementNS(svgNS, "svg")
+    svg.dataset.bboxGenerated = "overlay"
+    svg.setAttribute("class", "absolute inset-0 w-full h-full pointer-events-none")
+    svg.setAttribute("aria-hidden", "true")
+    svg.setAttribute("viewBox", `0 0 ${width} ${height}`)
+    frame.appendChild(svg)
+
+    const maskId = `bbox-spotlight-${page}-${Math.floor(Math.random() * 1000000)}`
+    const defs = document.createElementNS(svgNS, "defs")
+    const mask = document.createElementNS(svgNS, "mask")
+    mask.setAttribute("id", maskId)
+    const visible = document.createElementNS(svgNS, "rect")
+    visible.setAttribute("x", 0)
+    visible.setAttribute("y", 0)
+    visible.setAttribute("width", width)
+    visible.setAttribute("height", height)
+    visible.setAttribute("fill", "white")
+    mask.appendChild(visible)
+
+    const hole = document.createElementNS(svgNS, "rect")
+    hole.setAttribute("rx", "3")
+    hole.setAttribute("fill", "black")
+    mask.appendChild(hole)
+    defs.appendChild(mask)
+    svg.appendChild(defs)
+
+    const dim = document.createElementNS(svgNS, "rect")
+    dim.setAttribute("x", 0)
+    dim.setAttribute("y", 0)
+    dim.setAttribute("width", width)
+    dim.setAttribute("height", height)
+    dim.setAttribute("class", "rv-dim")
+    dim.setAttribute("mask", `url(#${maskId})`)
+    dim.dataset.active = false
+    svg.appendChild(dim)
+
+    frame._bboxSpotlight = { dim, hole }
 
     this.boxesValue.filter((box) => box.page === page).forEach((box) => {
       // Each box carries the pixel basis the extractor measured against.
       const [basisW, basisH] = box.basis || [1000, 1000]
-      const scaleX = image.clientWidth / basisW
-      const scaleY = image.clientHeight / basisH
+      const scaleX = width / basisW
+      const scaleY = height / basisH
       const [x, y, w, h] = box.bbox
       const el = document.createElement("button")
       el.type = "button"
       el.dataset.bboxBox = box.field
+      el.dataset.bboxGenerated = "hit-target"
       el.setAttribute("aria-label", `${box.label}: ${box.verdict_label}.${box.approximate ? " Location approximate." : ""} Activate for details.`)
-      // Stroke style is provenance: solid means OCR-located the print,
-      // dashed means the model's estimate (and reads a touch lighter).
-      el.className = "absolute rounded-sm border-2 cursor-pointer " +
-        (box.approximate ? "border-dashed opacity-80 " : "border-solid ") + this.colorFor(box.verdict)
+      el.className = "absolute rounded-sm cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
       el.style.left = `${x * scaleX}px`
       el.style.top = `${y * scaleY}px`
       el.style.width = `${Math.max(w * scaleX, 8)}px`
       el.style.height = `${Math.max(h * scaleY, 8)}px`
       el.style.backgroundColor = "transparent"
+      el.style.border = "0"
+      el.style.padding = "0"
+      el._bboxRect = { x: x * scaleX, y: y * scaleY, w: Math.max(w * scaleX, 8), h: Math.max(h * scaleY, 8) }
+      el.addEventListener("mouseenter", () => this.spotlight(frame, el._bboxRect))
+      el.addEventListener("mouseleave", () => this.clearSpotlights())
       el.addEventListener("click", (event) => {
         event.stopPropagation()
         this.togglePopover(el, box, frame)
       })
       frame.appendChild(el)
     })
-  }
-
-  colorFor(verdict) {
-    if (verdict === "fail") return "border-fail hover:bg-fail/15"
-    if (verdict === "needs_review") return "border-warn hover:bg-warn/15"
-    if (verdict === "pass_with_note") return "border-pass hover:bg-pass/15"
-    if (verdict === "not_required" || verdict === "not_applicable") return "border-line-strong hover:bg-ink/10"
-    return "border-pass hover:bg-pass/15"
   }
 
   // Hover linking from the results table (rows carry data-field).
@@ -97,12 +133,34 @@ export default class extends Controller {
   }
 
   setEmphasis(field, on) {
-    this.frameTargets.forEach((frame) => frame.querySelectorAll("[data-bbox-box]").forEach((el) => {
+    this.clearSpotlights()
+    if (!on) return
+
+    const target = this.frameTargets.flatMap((frame) =>
+      Array.from(frame.querySelectorAll("[data-bbox-box]")).map((el) => [frame, el])
+    ).find(([, el]) => {
       const box = this.boxesValue.find((b) => b.field === el.dataset.bboxBox)
-      const related = box && (box.field === field || (box.related_fields || []).includes(field))
-      // Width is the emphasis cue; stroke style stays with its provenance.
-      el.style.borderWidth = related && on ? "3px" : "2px"
-    }))
+      return box && (box.field === field || (box.related_fields || []).includes(field))
+    })
+
+    if (target) this.spotlight(target[0], target[1]._bboxRect)
+  }
+
+  spotlight(frame, rect) {
+    const spotlight = frame._bboxSpotlight
+    if (!spotlight || !rect) return
+
+    spotlight.hole.setAttribute("x", rect.x)
+    spotlight.hole.setAttribute("y", rect.y)
+    spotlight.hole.setAttribute("width", rect.w)
+    spotlight.hole.setAttribute("height", rect.h)
+    spotlight.dim.dataset.active = true
+  }
+
+  clearSpotlights() {
+    this.frameTargets.forEach((frame) => {
+      if (frame._bboxSpotlight) frame._bboxSpotlight.dim.dataset.active = false
+    })
   }
 
   togglePopover(anchor, box, frame) {

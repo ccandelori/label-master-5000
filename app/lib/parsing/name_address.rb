@@ -31,6 +31,10 @@ module Parsing
     ENTITY_SUFFIXES = %w[
       llc inc co corp ltd lp llp plc company incorporated corporation limited
     ].to_set.freeze
+    STREET_SUFFIXES = %w[
+      alley aly avenue ave boulevard blvd circle cir court ct drive dr highway hwy lane ln
+      parkway pkwy place pl road rd square sq street st terrace ter trail trl way
+    ].to_set.freeze
 
     module_function
 
@@ -41,6 +45,9 @@ module Parsing
     def parse(text)
       segments = text.to_s.split(",").map { |s| TextNormalizer.normalize(s) }.reject(&:empty?)
       return Parts.new(name: TextNormalizer.normalize(text), city: nil, state: nil) if segments.empty?
+
+      compact = parse_compact_address(segments.first)
+      return compact if segments.one? && !compact.nil?
 
       # The first segment is the applicant name and never yields the
       # state: "Acme Brewing Co" ends in an entity suffix, not Colorado.
@@ -58,6 +65,28 @@ module Parsing
       end
 
       Parts.new(name: TextNormalizer.normalize(text), city: nil, state: nil)
+    end
+
+    def parse_compact_address(segment)
+      tokens = segment.split(" ")
+      state_at = find_state(tokens)
+      return nil if state_at.nil?
+
+      street_start = tokens[0...state_at.first].index { |token| token.match?(/\A\d+\z/) }
+      return nil if street_start.nil? || street_start.zero?
+
+      street_end = street_start + 1 + tokens[(street_start + 1)...state_at.first].index do |token|
+        STREET_SUFFIXES.include?(token)
+      end.to_i
+      city_tokens = tokens[(street_end + 1)...state_at.first]
+      city_tokens = tokens[(state_at.first - 1)...state_at.first] if city_tokens.empty?
+      return nil if city_tokens.empty?
+
+      Parts.new(
+        name: tokens[0...street_start].join(" "),
+        city: city_tokens.join(" "),
+        state: state_at.last
+      )
     end
 
     # Token sequence of the name with trailing entity-form words removed:

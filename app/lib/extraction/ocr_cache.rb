@@ -11,13 +11,44 @@ module Extraction
   # returned but never persisted: caching a Tesseract-degraded read under
   # the primary engine's key would silently pin worse geometry.
   module OcrCache
+    @enabled = true
+
     module_function
 
-    def read_through(checksum:, engine_key:, engine:)
-      cached = OcrReading.find_by(blob_checksum: checksum, engine_key: engine_key)
-      return deserialize(cached.pages) if cached
+    def enabled=(value)
+      @enabled = value
+    end
 
-      pages = yield
+    def enabled?
+      @enabled
+    end
+
+    def read_through(checksum:, engine_key:, engine:)
+      unless enabled?
+        return ActiveSupport::Notifications.instrument(
+          "verification.ocr_cache.label_verifier",
+          checksum: checksum, engine_key: engine_key, hit: false, bypassed: true
+        ) do
+          yield
+        end
+      end
+
+      cached = OcrReading.find_by(blob_checksum: checksum, engine_key: engine_key)
+      if cached
+        return ActiveSupport::Notifications.instrument(
+          "verification.ocr_cache.label_verifier",
+          checksum: checksum, engine_key: engine_key, hit: true
+        ) do
+          deserialize(cached.pages)
+        end
+      end
+
+      pages = ActiveSupport::Notifications.instrument(
+        "verification.ocr_cache.label_verifier",
+        checksum: checksum, engine_key: engine_key, hit: false
+      ) do
+        yield
+      end
       unless engine.respond_to?(:degraded?) && engine.degraded?
         OcrReading.create!(blob_checksum: checksum, engine_key: engine_key, pages: serialize(pages))
       end
@@ -31,7 +62,14 @@ module Extraction
         {
           "number" => page.number, "width" => page.width, "height" => page.height,
           "words" => page.words.map do |word|
-            { "text" => word.text, "x" => word.x, "y" => word.y, "width" => word.width, "height" => word.height }
+            {
+              "text" => safe_text(word.text),
+              "x" => word.x,
+              "y" => word.y,
+              "width" => word.width,
+              "height" => word.height,
+              "confidence" => word.confidence
+            }.compact
           end
         }
       end
@@ -42,13 +80,18 @@ module Extraction
         OcrClient::Page.new(
           number: page["number"], width: page["width"], height: page["height"],
           words: page["words"].map do |word|
-            OcrClient::Word.new(
+            OcrClient.build_word(
               text: word["text"], x: word["x"], y: word["y"],
-              width: word["width"], height: word["height"]
+              width: word["width"], height: word["height"],
+              confidence: word["confidence"]
             )
           end
         )
       end
+    end
+
+    def safe_text(value)
+      value.to_s.encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "?")
     end
   end
 end

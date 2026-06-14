@@ -18,10 +18,20 @@ module Parsing
 
     US_UNITS = {
       /\A(?:fl\.?\s*oz\.?|fluid\s+ounces?|ounces?|oz\.?)\z/i => ML_PER_FL_OZ,
+      /\A(?:floz)\z/i => ML_PER_FL_OZ,
       /\A(?:pts?\.?|pints?)\z/i => ML_PER_PINT,
       /\A(?:qts?\.?|quarts?)\z/i => ML_PER_QUART,
       /\A(?:gals?\.?|gallons?)\z/i => ML_PER_GALLON
     }.freeze
+
+    DECIMAL_GAP_BEFORE_UNIT = %r{
+      \b(?<whole>\d{1,3})\s+(?<decimal>\d)\s+
+      (?=(?:mls?|milliliters?|cl|centiliters?|l|liters?|litres?|
+          fl\.?\s*oz\.?|fluid\s+ounces?|ounces?|oz\.?|floz|
+          pts?\.?|pints?|qts?\.?|quarts?|gals?\.?|gallons?)\b)
+    }ix
+
+    LETTER_SPACED_WORD = /(?:\b|(?<=\d))(?:[A-Za-z]\s+){2,}[A-Za-z]\b/
 
     QUANTITY = %r{
       (?:(?<whole>\d+(?:\.\d+)?)(?:\s+(?<frac_num>\d+)/(?<frac_den>\d+))?)
@@ -44,7 +54,7 @@ module Parsing
     def parse(text)
       return nil if text.nil? || text.strip.empty?
 
-      segments = scan_segments(text.strip)
+      segments = scan_segments(normalize_ocr_text(text.strip))
       return nil if segments.empty?
 
       total_ml = 0.0
@@ -71,6 +81,13 @@ module Parsing
       ParsedVolume.new(milliliters: total_ml.round(4), unit_system: systems.first, raw: text)
     end
 
+    def unit_system_present?(text, required_system)
+      scan_segments(normalize_ocr_text(text.to_s)).any? do |_quantity, unit_text|
+        _factor, system = unit_factor(unit_text)
+        system.to_s == required_system.to_s
+      end
+    end
+
     def restatement?(total_ml, segment_ml)
       total_ml.positive? && (segment_ml - total_ml).abs <= total_ml * RESTATEMENT_TOLERANCE
     end
@@ -82,6 +99,12 @@ module Parsing
         result << [ quantity_from(m), m[:unit].strip ]
       end
       result
+    end
+
+    def normalize_ocr_text(text)
+      text
+        .gsub(LETTER_SPACED_WORD) { |word| word.delete(" ") }
+        .gsub(DECIMAL_GAP_BEFORE_UNIT) { "#{Regexp.last_match[:whole]}.#{Regexp.last_match[:decimal]} " }
     end
 
     def quantity_from(match)

@@ -107,10 +107,9 @@
   }
 }
 
-/* SVG annotation layer: presentation attributes cannot carry var(), so
-   the overlay's parts are styled here. The dim sleeps until a row or box
-   is hovered, then spotlights only the active box; every outline rides a
-   light casing so it stays visible over busy or dark artwork. */
+/* SVG annotation layer. The dim sleeps until a row or invisible hit target
+   is hovered, then spotlights only the active text region. No stroked
+   rectangles are drawn over label text. */
 .rv-dim {
   fill: var(--rv-dim);
   pointer-events: none;
@@ -122,31 +121,6 @@
   opacity: 1;
 }
 
-.rv-box-casing {
-  fill: none;
-  stroke: oklch(99% 0.003 85 / 0.85);
-  stroke-width: 5.5;
-}
-
-.rv-box {
-  fill: none;
-  stroke-width: 2.5;
-  transition: stroke-width 150ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.rv-box[data-active="true"] {
-  stroke-width: 3.5;
-}
-
-/* A model-estimated box is a hint, not evidence: dashed and a touch
-   lighter, so located and approximate never read as the same claim.
-   The casing stays solid - a dashed halo under a dashed stroke is
-   visual noise without adding meaning. */
-.rv-box--approx {
-  stroke-dasharray: 6 4;
-  stroke-width: 2;
-}
-
-.rv-box--approx[data-active="true"] {
-  stroke-width: 3;
+.rv-box-hit {
+  cursor: pointer;
 }

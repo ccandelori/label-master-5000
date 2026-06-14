@@ -63,6 +63,8 @@ class ImporterTest < ActiveSupport::TestCase
     assert bare.reload.artwork.attached?
     assert_equal "PARADOX BREWERY", bare.brand_name, "metadata is kept"
     assert_equal batch, bare.batch, "record stays in its original batch"
+    assert_predicate batch.reload, :registry_eval?
+    assert_predicate bare.reload, :registry_eval?
   end
 
   test "a complete record is skipped untouched" do
@@ -80,5 +82,23 @@ class ImporterTest < ActiveSupport::TestCase
 
     assert_match(/already imported, skipping/, output)
     assert_equal checksum, done.reload.artwork.blob.checksum
+  end
+
+  test "imported records are tagged as registry eval data" do
+    import(client: StubClient.new, ids: [ "99023001000100" ])
+
+    application = LabelApplication.find_by!(serial_number: "99023001000100")
+    assert_predicate application, :registry_eval?
+    assert_predicate application.batch, :registry_eval?
+  end
+
+  test "imported records are quarantined when artwork bytes repeat" do
+    import(client: StubClient.new(attachment: "same-image-bytes"), ids: [ "99023001000101", "99023001000102" ])
+
+    first = LabelApplication.find_by!(serial_number: "99023001000101")
+    second = LabelApplication.find_by!(serial_number: "99023001000102")
+    assert_empty first.quarantine_reasons
+    assert_includes second.quarantine_reasons, "artwork_checksum_shared_across_applications"
+    assert second.quarantined_at.present?
   end
 end

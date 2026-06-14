@@ -5,8 +5,8 @@ require "test_helper"
 class LabelApplicationsHelperTest < ActionView::TestCase
   include VerdictsHelper
 
-  def located(text, bbox: [ 10, 20, 100, 12 ])
-    { "text" => text, "bbox" => bbox, "page" => 1, "confidence" => 0.9 }
+  def located(text, bbox: [ 10, 20, 100, 12 ], bbox_source: "ocr")
+    { "text" => text, "bbox" => bbox, "bbox_source" => bbox_source, "page" => 1, "confidence" => 0.9 }
   end
 
   def verification(disclosures:, checks: [])
@@ -19,6 +19,97 @@ class LabelApplicationsHelperTest < ActionView::TestCase
       },
       field_checks: checks
     )
+  end
+
+  test "demo model options render the configured refinement model when comparison models are not configured" do
+    original = Rails.application.config.x.extraction.demo_models
+    Rails.application.config.x.extraction.demo_models = nil
+
+    html = demo_model_options
+
+    assert_includes html, "OCR + gpt-5.4-mini refinement"
+    assert_includes html, "openai:gpt-5.4-mini"
+    assert_no_match(/quality/, html)
+  ensure
+    Rails.application.config.x.extraction.demo_models = original
+  end
+
+  test "demo model options are OCR-first refinement model choices" do
+    html = demo_model_options
+
+    assert_includes html, "OCR + GPT-5.4 nano refinement"
+    assert_includes html, "OCR + GPT-5.4 mini refinement"
+    assert_includes html, "OCR + Claude Haiku 4.5 refinement"
+    assert_includes html, "openai:gpt-5.4-mini"
+    assert_includes html, "anthropic:claude-haiku-4-5"
+    assert_no_match(/OCR only/, html)
+    assert_no_match(/direct comparison/, html)
+    assert_no_match(/ocr_only/, html)
+    assert_no_match(/ocr_then_vlm/, html)
+    assert_no_match(/quality/, html)
+  end
+
+  test "demo model label tolerates missing comparison model configuration" do
+    original = Rails.application.config.x.extraction.demo_models
+    Rails.application.config.x.extraction.demo_models = nil
+
+    assert_equal "ocr-first-v1", demo_model_label("ocr-first-v1")
+  ensure
+    Rails.application.config.x.extraction.demo_models = original
+  end
+
+  test "verification timing lines show OCR and completed refinement durations" do
+    v = Verification.new(extraction: {
+      "vlm_refinement" => {
+        "status" => "complete",
+        "model" => "claude-haiku-4-5",
+        "duration_ms" => 812.3
+      }
+    })
+    attempt = VerificationAttempt.new(stage_timings: { "ocr_ms" => 2000, "ocr_escalation_ms" => 345.6 })
+
+    assert_equal [ "OCR 2.3s", "Claude Haiku 4.5 refinement 0.8s" ], verification_timing_lines(v, attempt)
+  end
+
+  test "verification timing lines show refinement status when no duration exists" do
+    v = Verification.new(extraction: {
+      "vlm_refinement" => {
+        "status" => "pending",
+        "model" => "gpt-5.4-mini"
+      }
+    })
+
+    assert_equal [ "GPT-5.4 mini refinement pending" ], verification_timing_lines(v, nil)
+  end
+
+  test "findings groups expose only actionable checks" do
+    fail_check = FieldCheck.new(
+      field: "brand_name", verdict: "fail", expected: "A", extracted: "B",
+      citation: "test", note: "wrong"
+    )
+    review_check = FieldCheck.new(
+      field: "name_and_address", verdict: "needs_review", expected: "A", extracted: nil,
+      citation: "test", note: "check"
+    )
+    pass_check = FieldCheck.new(
+      field: "government_warning_text", verdict: "pass_with_note", expected: "A", extracted: "A",
+      citation: "test", note: "minor OCR noise"
+    )
+    not_required_check = FieldCheck.new(
+      field: "country_of_origin", verdict: "not_required", expected: nil, extracted: nil,
+      citation: "test", note: "domestic"
+    )
+    v = Verification.new(field_checks: [ pass_check, review_check, not_required_check, fail_check ])
+
+    groups = findings_groups(v)
+
+    assert_equal [ "Failed", "Needs review" ], groups.map { |group| group.fetch(:title) }
+    assert_equal [ [ fail_check ], [ review_check ] ], groups.map { |group| group.fetch(:checks) }
+    assert_equal 2, quiet_findings_count(v)
+
+    quiet_groups = quiet_findings_groups(v)
+    assert_equal [ "Passing", "Informational" ], quiet_groups.map { |group| group.fetch(:title) }
+    assert_equal [ [ pass_check ], [ not_required_check ] ], quiet_groups.map { |group| group.fetch(:checks) }
   end
 
   test "renders one disclosure box per unique normalized text" do
@@ -123,7 +214,7 @@ class LabelApplicationsHelperTest < ActionView::TestCase
     assert_empty boxes
   end
 
-  test "boxes carry provenance: OCR-anchored is exact, anything else approximate" do
+  test "spotlight data only exposes OCR-anchored boxes" do
     check = FieldCheck.new(
       field: "brand_name", verdict: "pass", expected: "OLD TOM",
       extracted: "OLD TOM", citation: "BAM Vol 2 1-1", note: nil
@@ -139,10 +230,10 @@ class LabelApplicationsHelperTest < ActionView::TestCase
     assert_equal false, bbox_data(v).first[:approximate]
 
     v.extraction["fields"]["brand_name"]["bbox_source"] = "model"
-    assert_equal true, bbox_data(v).first[:approximate]
+    assert_empty bbox_data(v)
 
     v.extraction["fields"]["brand_name"].delete("bbox_source")
-    assert_equal true, bbox_data(v).first[:approximate], "missing provenance is not evidence"
+    assert_empty bbox_data(v), "missing provenance is not evidence"
   end
 
   def application_with_artwork
@@ -166,7 +257,7 @@ class LabelApplicationsHelperTest < ActionView::TestCase
     assert_not croppable?(app, model_slot)
   end
 
-  test "field_crop_tag clips OCR finds and captions approximate ones" do
+  test "field_crop_tag clips OCR finds and omits model-only boxes" do
     app = application_with_artwork
     v = Verification.new(extraction: {
       "image_width" => 800, "image_height" => 1000,
@@ -176,8 +267,6 @@ class LabelApplicationsHelperTest < ActionView::TestCase
     assert_includes field_crop_tag(app, v, "brand_name"), "<img"
 
     v.extraction["fields"]["brand_name"]["bbox_source"] = "model"
-    caption = field_crop_tag(app, v, "brand_name")
-    assert_includes caption, "Location approximate"
-    assert_not_includes caption, "<img"
+    assert_nil field_crop_tag(app, v, "brand_name")
   end
 end

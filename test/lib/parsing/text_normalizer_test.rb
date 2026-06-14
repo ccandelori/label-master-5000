@@ -17,6 +17,20 @@ module Parsing
       assert TextNormalizer.equivalent?("Côte du Soleil Rosé", "Cote du Soleil Rose")
     end
 
+    test "normalizes binary encoded text from imported sources" do
+      binary_text = "KENTUCKY STRAIGHT BOURBON WHISKEY".b
+
+      assert_equal "kentucky straight bourbon whiskey", TextNormalizer.normalize(binary_text)
+      assert TextNormalizer.equivalent?("Kentucky Straight Bourbon Whiskey", binary_text)
+    end
+
+    test "replaces invalid bytes before normalization" do
+      invalid_text = +"Bourbon\xFF Whiskey"
+      invalid_text.force_encoding(Encoding::UTF_8)
+
+      assert_equal "bourbon whiskey", TextNormalizer.normalize(invalid_text)
+    end
+
     test "different names stay different" do
       assert_not TextNormalizer.equivalent?("Old Tom Distillery", "Old Tim Distillery")
       assert_not TextNormalizer.equivalent?("Stone's Throw", "Stones Throw Brewing")

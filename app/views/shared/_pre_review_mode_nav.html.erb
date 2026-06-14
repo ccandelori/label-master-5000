@@ -1,5 +1,5 @@
-<nav class="inline-flex rounded-lg border border-line bg-raised p-1 mb-6" aria-label="Pre-check mode">
-  <% modes = [ [ "Single label", new_label_application_path, :single ], [ "Batch (CSV)", new_batch_path, :batch ] ] %>
+<nav class="inline-flex rounded-lg border border-line bg-raised p-1 mb-6" aria-label="Validation mode">
+  <% modes = [ [ "Single application", validation_path, :single ], [ "Batch upload", new_batch_path, :batch ] ] %>
   <% modes.each do |label, path, mode| %>
     <%= link_to label, path,
           class: "px-4 py-1.5 rounded-md font-medium #{mode == active ? 'bg-ink text-surface' : 'text-ink-muted hover:bg-panel'}",

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_06_11_225753) do
+ActiveRecord::Schema[8.0].define(version: 2026_06_13_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -48,6 +48,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_06_11_225753) do
     t.integer "total_rows", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "source_kind", default: "batch_upload", null: false
+    t.datetime "processing_started_at"
+    t.datetime "processing_completed_at"
+    t.index ["source_kind"], name: "index_batches_on_source_kind"
   end
 
   create_table "label_applications", force: :cascade do |t|
@@ -77,9 +81,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_06_11_225753) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "channel", default: "pre_review", null: false
+    t.string "source_kind", default: "manual", null: false
+    t.datetime "quarantined_at"
+    t.string "quarantine_reasons", default: [], null: false, array: true
     t.index ["batch_id"], name: "index_label_applications_on_batch_id"
+    t.index ["channel", "source_kind", "quarantined_at"], name: "index_label_applications_on_review_visibility"
     t.index ["channel"], name: "index_label_applications_on_channel"
+    t.index ["quarantined_at"], name: "index_label_applications_on_quarantined_at"
     t.index ["serial_number"], name: "index_label_applications_on_serial_number"
+    t.index ["source_kind"], name: "index_label_applications_on_source_kind"
   end
 
   create_table "ocr_readings", force: :cascade do |t|
@@ -89,6 +99,25 @@ ActiveRecord::Schema[8.0].define(version: 2026_06_11_225753) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["blob_checksum", "engine_key"], name: "index_ocr_readings_on_blob_checksum_and_engine_key", unique: true
+  end
+
+  create_table "verification_attempts", force: :cascade do |t|
+    t.bigint "label_application_id", null: false
+    t.bigint "verification_id"
+    t.string "state", default: "queued", null: false
+    t.datetime "processing_started_at"
+    t.datetime "processing_completed_at"
+    t.integer "queue_wait_ms"
+    t.jsonb "stage_timings", default: {}, null: false
+    t.string "error_class"
+    t.text "error_message"
+    t.jsonb "error_context", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["label_application_id", "created_at"], name: "idx_on_label_application_id_created_at_82706e65be"
+    t.index ["label_application_id"], name: "index_verification_attempts_on_label_application_id"
+    t.index ["state"], name: "index_verification_attempts_on_state"
+    t.index ["verification_id"], name: "index_verification_attempts_on_verification_id"
   end
 
   create_table "verifications", force: :cascade do |t|
@@ -114,5 +143,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_06_11_225753) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "label_applications", "batches"
+  add_foreign_key "verification_attempts", "label_applications"
+  add_foreign_key "verification_attempts", "verifications"
   add_foreign_key "verifications", "label_applications"
 end

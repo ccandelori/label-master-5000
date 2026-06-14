@@ -1,0 +1,98 @@
+<% groups = findings_groups(verification) %>
+<% group_color = { "fail" => "text-fail", "needs_review" => "text-warn", "pass" => "text-pass" } %>
+
+<% if groups.empty? %>
+  <div class="px-5 py-6">
+    <p class="font-medium">No action needed.</p>
+    <p class="mt-1 text-sm text-ink-muted">All comparable checks passed or were informational.</p>
+  </div>
+<% end %>
+
+<% groups.each do |group| %>
+  <% title = group.fetch(:title) %>
+  <% verdict_key = group.fetch(:verdict_key) %>
+  <% checks = group.fetch(:checks) %>
+  <section aria-label="<%= title %> checks">
+    <h3 class="flex items-baseline gap-2 px-5 pt-4 pb-1.5 text-xs font-semibold uppercase tracking-wider <%= group_color[verdict_key] || "text-ink-faint" %>">
+      <%= title %>
+      <span class="text-ink-faint font-normal normal-case tracking-normal"><%= checks.size %></span>
+    </h3>
+
+    <div class="divide-y divide-line/60">
+      <% checks.each do |check| %>
+        <article class="px-5 py-4" data-field="<%= check.field %>">
+          <h4 class="font-medium"><%= field_label(check.field) %></h4>
+          <dl class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 max-w-prose sm:max-w-none">
+            <div>
+              <dt class="text-xs uppercase tracking-wide text-ink-faint">Application</dt>
+              <dd class="mt-0.5 <%= check.expected.present? ? "" : "text-ink-faint" %>"><%= check.expected.presence || "Not stated" %></dd>
+            </div>
+            <div>
+              <dt class="text-xs uppercase tracking-wide text-ink-faint">On the label</dt>
+              <dd class="mt-0.5 <%= check.extracted.present? ? "" : "text-ink-faint" %>">
+                <%= field_crop_tag(application, verification, check.field) %>
+                <%= check.extracted.presence || "Not found" %>
+              </dd>
+            </div>
+          </dl>
+          <% if check.note.present? %>
+            <p class="mt-2 <%= check.verdict == "fail" ? "text-fail" : "text-ink-muted" %>"><%= check.note %></p>
+          <% end %>
+          <% if check.citation.present? %>
+            <p class="mt-1 text-sm text-ink-faint"><%= check.citation %></p>
+          <% end %>
+        </article>
+      <% end %>
+    </div>
+  </section>
+<% end %>
+
+<% if quiet_findings_count(verification).positive? %>
+  <details class="border-t border-line">
+    <summary class="cursor-pointer px-5 py-3 text-sm font-medium text-ink-muted hover:bg-panel">
+      <%= pluralize(quiet_findings_count(verification), "passing or informational check") %>
+    </summary>
+    <% quiet_findings_groups(verification).each do |group| %>
+      <section aria-label="<%= group.fetch(:title) %> checks">
+        <h3 class="flex items-baseline gap-2 px-5 pt-4 pb-1.5 text-xs font-semibold uppercase tracking-wider <%= group.fetch(:verdict_key) == "pass" ? "text-pass" : "text-ink-faint" %>">
+          <%= group.fetch(:title) %>
+          <span class="text-ink-faint font-normal normal-case tracking-normal"><%= group.fetch(:checks).size %></span>
+        </h3>
+        <div class="divide-y divide-line/60">
+          <% group.fetch(:checks).each do |check| %>
+            <details class="group" data-field="<%= check.field %>">
+              <summary class="flex items-center gap-2.5 px-5 py-2.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden hover:bg-panel transition duration-150">
+                <span class="shrink-0 size-2 rounded-full <%= group.fetch(:verdict_key) == "pass" ? "bg-pass" : "bg-line-strong" %>" aria-hidden="true"></span>
+                <span class="flex-1 min-w-0 truncate font-medium text-sm"><%= field_label(check.field) %></span>
+                <% if check.verdict == "pass_with_note" %>
+                  <span class="shrink-0 text-xs text-ink-faint">with note</span>
+                <% end %>
+              </summary>
+              <div class="px-5 pb-4 pt-0.5">
+                <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
+                  <div>
+                    <dt class="text-xs uppercase tracking-wide text-ink-faint">Application</dt>
+                    <dd class="mt-0.5 <%= check.expected.present? ? "" : "text-ink-faint" %>"><%= check.expected.presence || "Not stated" %></dd>
+                  </div>
+                  <div>
+                    <dt class="text-xs uppercase tracking-wide text-ink-faint">On the label</dt>
+                    <dd class="mt-0.5 <%= check.extracted.present? ? "" : "text-ink-faint" %>">
+                      <%= field_crop_tag(application, verification, check.field) %>
+                      <%= check.extracted.presence || "Not found" %>
+                    </dd>
+                  </div>
+                </dl>
+                <% if check.note.present? %>
+                  <p class="mt-2 text-ink-muted"><%= check.note %></p>
+                <% end %>
+                <% if check.citation.present? %>
+                  <p class="mt-1 text-sm text-ink-faint"><%= check.citation %></p>
+                <% end %>
+              </div>
+            </details>
+          <% end %>
+        </div>
+      </section>
+    <% end %>
+  </details>
+<% end %>

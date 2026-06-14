@@ -9,8 +9,20 @@
     <div class="h-full bg-ink rounded-full transition-all" style="width: <%= batch.progress_percent %>%"></div>
   </div>
 
+  <% attempt_counts = batch.attempt_state_counts %>
+  <% if attempt_counts.any? %>
+    <div class="flex flex-wrap gap-5 mt-4 text-ink-muted">
+      <span><span class="text-xl font-semibold"><%= attempt_counts["queued"] || 0 %></span> queued</span>
+      <span><span class="text-xl font-semibold"><%= attempt_counts["processing"] || 0 %></span> processing</span>
+      <span><span class="text-xl font-semibold text-pass"><%= attempt_counts.values_at("passed").compact.sum %></span> passed</span>
+      <span><span class="text-xl font-semibold text-warn"><%= attempt_counts["needs_review"] || 0 %></span> need review</span>
+      <span><span class="text-xl font-semibold text-fail"><%= attempt_counts["failed"] || 0 %></span> failed</span>
+      <span><span class="text-xl font-semibold text-fail"><%= attempt_counts["error"] || 0 %></span> errors</span>
+    </div>
+  <% end %>
+
   <% counts = batch.verdict_counts %>
-  <% if counts.any? %>
+  <% if counts.any? && attempt_counts.empty? %>
     <div class="flex flex-wrap gap-5 mt-4 text-ink-muted">
       <span><span class="text-xl font-semibold text-pass"><%= counts.values_at("pass", "pass_with_note").compact.sum %></span> passed</span>
       <span><span class="text-xl font-semibold text-warn"><%= counts["needs_review"] || 0 %></span> need review</span>

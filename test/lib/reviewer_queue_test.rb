@@ -19,12 +19,13 @@ class ReviewerQueueTest < ActiveSupport::TestCase
     ReviewerQueue::Entry.new(application: application, verification: application.latest_verification)
   end
 
-  def add_verification(application, verdict:, decision: nil)
+  def add_verification(application, verdict:, decision: nil, created_at: Time.current)
     application.verifications.create!(
       overall_verdict: verdict,
       field_checks: [],
       decision: decision,
-      decided_at: decision ? Time.current : nil
+      decided_at: decision ? Time.current : nil,
+      created_at: created_at
     )
   end
 
@@ -38,20 +39,30 @@ class ReviewerQueueTest < ActiveSupport::TestCase
 
     assert_equal "unchecked", ReviewerQueue.tab_for(entry_for(unchecked))
     assert_equal "unchecked", ReviewerQueue.tab_for(entry_for(errored))
-    assert_equal "failed", ReviewerQueue.tab_for(entry_for(failing))
-    assert_equal "needs_attention", ReviewerQueue.tab_for(entry_for(retake))
+    assert_equal "needs_attention", ReviewerQueue.tab_for(entry_for(failing))
+    assert_equal "failed", ReviewerQueue.tab_for(entry_for(retake))
     assert_equal "ready_to_approve", ReviewerQueue.tab_for(entry_for(passing))
     assert_equal "decided", ReviewerQueue.tab_for(entry_for(decided))
   end
 
-  test "sort puts worst verdicts first, then oldest" do
-    old_pass = create_application(serial: "S-1", created_at: 2.hours.ago).tap { |a| add_verification(a, verdict: "pass") }
-    new_fail = create_application(serial: "S-2", created_at: 1.minute.ago).tap { |a| add_verification(a, verdict: "fail") }
-    old_fail = create_application(serial: "S-3", created_at: 1.hour.ago).tap { |a| add_verification(a, verdict: "fail") }
-    review = create_application(serial: "S-4", created_at: 3.hours.ago).tap { |a| add_verification(a, verdict: "needs_review") }
+  test "default sort puts newest runs first" do
+    old_pass = create_application(serial: "S-1").tap { |a| add_verification(a, verdict: "pass", created_at: 3.hours.ago) }
+    new_fail = create_application(serial: "S-2").tap { |a| add_verification(a, verdict: "fail", created_at: 1.minute.ago) }
+    old_fail = create_application(serial: "S-3").tap { |a| add_verification(a, verdict: "fail", created_at: 1.hour.ago) }
+    review = create_application(serial: "S-4").tap { |a| add_verification(a, verdict: "needs_review", created_at: 2.hours.ago) }
 
     sorted = ReviewerQueue.sort([ old_pass, new_fail, old_fail, review ].map { |a| entry_for(a) })
-    assert_equal %w[S-3 S-2 S-4 S-1], sorted.map { |e| e.application.serial_number }
+    assert_equal %w[S-2 S-3 S-4 S-1], sorted.map { |e| e.application.serial_number }
+  end
+
+  test "sort can use a selected column and direction" do
+    zed = create_application(serial: "S-1", brand: "ZED").tap { |a| add_verification(a, verdict: "pass") }
+    alpha = create_application(serial: "S-2", brand: "ALPHA").tap { |a| add_verification(a, verdict: "fail") }
+
+    entries = [ zed, alpha ].map { |application| entry_for(application) }
+
+    assert_equal %w[S-2 S-1], ReviewerQueue.sort(entries, sort: "brand", direction: "asc").map { |e| e.application.serial_number }
+    assert_equal %w[S-1 S-2], ReviewerQueue.sort(entries, sort: "brand", direction: "desc").map { |e| e.application.serial_number }
   end
 
   test "search matches serial and brand, case-insensitively" do
@@ -62,6 +73,20 @@ class ReviewerQueueTest < ActiveSupport::TestCase
     entries = [ match_serial, match_brand, miss ].map { |a| entry_for(a) }
     assert_equal [ "26-ABC" ], ReviewerQueue.search(entries, "abc").map { |e| e.application.serial_number }
     assert_equal [ "26-2" ], ReviewerQueue.search(entries, "stone").map { |e| e.application.serial_number }
+  end
+
+  test "filter narrows by column values" do
+    match = create_application(serial: "26-MATCH", brand: "ALPHA")
+    add_verification(match, verdict: "pass")
+    other_brand = create_application(serial: "26-MISS", brand: "BETA")
+    add_verification(other_brand, verdict: "pass")
+    other_verdict = create_application(serial: "26-OTHER", brand: "ALPHA")
+    add_verification(other_verdict, verdict: "fail")
+
+    entries = [ match, other_brand, other_verdict ].map { |application| entry_for(application) }
+    filtered = ReviewerQueue.filter(entries, brand: "alpha", verdict: "pass")
+
+    assert_equal [ "26-MATCH" ], filtered.map { |e| e.application.serial_number }
   end
 
   test "reviewable covers every undecided label a human acts on, including failed" do

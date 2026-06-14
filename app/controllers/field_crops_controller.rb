@@ -15,8 +15,9 @@ class FieldCropsController < ApplicationController
     slot = verification&.extraction&.dig("fields", field)
     bbox = slot && slot["bbox"]
     return head :not_found unless bbox.is_a?(Array) && bbox.size == 4
-    # A model-estimated region is not evidence; cutting pixels from it
-    # manufactures misleading proof.
+
+    # Crops are evidence, so only OCR-anchored boxes can be cut directly
+    # from the artwork. VLM-estimated boxes remain review spotlight hints.
     return head :not_found unless slot["bbox_source"] == "ocr"
 
     page = slot["page"] || 1
@@ -36,7 +37,7 @@ class FieldCropsController < ApplicationController
     expires_in 10.minutes
     send_data Extraction::ImageVariants.crop(data, rect: rect, upscale_factor: 1.0),
               type: "image/png", disposition: "inline"
-  rescue Extraction::OcrError
+  rescue
     head :unprocessable_entity
   end
 end

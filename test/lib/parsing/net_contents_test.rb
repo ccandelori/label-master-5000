@@ -16,6 +16,12 @@ module Parsing
       assert_equal 750.0, NetContents.parse("75 cl").milliliters
     end
 
+    test "parses letter-spaced metric units from OCR" do
+      result = NetContents.parse("1L I T E R")
+      assert_equal 1000.0, result.milliliters
+      assert_predicate result, :metric?
+    end
+
     test "parses fluid ounces as US customary" do
       result = NetContents.parse("12 fl. oz.")
       assert_in_delta 354.88, result.milliliters, 0.01
@@ -26,6 +32,12 @@ module Parsing
       assert_in_delta 473.18, NetContents.parse("1 pint").milliliters, 0.01
       assert_in_delta 946.35, NetContents.parse("1 quart").milliliters, 0.01
       assert_in_delta 3785.41, NetContents.parse("1 gallon").milliliters, 0.01
+    end
+
+    test "parses OCR-missing decimal before a unit" do
+      result = NetContents.parse("15 5 GALLONS")
+      assert_in_delta 58673.89, result.milliliters, 0.1
+      assert_predicate result, :us_customary?
     end
 
     test "parses compound American statements" do

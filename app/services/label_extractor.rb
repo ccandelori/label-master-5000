@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-# The vision-extraction connector. Sends label artwork (only - never
-# application data) to the model and returns LabelFacts plus the raw
-# payload with bounding boxes. The one class in the system that talks to
-# the API; everything else is pure.
+# The vision-extraction connector. Sends label artwork plus scoped
+# application search targets to the model and returns LabelFacts plus the
+# raw payload with bounding boxes. The one class in the system that talks
+# to the API; everything else is pure.
 class LabelExtractor
   Result = Extraction::ExtractorResult
   Judgment = Data.define(:same_entity, :rationale)
@@ -35,12 +35,13 @@ class LabelExtractor
 
   # artworks: Array of Extraction::ArtworkSource, front label first; a
   # source's 1-based position is its page.
-  def extract(artworks:)
+  def extract(artworks:, application:)
     artworks.each { |artwork| enforce_page_cap!(artwork.data) if artwork.pdf? }
 
-    params = request_params(artworks)
+    params = request_params(artworks, application)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
     payload = with_retries("label_extraction") { parse_json(@client.complete(params)) }
+    payload = Extraction::RegulatoryEvidenceMapper.apply(payload)
     latency = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond) - started
 
     log_extraction(payload, latency)
@@ -71,7 +72,7 @@ class LabelExtractor
 
   private
 
-  def request_params(artworks)
+  def request_params(artworks, application)
     {
       model: @config.model,
       max_tokens: @config.max_tokens,
@@ -79,11 +80,14 @@ class LabelExtractor
       messages: [ {
         role: "user",
         content: artwork_blocks(artworks) +
-          [ { type: "text", text: "Extract the label contents as schema-conforming JSON." } ]
+          [ { type: "text", text: Extraction::FieldGrounding.prompt_text(application: application) } ]
       } ],
       output_config: {
         effort: (@config.effort if effort_capable?),
-        format: { type: "json_schema", schema: Extraction::Schema::RESPONSE_SCHEMA }
+        format: {
+          type: "json_schema",
+          schema: Extraction::RegulatoryEvidenceSchema.anthropic_response_schema(application: application)
+        }
       }.compact
     }
   end

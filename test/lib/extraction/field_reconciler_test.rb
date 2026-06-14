@@ -88,9 +88,9 @@ class FieldReconcilerTest < ActiveSupport::TestCase
     )
 
     statement = out["fields"]["name_address_statement"]
-    assert_equal "IMPORTED BY IL CONTE IMPORTS,", statement["text"]
+    assert_equal "IMPORTED BY IL CONTE IMPORTS, LOS ANGELES, CA", statement["text"]
     assert_equal "ocr", statement["bbox_source"]
-    assert_equal [ 20, 700, 400, 20 ], statement["bbox"]
+    assert_equal [ 20, 700, 400, 44 ], statement["bbox"]
   end
 
   test "falls back to a statement-shaped line when the printed name differs" do
@@ -112,16 +112,69 @@ class FieldReconcilerTest < ActiveSupport::TestCase
     assert_equal [ 20, 700, 400, 44 ], statement["bbox"], "continuation line is carried"
   end
 
-  test "a statement the model read is never second-guessed" do
-    existing = { "text" => "BOTTLED BY SOMEONE", "bbox" => [ 1, 2, 3, 4 ], "page" => 1 }
+  test "a model-read applicant statement is not second-guessed" do
+    existing = { "text" => "IMPORTED BY OTHER CO, TOWN, CA", "bbox" => [ 1, 2, 3, 4 ], "page" => 1 }
     input = { "fields" => { "name_address_statement" => existing } }
 
     out = Extraction::FieldReconciler.reconcile_name_address(
-      payload: input, pages: [ page([ word("IMPORTED BY OTHER CO", 1, 1, 9, 9) ]) ],
+      payload: input, pages: [ page([ word("IMPORTED BY DIFFERENT CO, TOWN, CA", 1, 1, 9, 9) ]) ],
       expected: "OTHER CO, TOWN, CA", threshold: 0.8
     )
 
     assert_equal existing, out["fields"]["name_address_statement"]
+  end
+
+  test "replaces a model-read statement when it does not name the applicant" do
+    existing = { "text" => "BOTTLED BY WEINGUT HIRT-GEBHARDT, ELTVILLE, RHEIN", "bbox" => [ 1, 2, 3, 4 ],
+                 "page" => 1 }
+    input = { "fields" => { "name_address_statement" => existing } }
+    lines = [
+      word("Imported by: Credo Properties LLC", 100, 50, 300, 24),
+      word("Mechanicsburg, PA", 100, 78, 170, 24),
+      word("Mia-Lou", 100, 106, 90, 24),
+      word("Bottled by: Weingut Hirt-Gebhardt", 100, 180, 320, 24)
+    ]
+
+    out = Extraction::FieldReconciler.reconcile_name_address(
+      payload: input, pages: [ page(lines) ],
+      expected: "CREDO PROPERTIES LLC 5220 ETON PL Mechanicsburg PA 17055",
+      threshold: 0.8
+    )
+
+    statement = out["fields"]["name_address_statement"]
+    assert_equal "Imported by: Credo Properties LLC Mechanicsburg, PA", statement["text"]
+    assert_equal [ 100, 50, 300, 52 ], statement["bbox"]
+  end
+
+  test "trims merged name address OCR text after the expected city and state" do
+    existing = { "text" => "BOTTLED BY WEINGUT HIRT-GEBHARDT, ELTVILLE, RHEIN", "bbox" => [ 1, 2, 3, 4 ],
+                 "page" => 1 }
+    input = { "fields" => { "name_address_statement" => existing } }
+    merged = word("Imported by: Credo Properties LLC Mechanicsburg, PA Mia-Lou", 100, 50, 520, 80)
+
+    out = Extraction::FieldReconciler.reconcile_name_address(
+      payload: input, pages: [ page([ merged ]) ],
+      expected: "CREDO PROPERTIES LLC 5220 ETON PL Mechanicsburg PA 17055",
+      threshold: 0.8
+    )
+
+    assert_equal "Imported by: Credo Properties LLC Mechanicsburg, PA", out["fields"]["name_address_statement"]["text"]
+  end
+
+  test "trims a cached applicant statement before returning it" do
+    existing = { "text" => "Imported by: Credo Properties LLC Mechanicsburg, PA Mia-Lou",
+                 "bbox" => [ 1, 2, 3, 4 ], "page" => 1 }
+    input = { "fields" => { "name_address_statement" => existing } }
+
+    out = Extraction::FieldReconciler.reconcile_name_address(
+      payload: input, pages: [],
+      expected: "CREDO PROPERTIES LLC 5220 ETON PL Mechanicsburg PA 17055",
+      threshold: 0.8
+    )
+
+    statement = out["fields"]["name_address_statement"]
+    assert_equal "Imported by: Credo Properties LLC Mechanicsburg, PA", statement["text"]
+    assert_equal [ 1, 2, 3, 4 ], statement["bbox"]
   end
 
   test "no name match and no statement-shaped line leaves the payload alone" do
@@ -149,6 +202,86 @@ class FieldReconcilerTest < ActiveSupport::TestCase
     assert_equal "JOSH CELLARS", brand["text"]
     assert_equal "ocr", brand["bbox_source"]
     assert_equal [ 100, 50, 400, 60 ], brand["bbox"], "carries its parent line's box"
+  end
+
+  test "reconcile fills missing varietals from declared application values found by OCR" do
+    app = LabelApplication.new(varietals: [ "Riesling" ])
+    input = { "fields" => {}, "varietals" => [] }
+    line = word("Roter Riesling feinherb", 100, 200, 300, 34)
+
+    out = Extraction::FieldReconciler.reconcile_varietals(
+      payload: input, pages: [ page([ line ]) ], application: app, threshold: THRESHOLD
+    )
+
+    assert_equal [ "RIESLING" ], out["varietals"].map { |field| field["text"] }
+    assert_equal [ 100, 200, 300, 34 ], out["varietals"].first["bbox"]
+  end
+
+  test "reconcile class type uses rules vocabulary aliases for declared wine classes" do
+    app = LabelApplication.new(beverage_type: "wine", declared_class_type: "TABLE WHITE WINE")
+    input = {
+      "fields" => {
+        "class_type_designation" => { "text" => "Roter Riesling feinherb", "bbox" => [ 1, 2, 3, 4 ], "page" => 1 }
+      }
+    }
+    line = word("White Wine", 100, 200, 130, 24)
+
+    out = Extraction::FieldReconciler.reconcile_class_type_designation(
+      payload: input, pages: [ page([ line ]) ], application: app, threshold: THRESHOLD
+    )
+
+    designation = out["fields"]["class_type_designation"]
+    assert_equal "White Wine", designation["text"]
+    assert_equal "Roter Riesling feinherb", designation["model_text"]
+    assert_equal "ocr", designation["bbox_source"]
+  end
+
+  test "reconcile split fanciful name when declared words are printed across nearby label lines" do
+    app = LabelApplication.new(fanciful_name: "MIA-LOU ROTER RIESLING")
+    input = {
+      "fields" => {
+        "fanciful_name" => { "text" => "MARTINSTHALER RODCHEN", "bbox" => [ 1, 2, 3, 4 ], "page" => 1 }
+      }
+    }
+    words = [
+      word("Mia-Lou", 30, 80, 140, 36),
+      word("Roter Riesling feinherb", 30, 150, 320, 34)
+    ]
+
+    out = Extraction::FieldReconciler.reconcile_split_fanciful_name(
+      payload: input, pages: [ page(words) ], application: app
+    )
+
+    fanciful = out["fields"]["fanciful_name"]
+    assert_equal "MIA-LOU ROTER RIESLING", fanciful["text"]
+    assert_equal "MARTINSTHALER RODCHEN", fanciful["model_text"]
+    assert_equal [ 30, 80, 320, 104 ], fanciful["bbox"]
+  end
+
+  test "reconcile distributed fanciful name fragments across nearby label text" do
+    app = LabelApplication.new(fanciful_name: "GREAT BLUE BLUEBERRY BOURBON WHISKEY COCKTAIL")
+    input = {
+      "fields" => {
+        "fanciful_name" => nil
+      }
+    }
+    words = [
+      word("CENTRAL WATERS BREWING AND DISTILLING", 300, 20, 360, 42),
+      word("Great Blue", 850, 395, 245, 58),
+      word("BLUEBERRY", 690, 670, 190, 32),
+      word("BOURBON WHISKEY COCKTAIL", 690, 704, 315, 34),
+      word("GOVERNMENT WARNING", 35, 570, 190, 22)
+    ]
+
+    out = Extraction::FieldReconciler.reconcile_split_fanciful_name(
+      payload: input, pages: [ page(words) ], application: app
+    )
+
+    fanciful = out["fields"]["fanciful_name"]
+    assert_not_nil fanciful
+    assert_equal "GREAT BLUE BLUEBERRY BOURBON WHISKEY COCKTAIL", fanciful["text"]
+    assert_equal [ 690, 395, 405, 343 ], fanciful["bbox"]
+    assert_equal "ocr", fanciful["bbox_source"]
   end
 
   test "reconcile_statement_field carries the full statement line for a contained value" do

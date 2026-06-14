@@ -13,12 +13,13 @@ module Parsing
     def normalize(text)
       return "" if text.nil?
 
-      text.unicode_normalize(:nfkd)
-          .gsub(/\p{Mn}/, "")
-          .downcase
-          .gsub(PUNCTUATION, " ")
-          .gsub(WHITESPACE, " ")
-          .strip
+      utf8_text(text)
+        .unicode_normalize(:nfkd)
+        .gsub(/\p{Mn}/, "")
+        .downcase
+        .gsub(PUNCTUATION, " ")
+        .gsub(WHITESPACE, " ")
+        .strip
     end
 
     # "STONE'S THROW" and "Stone's Throw" are equivalent; so are
@@ -35,6 +36,47 @@ module Parsing
     # pass_with_note case, distinct from an exact match.
     def equivalent_but_not_identical?(left, right)
       equivalent?(left, right) && left.to_s.strip != right.to_s.strip
+    end
+
+    def near_equivalent?(left, right)
+      left_tokens = normalize(left).split
+      right_tokens = normalize(right).split
+      return false if left_tokens.empty? || left_tokens.size != right_tokens.size
+
+      left_compact = left_tokens.join
+      right_compact = right_tokens.join
+      return false if left_compact.length < 6 || right_compact.length < 6
+
+      distance = levenshtein(left_compact, right_compact)
+      max_distance = [ 1, (left_compact.length * 0.12).ceil ].max
+      distance <= max_distance
+    end
+
+    def levenshtein(left, right)
+      previous = (0..right.length).to_a
+
+      left.each_char.with_index(1) do |left_char, left_index|
+        current = [ left_index ]
+        right.each_char.with_index(1) do |right_char, right_index|
+          cost = left_char == right_char ? 0 : 1
+          current << [
+            current[right_index - 1] + 1,
+            previous[right_index] + 1,
+            previous[right_index - 1] + cost
+          ].min
+        end
+        previous = current
+      end
+
+      previous[right.length]
+    end
+
+    def utf8_text(text)
+      string = text.to_s.dup
+      string.force_encoding(Encoding::UTF_8) if string.encoding == Encoding::ASCII_8BIT
+      return string if string.encoding == Encoding::UTF_8 && string.valid_encoding?
+
+      string.encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: " ")
     end
   end
 end

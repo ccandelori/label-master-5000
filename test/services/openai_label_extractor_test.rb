@@ -32,7 +32,7 @@ class OpenaiLabelExtractorTest < ActiveSupport::TestCase
   PDF
 
   def config
-    Config.new(model: "gpt-5.4", max_tokens: 4096, max_retries: 2, max_pdf_pages: 4, ocr_dpi: 72)
+    Config.new(model: "gpt-5.4-mini", max_tokens: 4096, max_retries: 2, max_pdf_pages: 4, ocr_dpi: 72)
   end
 
   def source(data, content_type)
@@ -55,10 +55,10 @@ class OpenaiLabelExtractorTest < ActiveSupport::TestCase
   test "image extraction sends a data-url image block, the shared prompt, and the strict schema" do
     client = StubClient.new(responses: [ payload_json ])
     extractor = OpenaiLabelExtractor.new(client: client, config: config)
-    result = extractor.extract(artworks: [ source("fake-png-bytes", "image/png") ])
+    result = extractor.extract(artworks: [ source("fake-png-bytes", "image/png") ], application: nil)
 
     params = client.calls.first
-    assert_equal "gpt-5.4", params[:model]
+    assert_equal "gpt-5.4-mini", params[:model]
     assert_equal Extraction::Schema::PROMPT, params[:messages].first[:content]
 
     image = params[:messages].last[:content].first
@@ -69,8 +69,33 @@ class OpenaiLabelExtractorTest < ActiveSupport::TestCase
     assert schema[:strict]
     assert_equal Extraction::Schema::RESPONSE_SCHEMA, schema[:schema]
 
-    assert_equal "gpt-5.4", result.model_id
+    assert_equal "gpt-5.4-mini", result.model_id
     assert result.raw["legible"]
+  end
+
+  test "grounded extraction sends application search targets in the user message" do
+    client = StubClient.new(responses: [ payload_json ])
+    extractor = OpenaiLabelExtractor.new(client: client, config: config)
+    application = LabelApplication.new(
+      serial_number: "26-1042",
+      brand_name: "MIA-LOU",
+      alcohol_content: 13.5,
+      net_contents: "750 mL",
+      applicant_name_address: "Credo Properties LLC, Mechanicsburg, PA"
+    )
+
+    extractor.extract(artworks: [ source("fake-png-bytes", "image/png") ], application: application)
+
+    prompt = client.calls.first[:messages].last[:content].last[:text]
+    assert_match(/application_search_targets/, prompt)
+    assert_match(/MIA-LOU/, prompt)
+    assert_match(/13\.5% ALC\/VOL/, prompt)
+    assert_match(/regulatory_evidence_fields/, prompt)
+    assert_match(/proof-only/, prompt)
+    assert_no_match(/26-1042/, prompt)
+    schema = client.calls.first.dig(:response_format, :json_schema, :schema)
+    assert_includes schema["required"], "regulatory_evidence"
+    assert_includes schema.dig("properties", "regulatory_evidence", "required"), "alcohol_statement"
   end
 
   test "PDF extraction rasterizes pages into labeled image blocks" do
@@ -78,7 +103,7 @@ class OpenaiLabelExtractorTest < ActiveSupport::TestCase
 
     client = StubClient.new(responses: [ payload_json ])
     extractor = OpenaiLabelExtractor.new(client: client, config: config)
-    extractor.extract(artworks: [ source(MINIMAL_PDF, "application/pdf") ])
+    extractor.extract(artworks: [ source(MINIMAL_PDF, "application/pdf") ], application: nil)
 
     content = client.calls.first[:messages].last[:content]
     assert_equal({ type: :text, text: "PDF page 1:" }, content.first)
@@ -92,7 +117,7 @@ class OpenaiLabelExtractorTest < ActiveSupport::TestCase
     five_pages = "%PDF-1.4 " + ("/Type /Page >> " * 5)
 
     assert_raises(Extraction::PageLimitExceeded) do
-      extractor.extract(artworks: [ source(five_pages, "application/pdf") ])
+      extractor.extract(artworks: [ source(five_pages, "application/pdf") ], application: nil)
     end
     assert_empty client.calls
   end
@@ -104,7 +129,7 @@ class OpenaiLabelExtractorTest < ActiveSupport::TestCase
     ])
     extractor = OpenaiLabelExtractor.new(client: client, config: config)
 
-    result = extractor.extract(artworks: [ source("bytes", "image/png") ])
+    result = extractor.extract(artworks: [ source("bytes", "image/png") ], application: nil)
     assert_equal 2, client.calls.size
     assert result.raw["legible"]
   end
@@ -114,7 +139,7 @@ class OpenaiLabelExtractorTest < ActiveSupport::TestCase
     extractor = OpenaiLabelExtractor.new(client: client, config: config)
 
     assert_raises(Extraction::ResponseParseError) do
-      extractor.extract(artworks: [ source("bytes", "image/png") ])
+      extractor.extract(artworks: [ source("bytes", "image/png") ], application: nil)
     end
     assert_equal 3, client.calls.size, "initial attempt plus max_retries"
   end

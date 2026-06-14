@@ -29,6 +29,8 @@ module Extraction
         commodity_statement: text_of(fields["commodity_statement"]),
         model_texts: model_texts_of(fields),
         field_pages: field_pages_of(fields),
+        field_confidences: field_confidences_of(fields),
+        field_sources: field_sources_of(fields),
         legible: payload.fetch("legible", true),
         confidence: payload["confidence"]
       )
@@ -37,7 +39,7 @@ module Extraction
     # Reconciled fields whose model reading survives an OCR replacement;
     # vintage is absent because vintage_year falls back to it directly.
     MODEL_TEXT_FIELDS = %w[
-      brand_name fanciful_name class_type_designation net_contents appellation
+      brand_name fanciful_name class_type_designation net_contents government_warning appellation
     ].freeze
 
     def model_texts_of(fields)
@@ -59,6 +61,25 @@ module Extraction
 
         page = field["page"]
         pages[key] = page if page.is_a?(Integer) && page.positive?
+      end
+    end
+
+    def field_confidences_of(fields)
+      fields.each_with_object({}) do |(key, field), confidences|
+        next unless field.is_a?(Hash)
+
+        confidence = field["confidence"]
+        confidences[key] = confidence if confidence.is_a?(Numeric)
+      end
+    end
+
+    def field_sources_of(fields)
+      fields.each_with_object({}) do |(key, field), sources|
+        next unless field.is_a?(Hash)
+
+        source = field["source"].to_s.strip
+        source = field["bbox_source"].to_s.strip if source.empty?
+        sources[key] = source unless source.empty?
       end
     end
 

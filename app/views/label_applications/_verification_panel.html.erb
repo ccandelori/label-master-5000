@@ -1,171 +1,122 @@
-<% if verification.nil? %>
-  <section class="bg-raised rounded-xl border border-line p-6 flex items-center gap-3" aria-live="polite">
-    <span class="inline-block h-3 w-3 rounded-full bg-warn animate-pulse" aria-hidden="true"></span>
-    <p class="text-lg">Checking this label now — results will appear here in a few seconds.</p>
-  </section>
+<% attempt ||= application.latest_verification_attempt %>
 
-<% elsif verification.error? %>
-  <section class="bg-raised rounded-xl border border-fail/50 p-6">
-    <div class="flex items-center gap-3 mb-2">
-      <%= verdict_chip("error") %>
-      <p class="text-lg font-medium">The analysis service could not process this label.</p>
-    </div>
-    <p class="text-ink-muted mb-4"><%= verification.error_message %></p>
-    <%= button_to "Try again", label_application_path(verification.label_application), method: :patch,
-          params: { label_application: { serial_number: verification.label_application.serial_number } },
-          class: "rounded-lg bg-ink text-surface px-5 py-2 font-medium hover:opacity-90 cursor-pointer" %>
-  </section>
-
-<% elsif verification.request_retake? %>
-  <section class="bg-raised rounded-xl border border-warn/50 p-6">
-    <div class="flex items-center gap-3 mb-2">
-      <%= verdict_chip("request_retake") %>
-      <p class="text-lg font-medium">The artwork could not be read reliably.</p>
-    </div>
-    <p class="text-ink-muted">
-      Glare, blur, low resolution, or an extreme angle prevented a trustworthy
-      reading. No field verdicts were issued — request a better image rather
-      than judging from a bad read.
-    </p>
-    <div class="mt-4">
-      <%= render(application.submitted? ? "label_applications/decision_form" : "label_applications/pre_review_actions",
-            application: application, verification: verification) %>
-    </div>
-  </section>
-
-<% else %>
-  <section class="space-y-6">
-    <% summary = verification.field_checks.group_by(&:verdict) %>
-    <% problems = (summary["fail"] || []).size %>
-    <% reviews = (summary["needs_review"] || []).size %>
-
-    <div class="rounded-xl border p-5 flex items-start gap-3 bg-raised
-                <%= verification.fail? ? "border-fail/50" : verification.needs_review? ? "border-warn/50" : "border-pass/50" %>">
-      <%= verdict_chip(verification.overall_verdict) %>
-      <div class="flex-1">
-        <p class="text-lg font-medium">
-          <% if verification.fail? %>
-            Problems found: <%= pluralize(problems, "failed check") %><%= ", #{reviews} need your review" if reviews.positive? %>.
-          <% elsif verification.needs_review? %>
-            <%= pluralize(reviews, "check") %> need<%= "s" if reviews == 1 %> your judgment.
-          <% else %>
-            All checks passed<%= " (with notes)" if verification.pass_with_note? %>.
-          <% end %>
-        </p>
-        <p class="text-ink-muted">
-          <%= application.submitted? ? "The tool recommends — you decide." : "A pre-check, not a TTB decision." %>
-        </p>
+<div id="verification_panel">
+  <% if attempt&.in_progress? %>
+    <section class="bg-raised rounded-lg border border-warn/50 p-6" aria-live="polite">
+      <div class="flex items-center gap-3">
+        <span class="inline-block h-3 w-3 rounded-full bg-warn animate-pulse" aria-hidden="true"></span>
+        <div>
+          <p class="text-lg font-medium">Running validation.</p>
+          <p class="text-ink-muted">
+            <%= attempt.processing? ? "The verifier is processing this label." : "This label is queued for verification." %>
+            Findings will update automatically when the run finishes.
+          </p>
+        </div>
       </div>
-      <span class="text-ink-faint whitespace-nowrap">
-        <%= "#{demo_model_label(verification.model_id)} · " if verification.model_id.present? %><%= verification.extraction_reused? ? "reading reused · " : "" %>checked in <%= ((verification.latency_ms || 0) / 1000.0).round(1) %>s
-      </span>
-    </div>
+    </section>
 
-    <div class="grid grid-cols-1 lg:grid-cols-5 gap-6"
-         data-controller="bbox-overlay"
-         data-bbox-overlay-boxes-value="<%= bbox_data(verification).to_json %>">
-      <div class="lg:col-span-2">
-        <div class="lg:sticky lg:top-6">
-          <%= render "label_applications/artwork_panel", application: application, verification: verification %>
+  <% elsif verification.nil? %>
+    <section class="bg-raised rounded-lg border border-line p-6 flex items-center gap-3" aria-live="polite">
+      <span class="inline-block h-3 w-3 rounded-full bg-warn animate-pulse" aria-hidden="true"></span>
+      <p class="text-lg">Running validation. Findings will appear here in a few seconds.</p>
+    </section>
+
+  <% elsif verification.error? %>
+    <section class="bg-raised rounded-lg border border-fail/50 p-6">
+      <div class="flex items-center gap-3 mb-2">
+        <%= verdict_chip("error") %>
+        <p class="text-lg font-medium">The analysis service could not process this label.</p>
+      </div>
+      <p class="text-ink-muted mb-4"><%= verification.error_message %></p>
+      <%= button_to "Try again", label_application_path(verification.label_application), method: :patch,
+            params: { label_application: { serial_number: verification.label_application.serial_number } },
+            class: "rounded-lg bg-ink text-surface px-5 py-2 font-medium hover:opacity-90 cursor-pointer" %>
+    </section>
+
+  <% elsif verification.request_retake? %>
+    <section class="bg-raised rounded-lg border border-warn/50 p-6">
+      <div class="flex items-center gap-3 mb-2">
+        <%= verdict_chip("request_retake") %>
+        <p class="text-lg font-medium">The artwork could not be read reliably.</p>
+      </div>
+      <p class="text-ink-muted">
+        Glare, blur, low resolution, or an extreme angle prevented a trustworthy
+        reading. No field verdicts were issued. Ask for a better image rather
+        than deciding from a bad read.
+      </p>
+      <% if application.reviewer_visible? || application.pre_review? %>
+        <div class="mt-4">
+          <%= render(application.reviewer_visible? ? "label_applications/decision_form" : "label_applications/pre_review_actions",
+                application: application, verification: verification) %>
+        </div>
+      <% end %>
+    </section>
+
+  <% else %>
+    <section class="space-y-5" data-controller="inspector-dialog">
+      <% summary = verification.field_checks.group_by(&:verdict) %>
+      <% problems = (summary["fail"] || []).size %>
+      <% reviews = (summary["needs_review"] || []).size %>
+
+      <div class="rounded-lg border bg-raised p-5 flex items-start gap-4
+                  <%= verification.fail? ? "border-fail/50" : verification.needs_review? ? "border-warn/50" : "border-pass/50" %>">
+        <%= verdict_chip(verification.overall_verdict) %>
+        <div class="min-w-0 flex-1">
+          <p class="text-lg font-medium">
+            <% if verification.fail? %>
+              Problems found: <%= pluralize(problems, "failed check") %><%= ", #{reviews} need your review" if reviews.positive? %>.
+            <% elsif verification.needs_review? %>
+              <%= pluralize(reviews, "check") %> need<%= "s" if reviews == 1 %> your judgment.
+            <% else %>
+              All checks passed<%= " with notes" if verification.pass_with_note? %>.
+            <% end %>
+          </p>
+          <p class="mt-1 text-sm text-ink-muted">
+            <% if application.reviewer_visible? %>
+              Check the evidence, then record the decision.
+            <% elsif application.pre_review? %>
+              Validation result, fix or file from here.
+            <% else %>
+              Diagnostic record; hidden from history.
+            <% end %>
+          </p>
+        </div>
+        <div class="hidden sm:block text-right text-sm text-ink-faint whitespace-nowrap">
+          <p>
+            <%= "#{demo_model_label(verification.model_id)} · " if verification.model_id.present? %><%= verification.extraction_reused? ? "reading reused · " : "" %>checked in <%= ((verification.latency_ms || 0) / 1000.0).round(1) %>s
+          </p>
+          <% verification_timing_lines(verification, attempt).each do |line| %>
+            <p class="mt-0.5"><%= line %></p>
+          <% end %>
         </div>
       </div>
 
-      <%# Checks grouped by severity: flagged groups read open at full
-          width (statutory texts need room to compare); passing and
-          skipped checks fold into disclosure rows. %>
-      <div class="lg:col-span-3 bg-raised rounded-xl border border-line overflow-hidden">
-        <% sorted = verification.field_checks.sort_by { |c| -c.severity } %>
-        <% groups = [
-             [ "Failed",       "fail",         sorted.select { |c| c.verdict == "fail" } ],
-             [ "Needs review", "needs_review", sorted.select { |c| c.verdict == "needs_review" } ],
-             [ "Passed",       "pass",         sorted.select { |c| %w[pass pass_with_note].include?(c.verdict) } ],
-             [ "Not checked",  nil,            sorted.select { |c| %w[not_required not_applicable].include?(c.verdict) } ]
-           ] %>
-        <% group_color = { "fail" => "text-fail", "needs_review" => "text-warn", "pass" => "text-pass" } %>
+      <div class="grid grid-cols-1 xl:grid-cols-[minmax(360px,0.9fr)_minmax(440px,1.1fr)] gap-5">
+        <div class="xl:sticky xl:top-5 self-start">
+          <%= render "label_applications/artwork_panel",
+                application: application,
+                verification: verification,
+                inspectable: true %>
+        </div>
 
-        <% groups.each do |title, verdict_key, checks| %>
-          <% next if checks.empty? %>
-          <section aria-label="<%= title %> checks">
-            <h3 class="flex items-baseline gap-2 px-5 pt-4 pb-1.5 text-xs font-semibold uppercase tracking-wider <%= group_color[verdict_key] || "text-ink-faint" %>">
-              <%= title %>
-              <span class="text-ink-faint font-normal normal-case tracking-normal"><%= checks.size %></span>
-            </h3>
-
-            <% if %w[fail needs_review].include?(verdict_key) %>
-              <div class="divide-y divide-line/60">
-                <% checks.each do |check| %>
-                  <article class="px-5 py-4" data-field="<%= check.field %>"
-                           data-action="mouseenter->bbox-overlay#highlight mouseleave->bbox-overlay#unhighlight">
-                    <h4 class="font-medium"><%= field_label(check.field) %></h4>
-                    <dl class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 max-w-prose sm:max-w-none">
-                      <div>
-                        <dt class="text-xs uppercase tracking-wide text-ink-faint">Application</dt>
-                        <dd class="mt-0.5 <%= check.expected.present? ? "" : "text-ink-faint" %>"><%= check.expected.presence || "—" %></dd>
-                      </div>
-                      <div>
-                        <dt class="text-xs uppercase tracking-wide text-ink-faint">On the label</dt>
-                        <dd class="mt-0.5 <%= check.extracted.present? ? "" : "text-ink-faint" %>">
-                          <%= field_crop_tag(application, verification, check.field) %>
-                          <%= check.extracted.presence || "—" %>
-                        </dd>
-                      </div>
-                    </dl>
-                    <% if check.note.present? %>
-                      <p class="mt-2 <%= check.verdict == "fail" ? "text-fail" : "text-ink-muted" %>"><%= check.note %></p>
-                    <% end %>
-                    <% if check.citation.present? %>
-                      <p class="mt-1 text-sm text-ink-faint"><%= check.citation %></p>
-                    <% end %>
-                  </article>
-                <% end %>
-              </div>
-            <% else %>
-              <div class="divide-y divide-line/60">
-                <% checks.each do |check| %>
-                  <details class="group" data-field="<%= check.field %>"
-                           data-action="mouseenter->bbox-overlay#highlight mouseleave->bbox-overlay#unhighlight">
-                    <summary class="flex items-center gap-2.5 px-5 py-2.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden hover:bg-panel transition duration-150">
-                      <span class="shrink-0 size-2 rounded-full <%= verdict_key == "pass" ? "bg-pass" : "bg-line-strong" %>" aria-hidden="true"></span>
-                      <span class="flex-1 min-w-0 truncate font-medium text-sm"><%= field_label(check.field) %></span>
-                      <% if check.verdict == "pass_with_note" %>
-                        <span class="shrink-0 text-xs text-ink-faint">with note</span>
-                      <% end %>
-                      <svg class="shrink-0 size-3.5 text-ink-faint transition-transform duration-150 group-open:rotate-90" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                        <path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                      </svg>
-                    </summary>
-                    <div class="px-5 pb-4 pt-0.5">
-                      <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
-                        <div>
-                          <dt class="text-xs uppercase tracking-wide text-ink-faint">Application</dt>
-                          <dd class="mt-0.5 <%= check.expected.present? ? "" : "text-ink-faint" %>"><%= check.expected.presence || "—" %></dd>
-                        </div>
-                        <div>
-                          <dt class="text-xs uppercase tracking-wide text-ink-faint">On the label</dt>
-                          <dd class="mt-0.5 <%= check.extracted.present? ? "" : "text-ink-faint" %>">
-                            <%= field_crop_tag(application, verification, check.field) %>
-                            <%= check.extracted.presence || "—" %>
-                          </dd>
-                        </div>
-                      </dl>
-                      <% if check.note.present? %>
-                        <p class="mt-2 text-ink-muted"><%= check.note %></p>
-                      <% end %>
-                      <% if check.citation.present? %>
-                        <p class="mt-1 text-sm text-ink-faint"><%= check.citation %></p>
-                      <% end %>
-                    </div>
-                  </details>
-                <% end %>
-              </div>
-            <% end %>
-          </section>
-        <% end %>
-        <div class="pb-2"></div>
+        <div class="bg-raised rounded-lg border border-line overflow-hidden">
+          <div class="flex items-center justify-between gap-3 border-b border-line px-5 py-3">
+            <div>
+              <h2 class="font-semibold">Findings</h2>
+              <p class="text-sm text-ink-faint">Application values compared against the label read.</p>
+            </div>
+          </div>
+          <%= render "label_applications/findings_groups", application: application, verification: verification %>
+          <div class="pb-2"></div>
+        </div>
       </div>
-    </div>
 
-    <%= render(application.submitted? ? "label_applications/decision_form" : "label_applications/pre_review_actions",
-          application: application, verification: verification) %>
-  </section>
-<% end %>
+      <% if application.reviewer_visible? || application.pre_review? %>
+        <%= render(application.reviewer_visible? ? "label_applications/decision_form" : "label_applications/pre_review_actions",
+              application: application, verification: verification) %>
+      <% end %>
+
+      <%= render "label_applications/inspector_dialog", application: application, verification: verification %>
+    </section>
+  <% end %>
+</div>

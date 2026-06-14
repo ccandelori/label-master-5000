@@ -4,8 +4,8 @@ class DecisionsController < ApplicationController
   before_action :set_application
 
   def create
-    if @application.pre_review?
-      return respond_with_failure("Decisions are recorded on submitted applications only - this one is still in pre-check.")
+    unless @application.reviewer_visible?
+      return respond_with_failure("Decisions are recorded on production-review applications only.")
     end
 
     verification = @application.verifications.find(params.expect(decision: [ :verification_id ])[:verification_id])

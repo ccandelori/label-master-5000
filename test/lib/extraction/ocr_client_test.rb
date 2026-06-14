@@ -23,6 +23,7 @@ class OcrClientTest < ActiveSupport::TestCase
 
     first = page.words.first
     assert_equal [ 100, 80, 60, 40 ], [ first.x, first.y, first.width, first.height ]
+    assert_in_delta 96.5, first.confidence
   end
 
   test "parse_tsv raises when no page dimensions are present" do
@@ -32,7 +33,9 @@ class OcrClientTest < ActiveSupport::TestCase
   end
 
   test "read raises OcrError when the binary is missing" do
-    client = Extraction::OcrClient.new(tesseract: "definitely-not-tesseract", pdftoppm: "missing", dpi: 200)
+    client = Extraction::OcrClient.new(
+      tesseract: "definitely-not-tesseract", pdftoppm: "missing", dpi: 200, timeout_seconds: 1
+    )
 
     error = assert_raises(Extraction::OcrError) do
       client.read(data: "bytes", content_type: "image/png")
@@ -40,10 +43,21 @@ class OcrClientTest < ActiveSupport::TestCase
     assert_match(/not installed/, error.message)
   end
 
+  test "run raises OcrError when the OCR command times out" do
+    client = Extraction::OcrClient.new(
+      tesseract: RbConfig.ruby, pdftoppm: "missing", dpi: 200, timeout_seconds: 0.01
+    )
+
+    error = assert_raises(Extraction::OcrError) do
+      client.send(:run!, RbConfig.ruby, "-e", "sleep 1")
+    end
+    assert_match(/timed out/, error.message)
+  end
+
   test "read returns word boxes for a real label image" do
     skip "tesseract binary not available" unless system("which tesseract > /dev/null 2>&1")
 
-    client = Extraction::OcrClient.new(tesseract: "tesseract", pdftoppm: "pdftoppm", dpi: 200)
+    client = Extraction::OcrClient.new(tesseract: "tesseract", pdftoppm: "pdftoppm", dpi: 200, timeout_seconds: 10)
     data = File.binread(Rails.root.join("test/fixtures/files/ocr_label.png"))
     pages = client.read(data: data, content_type: "image/png")
 

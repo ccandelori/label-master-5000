@@ -25,6 +25,8 @@ class MutatorTest < ActiveSupport::TestCase
 
     brand = created.find { |c| c.serial_number.end_with?("-MUT-BRAND") }
     assert_equal "OLD TOM RESERVE", brand.brand_name
+    assert_predicate brand, :mutation?
+    assert_predicate brand.batch, :mutation?
     assert_equal source.artwork.blob.checksum, brand.artwork.blob.checksum, "artwork blob is shared, not copied"
     assert_equal source.artwork.blob.id, brand.artwork.blob.id
     assert_equal source.back_artwork.blob.id, brand.back_artwork.blob.id

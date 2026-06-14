@@ -10,6 +10,17 @@ namespace :eval do
     )
   end
 
+  desc "Repair clearly swapped front/back artwork slots: bin/rails 'eval:repair_artwork_roles[false]' to persist"
+  task :repair_artwork_roles, [ :dry_run ] => :environment do |_t, args|
+    dry_run = args[:dry_run].to_s != "false"
+    repaired = EvalCorpus::ArtworkRoleRepairer.new(
+      scope: LabelApplication.all,
+      io: $stdout,
+      dry_run: dry_run
+    ).repair
+    puts dry_run ? "dry run complete" : "repaired #{repaired} record(s)"
+  end
+
   desc "Create known-bad mutated clones of one application: bin/rails 'eval:mutate[SERIAL]'"
   task :mutate, [ :serial ] => :environment do |_t, args|
     source = LabelApplication.find_by(serial_number: args[:serial])
@@ -33,7 +44,7 @@ namespace :eval do
     batch = Batch.find_by(id: args[:batch_id])
     abort "no batch ##{args[:batch_id]}" if batch.nil?
 
-    model_id = VerifyLabelJob.extractor_factory.call(nil, nil).model_id
+    model_id = VerifyLabelJob.default_model_id
     limit = args[:limit].presence&.to_i
     parents = EvalCorpus::Scorer.stratified_sample(batch.label_applications.to_a, limit)
     mutants_by_parent = EvalCorpus::Scorer.mutants_for(parents).group_by do |m|

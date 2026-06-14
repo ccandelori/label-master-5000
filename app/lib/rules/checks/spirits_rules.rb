@@ -7,14 +7,16 @@ module Rules
     module SpiritsRules
       module_function
 
-      def checks(_application, facts, rules)
+      def checks(application, facts, rules)
         result = []
-        result << commodity_statement(facts, rules)
+        result << commodity_statement(application, facts, rules)
         result << cocktail_declaration(facts, rules)
         result.compact
       end
 
-      def commodity_statement(facts, rules)
+      def commodity_statement(application, facts, rules)
+        return nil if Designation.specialty_declared_class?(application)
+
         designation = Designation.fold_whisky(Parsing::TextNormalizer.normalize(facts.class_type_designation))
         return nil if designation.empty?
 

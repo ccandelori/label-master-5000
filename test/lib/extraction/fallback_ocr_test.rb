@@ -41,6 +41,36 @@ class FallbackOcrTest < ActiveSupport::TestCase
     assert_equal 1, fallback.calls
   end
 
+  test "does not fall back when the primary reports backpressure" do
+    error = Extraction::OcrBackpressureError.new("ocr sidecar busy", retry_after_seconds: 0)
+    primary = StubEngine.new(error: error)
+    fallback = StubEngine.new(result: PAGES)
+    ocr = Extraction::FallbackOcr.new(primary: primary, fallback: fallback)
+
+    assert_raises(Extraction::OcrBackpressureError) do
+      ocr.read(data: "bytes", content_type: "image/png")
+    end
+    assert_equal 1, primary.calls
+    assert_equal 0, fallback.calls
+  end
+
+  test "emits a notification when primary OCR degrades to fallback" do
+    primary = StubEngine.new(error: Extraction::OcrError.new("sidecar unreachable"))
+    fallback = StubEngine.new(result: PAGES)
+    ocr = Extraction::FallbackOcr.new(primary: primary, fallback: fallback)
+    events = []
+    subscriber = lambda do |name, _started, _finished, _id, payload|
+      events << payload.merge(event: name)
+    end
+
+    ActiveSupport::Notifications.subscribed(subscriber, "verification.ocr_engine.label_verifier") do
+      ocr.read(data: "bytes", content_type: "image/png")
+    end
+
+    assert_equal [ "fallback" ], events.map { |event| event[:engine] }
+    assert_equal [ "sidecar unreachable" ], events.map { |event| event[:error] }
+  end
+
   test "a fallback failure propagates as OcrError" do
     primary = StubEngine.new(error: Extraction::OcrError.new("sidecar unreachable"))
     fallback = StubEngine.new(error: Extraction::OcrError.new("tesseract is not installed"))

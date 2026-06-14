@@ -28,12 +28,13 @@ class OpenaiLabelExtractor
 
   # artworks: Array of Extraction::ArtworkSource, front label first; a
   # source's 1-based position is its page.
-  def extract(artworks:)
+  def extract(artworks:, application:)
     artworks.each { |artwork| enforce_page_cap!(artwork.data) if artwork.pdf? }
 
-    params = request_params(artworks)
+    params = request_params(artworks, application)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
     payload = with_retries("label_extraction") { Extraction::ModelResponse.parse_json(@client.complete(params)) }
+    payload = Extraction::RegulatoryEvidenceMapper.apply(payload)
     latency = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond) - started
 
     log_extraction(payload, latency)
@@ -47,28 +48,28 @@ class OpenaiLabelExtractor
 
   private
 
-  def request_params(artworks)
+  def request_params(artworks, application)
     {
       model: @config.model,
       max_completion_tokens: @config.max_tokens,
       messages: [
         { role: "system", content: Extraction::Schema::PROMPT },
-        { role: "user", content: user_content(artworks) }
+        { role: "user", content: user_content(artworks, application) }
       ],
       response_format: {
         type: :json_schema,
         json_schema: {
           name: "label_extraction",
           strict: true,
-          schema: Extraction::Schema::RESPONSE_SCHEMA
+          schema: Extraction::RegulatoryEvidenceSchema.response_schema(application: application)
         }
       }
     }
   end
 
-  def user_content(artworks)
+  def user_content(artworks, application)
     artwork_blocks(artworks) +
-      [ { type: :text, text: "Extract the label contents as schema-conforming JSON." } ]
+      [ { type: :text, text: Extraction::FieldGrounding.prompt_text(application: application) } ]
   end
 
   # A lone image goes unlabeled (the single-image request is unchanged);

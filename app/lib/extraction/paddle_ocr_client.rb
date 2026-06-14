@@ -13,6 +13,25 @@ module Extraction
   class PaddleOcrClient
     PDF_CONTENT_TYPE = "application/pdf"
 
+    class << self
+      def with_read_slot
+        token = read_slots.pop
+        yield
+      ensure
+        read_slots << token if token
+      end
+
+      private
+
+      def read_slots
+        @read_slots ||= begin
+          slots = Queue.new
+          Integer(ENV.fetch("OCR_CONCURRENCY", "1")).times { slots << true }
+          slots
+        end
+      end
+    end
+
     def initialize(base_url:, pdftoppm:, dpi:, timeout_seconds:, attempts:, backoff_seconds:)
       @base_url = URI(base_url)
       @pdftoppm = pdftoppm
@@ -54,10 +73,11 @@ module Extraction
         text = word["text"].to_s.strip
         next if text.empty?
 
-        OcrClient::Word.new(
+        OcrClient.build_word(
           text: text,
           x: Integer(word["x"]), y: Integer(word["y"]),
-          width: Integer(word["width"]), height: Integer(word["height"])
+          width: Integer(word["width"]), height: Integer(word["height"]),
+          confidence: Float(word["confidence"], exception: false)
         )
       end
 
@@ -70,27 +90,38 @@ module Extraction
     # memory growth; a read landing in the reload window is refused, so
     # connection failures retry with a warning before the last error
     # propagates (and the engine-level fallback takes over). Only
-    # connection failures: retrying a timed-out inference would re-submit
-    # the same expensive work to a worker that is already struggling.
+    # connection failures and explicit busy responses: retrying a timed-out
+    # inference would re-submit the same expensive work to a worker that is
+    # already struggling.
     def read_image(data, page_number)
       attempt = 0
       begin
         attempt += 1
         attempt_read(data, page_number)
-      rescue OcrConnectionError => e
+      rescue OcrConnectionError, OcrBackpressureError => e
         raise e if attempt >= @attempts
 
+        backoff_seconds = retry_delay(error: e, attempt: attempt)
+        instrument_retry(error: e, attempt: attempt, backoff_seconds: backoff_seconds)
         Rails.logger.warn(JSON.generate({
           event: "paddle_read_retry", attempt: attempt, of: @attempts,
-          backoff_seconds: @backoff_seconds * attempt, error: e.message.to_s.first(160)
+          backoff_seconds: backoff_seconds, error_class: e.class.name,
+          error: e.message.to_s.first(160)
         }))
-        sleep(@backoff_seconds * attempt)
+        sleep(backoff_seconds)
         retry
       end
     end
 
     def attempt_read(data, page_number)
-      response = post_read(data)
+      response = self.class.with_read_slot { post_read(data) }
+      if response.code.to_i == 429
+        raise OcrBackpressureError.new(
+          "ocr sidecar busy at #{@base_url}: #{response.body.to_s.first(200)}",
+          retry_after_seconds: retry_after_seconds(response)
+        )
+      end
+
       unless response.is_a?(Net::HTTPSuccess)
         raise OcrError, "ocr sidecar responded #{response.code}: #{response.body.to_s.first(200)}"
       end
@@ -111,6 +142,32 @@ module Extraction
       raise OcrConnectionError, "ocr sidecar unreachable at #{@base_url}: #{e.class.name}: #{e.message.to_s.first(120)}"
     rescue SystemCallError, IOError, Timeout::Error => e
       raise OcrError, "ocr sidecar read failed at #{@base_url}: #{e.class.name}: #{e.message.to_s.first(120)}"
+    end
+
+    def retry_delay(error:, attempt:)
+      if error.is_a?(OcrBackpressureError) && !error.retry_after_seconds.nil?
+        return error.retry_after_seconds
+      end
+
+      @backoff_seconds * attempt
+    end
+
+    def retry_after_seconds(response)
+      seconds = Float(response["Retry-After"].to_s, exception: false)
+      return nil if seconds.nil? || seconds.negative?
+
+      seconds
+    end
+
+    def instrument_retry(error:, attempt:, backoff_seconds:)
+      ActiveSupport::Notifications.instrument(
+        "verification.ocr_backpressure.label_verifier",
+        error_class: error.class.name,
+        attempt: attempt,
+        of: @attempts,
+        backoff_seconds: backoff_seconds,
+        busy: error.is_a?(OcrBackpressureError)
+      )
     end
   end
 end

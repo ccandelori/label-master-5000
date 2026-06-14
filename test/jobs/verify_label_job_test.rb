@@ -3,20 +3,24 @@
 require "test_helper"
 
 class VerifyLabelJobTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   STATUTORY = Rules::Data.statutory_warning_text
 
   class StubExtractor
-    attr_reader :calls, :model_id
+    attr_reader :calls, :applications, :model_id
 
     def initialize(payload:, error: nil, model_id: "stub-model")
       @payload = payload
       @error = error
       @model_id = model_id
       @calls = 0
+      @applications = []
     end
 
-    def extract(artworks:)
+    def extract(artworks:, application:)
       @calls += 1
+      @applications << application
       raise @error if @error
 
       LabelExtractor::Result.new(
@@ -26,6 +30,29 @@ class VerifyLabelJobTest < ActiveSupport::TestCase
         latency_ms: 12
       )
     end
+  end
+
+  class StubOcrEngine
+    attr_reader :calls
+
+    def initialize(pages:)
+      @pages = pages
+      @calls = 0
+    end
+
+    def read(data:, content_type:)
+      @calls += 1
+      @pages
+    end
+  end
+
+  def setup
+    @original_extraction_mode = Rails.application.config.x.extraction.mode
+    Rails.application.config.x.extraction.mode = "vlm"
+  end
+
+  def teardown
+    Rails.application.config.x.extraction.mode = @original_extraction_mode
   end
 
   def payload(overrides)
@@ -52,6 +79,7 @@ class VerifyLabelJobTest < ActiveSupport::TestCase
   end
 
   def create_application(attrs)
+    artwork_bytes = attrs[:artwork_bytes] || "label-bytes"
     app = LabelApplication.new({
       serial_number: "26-1042",
       beverage_type: "spirits",
@@ -60,35 +88,19 @@ class VerifyLabelJobTest < ActiveSupport::TestCase
       applicant_name_address: "Old Tom Distilling Co., Bardstown, KY",
       alcohol_content: 45.0,
       net_contents: "750 mL"
-    }.merge(attrs))
-    app.artwork.attach(io: StringIO.new(attrs[:artwork_bytes] || "label-bytes"),
+    }.merge(attrs.except(:artwork_bytes)))
+    app.artwork.attach(io: StringIO.new(artwork_bytes),
                        filename: "label.png", content_type: "image/png")
     app.save!
     app
   end
 
-  class StubOcr
-    def initialize(pages: [], error: nil)
-      @pages = pages
-      @error = error
-    end
-
-    def read(data:, content_type:)
-      raise @error if @error
-
-      @pages
-    end
+  def word(text, x, y, width, height)
+    Extraction::OcrClient::Word.new(text: text, x: x, y: y, width: width, height: height)
   end
 
-  # Keep the suite off the real tesseract binary: an empty OCR read means
-  # every field falls back to the model's box.
-  setup do
-    @original_ocr_factory = VerifyLabelJob.ocr_factory
-    VerifyLabelJob.ocr_factory = -> { StubOcr.new }
-  end
-
-  teardown do
-    VerifyLabelJob.ocr_factory = @original_ocr_factory
+  def page(words)
+    Extraction::OcrClient::Page.new(number: 1, width: 800, height: 1000, words: words)
   end
 
   def with_extractor(stub)
@@ -99,12 +111,67 @@ class VerifyLabelJobTest < ActiveSupport::TestCase
     VerifyLabelJob.extractor_factory = original
   end
 
-  def with_ocr(stub)
-    original = VerifyLabelJob.ocr_factory
-    VerifyLabelJob.ocr_factory = -> { stub }
+  def with_ocr_engine(engine)
+    original_factory = VerifyLabelJob.ocr_engine_factory
+    original_key_factory = VerifyLabelJob.ocr_engine_key_factory
+    VerifyLabelJob.ocr_engine_factory = -> { engine }
+    VerifyLabelJob.ocr_engine_key_factory = -> { "test-tesseract-v1" }
     yield
   ensure
-    VerifyLabelJob.ocr_factory = original
+    VerifyLabelJob.ocr_engine_factory = original_factory
+    VerifyLabelJob.ocr_engine_key_factory = original_key_factory
+  end
+
+  def with_ocr_region_engine(engine)
+    original_factory = VerifyLabelJob.ocr_region_engine_factory
+    VerifyLabelJob.ocr_region_engine_factory = -> { engine }
+    yield
+  ensure
+    VerifyLabelJob.ocr_region_engine_factory = original_factory
+  end
+
+  def with_ocr_region_refinement(enabled)
+    original = Rails.application.config.x.extraction.ocr_region_refinement
+    Rails.application.config.x.extraction.ocr_region_refinement = enabled
+    yield
+  ensure
+    Rails.application.config.x.extraction.ocr_region_refinement = original
+  end
+
+  def with_extraction_mode(mode)
+    original = Rails.application.config.x.extraction.mode
+    Rails.application.config.x.extraction.mode = mode
+    yield
+  ensure
+    Rails.application.config.x.extraction.mode = original
+  end
+
+  def with_env(key, value)
+    original = ENV[key]
+    ENV[key] = value
+    yield
+  ensure
+    ENV[key] = original
+  end
+
+  def with_verifier_v2(implementation)
+    original = VerifierV2.method(:verify)
+    VerifierV2.define_singleton_method(:verify, implementation)
+    yield
+  ensure
+    VerifierV2.define_singleton_method(:verify, original)
+  end
+
+  test "verification jobs run on the dedicated verification queue" do
+    assert_equal "verification", VerifyLabelJob.queue_name
+    assert_equal Integer(ENV.fetch("VERIFY_CONCURRENCY", ENV.fetch("OCR_CONCURRENCY", "1"))),
+                 VerifyLabelJob.configured_concurrency
+  end
+
+  test "default model id comes from the configured extractor" do
+    stub = StubExtractor.new(payload: payload({}), model_id: "configured-model")
+
+    assert_equal "configured-model", with_extractor(stub) { VerifyLabelJob.default_model_id }
   end
 
   test "happy path persists a passing verification with extraction payload" do
@@ -118,7 +185,280 @@ class VerifyLabelJobTest < ActiveSupport::TestCase
     assert_equal "stub-model", verification.model_id
     assert verification.latency_ms >= 0
     assert_equal [ 1, 2, 3, 4 ], verification.extraction.dig("fields", "brand_name", "bbox")
-    assert verification.field_checks.any? { |c| c.field == "government_warning_text" && c.verdict == "pass" }
+    assert verification.field_checks.any? { |check| check.field == "government_warning_text" && check.verdict == "pass" }
+  end
+
+  test "direct verification creates and completes an attempt" do
+    app = create_application({})
+    stub = StubExtractor.new(payload: payload({}))
+
+    assert_difference -> { app.verification_attempts.count } do
+      with_extractor(stub) { VerifyLabelJob.perform_now(app.id) }
+    end
+
+    attempt = app.verification_attempts.last
+    assert_predicate attempt, :passed?
+    assert_not_nil attempt.processing_started_at
+    assert_not_nil attempt.processing_completed_at
+    assert_equal app.latest_verification, attempt.verification
+    assert_operator attempt.stage_timings.fetch("load_application"), :>=, 0
+    assert_operator attempt.stage_timings.fetch("verification_persist"), :>=, 0
+  end
+
+  test "verification uses the queued admission attempt when provided" do
+    app = create_application({})
+    attempt = app.verification_attempts.create!
+    stub = StubExtractor.new(payload: payload({}))
+
+    assert_no_difference -> { app.verification_attempts.count } do
+      with_extractor(stub) { VerifyLabelJob.perform_now(app.id, nil, nil, nil, attempt.id) }
+    end
+
+    assert_predicate attempt.reload, :passed?
+    assert_equal app.latest_verification, attempt.verification
+  end
+
+  test "feature flag routes verification through VerifierV2 with the queued attempt" do
+    app = create_application({})
+    attempt = app.verification_attempts.create!
+    calls = []
+    implementation = lambda do |label_application:, attempt:, mode:, provider:, model:|
+      calls << [ label_application.id, attempt.id, mode, provider, model ]
+      attempt.start_processing! if attempt.queued?
+      verification = label_application.verifications.create!(
+        overall_verdict: "needs_review",
+        field_checks: [],
+        model_id: VerifierV2::MODEL_ID
+      )
+      attempt.finish_with!(verification: verification, stage_timings: { "v2" => 1 })
+      verification
+    end
+
+    verification = with_env("USE_VERIFIER_V2", "true") do
+      with_verifier_v2(implementation) { VerifyLabelJob.perform_now(app.id, nil, nil, nil, attempt.id) }
+    end
+
+    assert_equal VerifierV2::MODEL_ID, verification.model_id
+    assert_equal [ [ app.id, attempt.id, "verifier_v2", nil, nil ] ], calls
+    assert_predicate attempt.reload, :needs_review?
+    assert_equal({ "v2" => 1 }, attempt.stage_timings)
+  end
+
+  test "explicit verifier v2 mode routes verification through VerifierV2" do
+    app = create_application({})
+    attempt = app.verification_attempts.create!
+    calls = []
+    implementation = lambda do |label_application:, attempt:, mode:, provider:, model:|
+      calls << [ label_application.id, attempt.id, mode, provider, model ]
+      attempt.start_processing! if attempt.queued?
+      verification = label_application.verifications.create!(
+        overall_verdict: "needs_review",
+        field_checks: [],
+        model_id: VerifierV2::MODEL_ID
+      )
+      attempt.finish_with!(verification: verification, stage_timings: { "v2" => 1 })
+      verification
+    end
+
+    verification = with_verifier_v2(implementation) do
+      VerifyLabelJob.perform_now(app.id, nil, nil, "verifier_v2", attempt.id)
+    end
+
+    assert_equal VerifierV2::MODEL_ID, verification.model_id
+    assert_equal [ [ app.id, attempt.id, "verifier_v2", nil, nil ] ], calls
+    assert_predicate attempt.reload, :needs_review?
+  end
+
+  test "explicit OCR-only mode routes verification through VerifierV2" do
+    app = create_application({})
+    attempt = app.verification_attempts.create!
+    calls = []
+    implementation = lambda do |label_application:, attempt:, mode:, provider:, model:|
+      calls << [ label_application.id, attempt.id, mode, provider, model ]
+      attempt.start_processing! if attempt.queued?
+      verification = label_application.verifications.create!(
+        overall_verdict: "fail",
+        field_checks: [],
+        model_id: VerifierV2::MODEL_ID
+      )
+      attempt.finish_with!(verification: verification, stage_timings: { "v2" => 1 })
+      verification
+    end
+
+    verification = with_verifier_v2(implementation) do
+      VerifyLabelJob.perform_now(app.id, nil, nil, "ocr_only", attempt.id)
+    end
+
+    assert_equal VerifierV2::MODEL_ID, verification.model_id
+    assert_equal [ [ app.id, attempt.id, "ocr_only", nil, nil ] ], calls
+    assert_predicate attempt.reload, :failed?
+  end
+
+  test "explicit OCR then VLM mode routes verification through VerifierV2" do
+    app = create_application({})
+    attempt = app.verification_attempts.create!
+    calls = []
+    implementation = lambda do |label_application:, attempt:, mode:, provider:, model:|
+      calls << [ label_application.id, attempt.id, mode, provider, model ]
+      attempt.start_processing! if attempt.queued?
+      verification = label_application.verifications.create!(
+        overall_verdict: "needs_review",
+        field_checks: [],
+        model_id: VerifierV2::MODEL_ID
+      )
+      attempt.finish_with!(verification: verification, stage_timings: { "v2" => 1 })
+      verification
+    end
+
+    verification = with_verifier_v2(implementation) do
+      VerifyLabelJob.perform_now(app.id, nil, nil, "ocr_then_vlm", attempt.id)
+    end
+
+    assert_equal VerifierV2::MODEL_ID, verification.model_id
+    assert_equal [ [ app.id, attempt.id, "ocr_then_vlm", nil, nil ] ], calls
+    assert_predicate attempt.reload, :needs_review?
+  end
+
+  test "explicit OCR then VLM mode routes the selected refinement model through VerifierV2" do
+    app = create_application({})
+    attempt = app.verification_attempts.create!
+    calls = []
+    implementation = lambda do |label_application:, attempt:, mode:, provider:, model:|
+      calls << [ label_application.id, attempt.id, mode, provider, model ]
+      attempt.start_processing! if attempt.queued?
+      verification = label_application.verifications.create!(
+        overall_verdict: "needs_review",
+        field_checks: [],
+        model_id: VerifierV2::MODEL_ID
+      )
+      attempt.finish_with!(verification: verification, stage_timings: { "v2" => 1 })
+      verification
+    end
+
+    with_verifier_v2(implementation) do
+      VerifyLabelJob.perform_now(app.id, "anthropic", "claude-haiku-4-5", "ocr_then_vlm", attempt.id)
+    end
+
+    assert_equal [ [ app.id, attempt.id, "ocr_then_vlm", "anthropic", "claude-haiku-4-5" ] ], calls
+  end
+
+  test "passes the loaded application to the VLM extractor" do
+    app = create_application(serial_number: "26-9999", brand_name: "MIA-LOU")
+    stub = StubExtractor.new(payload: payload("fields" => payload({})["fields"].merge(
+      "brand_name" => { "text" => "MIA-LOU", "bbox" => [ 1, 2, 3, 4 ], "page" => 1, "confidence" => 0.98 }
+    )))
+
+    with_extractor(stub) { VerifyLabelJob.perform_now(app.id) }
+
+    assert_equal 1, stub.calls
+    assert_equal app.id, stub.applications.first.id
+    assert_equal "MIA-LOU", stub.applications.first.brand_name
+  end
+
+  test "applies VLM reconciliation before rules evaluation" do
+    app = create_application({})
+    fields = payload({})["fields"].merge(
+      "alcohol_statement" => nil,
+      "commodity_statement" => { "text" => "45% ALC./VOL. (90 PROOF)", "bbox" => [ 10, 20, 140, 24 ], "page" => 1, "confidence" => 0.9 }
+    )
+    stub = StubExtractor.new(payload: payload("fields" => fields))
+
+    verification = with_extractor(stub) { VerifyLabelJob.perform_now(app.id) }
+
+    assert_predicate verification, :pass?
+    alcohol = verification.extraction.dig("fields", "alcohol_statement")
+    assert_equal "45% ALC./VOL. (90 PROOF)", alcohol["text"]
+    assert_equal "vlm_reconciled", alcohol["source"]
+    assert verification.field_checks.any? { |check| check.field == "alcohol_content" && check.verdict == "pass" }
+  end
+
+  test "quality mode persists clean Tesseract OCR without calling the VLM" do
+    app = create_application(declared_class_type: "Kentucky Straight Bourbon Whiskey")
+    ocr = StubOcrEngine.new(pages: [ page([
+      word("OLD TOM DISTILLERY", 100, 80, 220, 40),
+      word("Kentucky Straight Bourbon Whiskey", 100, 140, 300, 24),
+      word("45% ALC./VOL. (90 PROOF)", 100, 180, 240, 24),
+      word("750 mL", 100, 220, 80, 24),
+      word("DISTILLED AND BOTTLED BY OLD TOM DISTILLING CO.", 100, 260, 420, 24),
+      word("BARDSTOWN KY", 100, 290, 160, 24),
+      word(STATUTORY, 100, 700, 560, 80)
+    ]) ])
+    extractor = StubExtractor.new(payload: payload({}), error: Extraction::ExtractionError.new("VLM should not run"))
+
+    verification = with_extraction_mode("quality") do
+      with_ocr_engine(ocr) do
+        with_extractor(extractor) { VerifyLabelJob.perform_now(app.id) }
+      end
+    end
+
+    assert_equal 0, extractor.calls
+    assert_equal 1, ocr.calls
+    assert_equal "quality-v1", verification.model_id
+    assert_equal "ocr", verification.extraction.dig("fields", "government_warning", "bbox_source")
+    assert verification.field_checks.none? { |check| check.verdict == "fail" }
+  end
+
+  test "quality mode falls back to VLM and OCR-grounds the model result when OCR is incomplete" do
+    app = create_application({})
+    ocr = StubOcrEngine.new(pages: [ page([
+      word("OLD", 100, 80, 60, 40),
+      word("TOM", 170, 80, 70, 40),
+      word("DISTILLERY", 250, 80, 160, 40)
+    ]) ])
+    extractor = StubExtractor.new(payload: payload({}), model_id: "stub-vlm")
+
+    verification = with_extraction_mode("quality") do
+      with_ocr_engine(ocr) do
+        with_extractor(extractor) { VerifyLabelJob.perform_now(app.id) }
+      end
+    end
+
+    assert_equal 1, extractor.calls
+    assert_equal "quality-v1", verification.model_id
+    assert_equal "OLD TOM DISTILLERY", verification.extraction.dig("fields", "brand_name", "text")
+    assert_equal "ocr", verification.extraction.dig("fields", "brand_name", "bbox_source")
+    assert_equal [ 100, 80, 310, 40 ], verification.extraction.dig("fields", "brand_name", "bbox")
+  end
+
+  test "quality mode fallback skips region crop OCR by default" do
+    app = create_application({})
+    page_ocr = StubOcrEngine.new(pages: [ page([]) ])
+    region_ocr = StubOcrEngine.new(pages: [ page([ word("OLD TOM DISTILLERY", 100, 80, 220, 40) ]) ])
+    extractor = StubExtractor.new(payload: payload({}), model_id: "stub-vlm")
+
+    verification = with_extraction_mode("quality") do
+      with_ocr_region_refinement(false) do
+        with_ocr_engine(page_ocr) do
+          with_ocr_region_engine(region_ocr) do
+            with_extractor(extractor) { VerifyLabelJob.perform_now(app.id) }
+          end
+        end
+      end
+    end
+
+    assert_equal 1, extractor.calls
+    assert_equal 0, region_ocr.calls
+    assert_equal "model", verification.extraction.dig("fields", "brand_name", "bbox_source")
+  end
+
+  test "emits stage timing events for the VLM-only pipeline" do
+    app = create_application(artwork_bytes: "timed-label-bytes")
+    stub = StubExtractor.new(payload: payload({}))
+    events = []
+    subscriber = lambda do |name, started, finished, _id, event_payload|
+      events << event_payload.merge(event: name, duration_ms: ((finished - started) * 1000.0).round(2))
+    end
+
+    ActiveSupport::Notifications.subscribed(subscriber, "verification.stage.label_verifier") do
+      with_extractor(stub) { VerifyLabelJob.perform_now(app.id) }
+    end
+
+    stages = events.map { |event| event[:stage] }
+    assert_includes stages, "vlm_extraction"
+    assert_includes stages, "vlm_reconciliation"
+    assert_includes stages, "facts_mapping"
+    assert_includes stages, "rules_evaluation"
+    assert events.all? { |event| event[:duration_ms] >= 0 }
   end
 
   test "illegible artwork ends as request_retake with no field verdicts" do
@@ -136,6 +476,7 @@ class VerifyLabelJobTest < ActiveSupport::TestCase
     stub = StubExtractor.new(payload: payload("confidence" => 0.3))
 
     verification = with_extractor(stub) { VerifyLabelJob.perform_now(app.id) }
+
     assert_predicate verification, :request_retake?
   end
 
@@ -192,62 +533,6 @@ class VerifyLabelJobTest < ActiveSupport::TestCase
     assert third.extraction_reused
   end
 
-  test "OCR grounding re-anchors matchable boxes and records provenance" do
-    app = create_application({})
-    words = [
-      Extraction::OcrClient::Word.new(text: "OLD", x: 100, y: 80, width: 60, height: 40),
-      Extraction::OcrClient::Word.new(text: "TOM", x: 170, y: 80, width: 70, height: 40),
-      Extraction::OcrClient::Word.new(text: "DISTILLERY", x: 250, y: 80, width: 200, height: 42)
-    ]
-    page = Extraction::OcrClient::Page.new(number: 1, width: 800, height: 1000, words: words)
-
-    verification = with_ocr(StubOcr.new(pages: [ page ])) do
-      with_extractor(StubExtractor.new(payload: payload({}))) { VerifyLabelJob.perform_now(app.id) }
-    end
-
-    brand = verification.extraction.dig("fields", "brand_name")
-    assert_equal [ 100, 80, 350, 42 ], brand["bbox"]
-    assert_equal [ 800, 1000 ], brand["bbox_basis"]
-    assert_equal "ocr", brand["bbox_source"]
-    assert_equal "model", verification.extraction.dig("fields", "government_warning", "bbox_source")
-  end
-
-  test "OCR failure keeps the model's boxes and still completes verification" do
-    app = create_application({})
-    failing_ocr = StubOcr.new(error: Extraction::OcrError.new("tesseract is not installed"))
-
-    verification = with_ocr(failing_ocr) do
-      with_extractor(StubExtractor.new(payload: payload({}))) { VerifyLabelJob.perform_now(app.id) }
-    end
-
-    assert_predicate verification, :pass?
-    brand = verification.extraction.dig("fields", "brand_name")
-    assert_equal [ 1, 2, 3, 4 ], brand["bbox"]
-    assert_nil brand["bbox_source"]
-  end
-
-  test "fanciful name reconciles to the declared value located by OCR" do
-    app = create_application(fanciful_name: "DRAUGHT STOUT")
-    tagline = { "text" => "Lovely Day for a Guinness", "bbox" => [ 1, 2, 3, 4 ], "page" => 1, "confidence" => 0.85 }
-    words = [
-      Extraction::OcrClient::Word.new(text: "DRAUGHT", x: 300, y: 500, width: 90, height: 30),
-      Extraction::OcrClient::Word.new(text: "STOUT", x: 400, y: 500, width: 70, height: 30)
-    ]
-    page = Extraction::OcrClient::Page.new(number: 1, width: 800, height: 1000, words: words)
-
-    verification = with_ocr(StubOcr.new(pages: [ page ])) do
-      with_extractor(StubExtractor.new(payload: payload("fields" => payload({})["fields"].merge("fanciful_name" => tagline)))) do
-        VerifyLabelJob.perform_now(app.id)
-      end
-    end
-
-    fanciful = verification.extraction.dig("fields", "fanciful_name")
-    assert_equal "DRAUGHT STOUT", fanciful["text"]
-    assert_equal "ocr", fanciful["bbox_source"]
-    check = verification.field_checks.find { |c| c.field == "fanciful_name" }
-    assert_equal "pass", check.verdict
-  end
-
   test "several unreadable mandatory fields add an artwork-quality advisory" do
     app = create_application({})
     sparse = payload({})
@@ -257,7 +542,7 @@ class VerifyLabelJobTest < ActiveSupport::TestCase
 
     verification = with_extractor(StubExtractor.new(payload: sparse)) { VerifyLabelJob.perform_now(app.id) }
 
-    advisory = verification.field_checks.find { |c| c.field == "artwork_quality" }
+    advisory = verification.field_checks.find { |check| check.field == "artwork_quality" }
     assert_not_nil advisory, "expected the extraction-coverage advisory"
     assert_equal "pass_with_note", advisory.verdict
     assert_equal "fail", verification.overall_verdict, "the advisory never outranks the failures that triggered it"
@@ -272,28 +557,47 @@ class VerifyLabelJobTest < ActiveSupport::TestCase
     verification = with_extractor(stub) { VerifyLabelJob.perform_now(duplicate.id) }
 
     assert_equal 1, stub.calls
-    note = verification.field_checks.find { |c| c.field == "duplicate_artwork" }
+    note = verification.field_checks.find { |check| check.field == "duplicate_artwork" }
     assert_not_nil note
     assert_match(/26-1042/, note.note)
   end
-
-  include ActiveJob::TestHelper
 
   test "extraction errors are recorded as retryable error verifications" do
     app = create_application({})
     stub = StubExtractor.new(payload: nil, error: Extraction::ExtractionError.new("API unavailable"))
 
     with_extractor(stub) do
-      # retry_on captures the error and re-enqueues rather than raising.
       assert_enqueued_with(job: VerifyLabelJob) { VerifyLabelJob.perform_now(app.id) }
     end
 
-    # ActiveJob's retry_on handler runs only through the enqueue cycle; the
-    # direct record path is what the handler calls.
     VerifyLabelJob.new.send(:record_error, app, Extraction::ExtractionError.new("API unavailable"))
     error_verification = app.verifications.error.last
+    error_attempt = app.verification_attempts.error.last
     assert_not_nil error_verification
+    assert_not_nil error_attempt
+    assert_equal error_verification, error_attempt.verification
     assert_match(/API unavailable/, error_verification.error_message)
+  end
+
+  test "unexpected errors finish the active attempt as an error" do
+    app = create_application({})
+    attempt = app.verification_attempts.create!
+    original = VerifyLabelJob.extractor_factory
+    VerifyLabelJob.extractor_factory = ->(_provider, _model) {
+      raise Encoding::CompatibilityError, "Unicode Normalization not appropriate for ASCII-8BIT"
+    }
+
+    error = assert_raises(Encoding::CompatibilityError) do
+      VerifyLabelJob.perform_now(app.id, nil, nil, "vlm", attempt.id)
+    end
+
+    assert_match(/ASCII-8BIT/, error.message)
+    assert_predicate attempt.reload, :error?
+    assert_not_nil attempt.verification
+    assert_equal "error", attempt.verification.overall_verdict
+    assert_match(/ASCII-8BIT/, attempt.error_message)
+  ensure
+    VerifyLabelJob.extractor_factory = original
   end
 
   test "error verifications never satisfy extraction reuse" do

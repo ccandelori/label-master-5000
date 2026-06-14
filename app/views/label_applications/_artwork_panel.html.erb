@@ -1,36 +1,22 @@
-<div class="bg-raised rounded-xl border border-line p-4">
-  <h2 class="font-semibold mb-3">Where each element was found</h2>
-
-  <% if application.artwork.attached? && application.artwork.image? %>
-    <% if application.back_artwork.attached? %>
-      <h3 class="text-sm font-medium text-ink-muted mb-1">Front label</h3>
+<div class="bg-raised rounded-lg border border-line overflow-hidden">
+  <div class="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+    <div>
+      <h2 class="font-semibold">Label artwork</h2>
+      <p class="text-sm text-ink-faint">Inspect the label artwork alongside the findings.</p>
+    </div>
+    <% if local_assigns[:inspectable] %>
+      <button type="button"
+              data-action="inspector-dialog#open"
+              class="rounded-lg border border-line-strong bg-raised px-3 py-1.5 text-sm font-medium hover:bg-panel cursor-pointer
+                     focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus">
+        Inspect
+      </button>
     <% end %>
-    <div class="relative inline-block" data-bbox-overlay-target="frame" data-page="1">
-      <%= image_tag url_for(application.artwork), class: "max-w-full rounded border border-line",
-            data: { bbox_overlay_target: "image" }, alt: "Front label artwork for #{application.brand_name}" %>
-    </div>
-    <% if application.back_artwork.attached? %>
-      <h3 class="text-sm font-medium text-ink-muted mt-4 mb-1">Back label</h3>
-      <div class="relative inline-block" data-bbox-overlay-target="frame" data-page="2">
-        <%= image_tag url_for(application.back_artwork), class: "max-w-full rounded border border-line",
-              data: { bbox_overlay_target: "image" }, alt: "Back label artwork for #{application.brand_name}" %>
-      </div>
-    <% end %>
-  <% elsif application.artwork.attached? && application.artwork.previewable? %>
-    <div class="relative inline-block" data-bbox-overlay-target="frame" data-page="1">
-      <%= image_tag url_for(application.artwork.preview(resize_to_limit: [ 800, 1100 ]).processed),
-            class: "max-w-full rounded border border-line",
-            data: { bbox_overlay_target: "image" }, alt: "First page of the label artwork PDF" %>
-      <p class="text-ink-faint mt-2">PDF — page 1 shown; outlines apply to page 1 only.</p>
-    </div>
-  <% elsif application.artwork.attached? %>
-    <div class="rounded border border-line bg-panel p-6 text-center text-ink-faint">
-      <p><%= application.artwork.filename %></p>
-      <p class="mt-1">Preview unavailable in this environment.</p>
-    </div>
-  <% end %>
+  </div>
 
-  <p class="text-sm text-ink-faint mt-3">
-    Hover a check to spotlight where it was read; click an outline for the reason.
-  </p>
+  <div class="max-h-[72vh] overflow-auto bg-panel px-4 py-5 text-center">
+    <%= render "label_applications/artwork_frames",
+          application: application,
+          image_class: "max-w-full rounded-sm border border-line bg-white shadow-sm shadow-ink/10" %>
+  </div>
 </div>

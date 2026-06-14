@@ -16,8 +16,8 @@ module Parsing
     def compare(extracted, statutory)
       return Result.new(text_matches: false, prefix_all_caps: false, missing_words: [], extra_words: []) if blank?(extracted)
 
-      extracted_words = words(extracted)
       statutory_words = words(statutory)
+      extracted_words = repair_split_words(words(extracted), statutory_words)
 
       Result.new(
         text_matches: extracted_words == statutory_words,
@@ -32,6 +32,23 @@ module Parsing
     # as on many real labels, is acceptable).
     def words(text)
       text.to_s.downcase.gsub(/[“”]/, '"').gsub(/[‘’]/, "'").scan(/[a-z0-9']+|\(\d+\)/)
+    end
+
+    def repair_split_words(tokens, statutory_words)
+      tokens.each_with_object([]) do |token, repaired|
+        if split_tail_matches_statutory_word?(repaired.last, token, statutory_words)
+          repaired[-1] = "#{repaired.last}#{token}"
+        else
+          repaired << token
+        end
+      end
+    end
+
+    def split_tail_matches_statutory_word?(left, right, statutory_words)
+      return false if left.nil?
+      return false unless left.match?(/\A[a-z']+\z/) && right.match?(/\A[a-z']+\z/)
+
+      statutory_words.include?("#{left}#{right}")
     end
 
     def prefix_all_caps?(extracted)

@@ -17,22 +17,17 @@
 
   <body class="bg-surface text-ink text-base">
     <header class="bg-raised border-b border-line">
-      <div class="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between">
-        <%= link_to root_path, class: "flex items-center gap-2 text-lg font-semibold text-ink" do %>
-          <span aria-hidden="true">☑</span> LabelMaster 5000
-        <% end %>
+      <div class="max-w-7xl mx-auto px-5 py-4 flex items-center justify-between">
+        <%= link_to "LabelMaster 5000", root_path, class: "text-lg font-semibold text-ink" %>
         <nav class="flex gap-2 text-base" aria-label="Site areas">
-          <%= nav_link "Reviewer", reviewer_queue_path, area: :reviewer %>
-          <%= nav_link "Pre-check", new_label_application_path, area: :pre_review %>
+          <%= nav_link "Validation", validation_path, area: :pre_review %>
+          <%= nav_link "History", validation_history_path, area: :history %>
           <%= nav_link "Rules reference", rules_path, area: :rules %>
         </nav>
       </div>
     </header>
 
-    <main class="max-w-5xl mx-auto px-5 py-8">
-      <% if current_area %>
-        <p class="mb-4"><%= area_tag(current_area) %></p>
-      <% end %>
+    <main class="<%= content_for?(:main_class) ? yield(:main_class) : "max-w-7xl mx-auto px-5 py-8" %>">
       <% if notice.present? %>
         <p class="mb-6 rounded-lg bg-focus-tint text-focus px-4 py-3" role="status"><%= notice %></p>
       <% end %>

@@ -6,6 +6,7 @@ module Rules
     # metric standards of fill (with BAM-vs-current-regulation notes).
     module NetContentsCheck
       FILL_TOLERANCE_ML = 1.0
+      APPLICATION_VALUE_UNREADABLE_NOTE = "Could not read a volume from the application value"
 
       module_function
 
@@ -14,16 +15,24 @@ module Rules
         citation = section["citation"]
         expected = application.net_contents
         extracted = facts.net_contents
+        expected_not_stated = Parsing::ApplicationValue.not_stated?(expected)
         # The vision model's reading of the same print: OCR-located text
         # sometimes drops a decimal point ("15 5 GALLONS"), and a volume
         # readable from either form is not a discrepancy.
         model_volume = Parsing::NetContents.parse(facts.model_texts["net_contents"])
 
         if extracted.to_s.strip.empty?
-          return [ missing_check(application, expected, citation) ]
+          return [ missing_check(application, facts, expected, citation, expected_not_stated: expected_not_stated) ]
         end
 
-        expected_volume = Parsing::NetContents.parse(expected)
+        if expected_not_stated
+          return [ FieldCheck.new(
+            field: "net_contents", verdict: "pass_with_note", expected: expected, extracted: extracted,
+            citation: citation, note: APPLICATION_VALUE_UNREADABLE_NOTE
+          ) ]
+        end
+
+        expected_volume = expected_not_stated ? nil : Parsing::NetContents.parse(expected)
         extracted_volume = Parsing::NetContents.parse(extracted) || model_volume
 
         if extracted_volume.nil?
@@ -43,13 +52,25 @@ module Rules
         result.compact
       end
 
-      def missing_check(application, expected, citation)
+      def missing_check(application, facts, expected, citation, expected_not_stated:)
+        if expected_not_stated
+          return FieldCheck.new(
+            field: "net_contents", verdict: "needs_review", expected: expected, extracted: nil,
+            citation: citation, note: APPLICATION_VALUE_UNREADABLE_NOTE
+          )
+        end
+
         embossed = application.container_embossed_info.to_s
         if Parsing::TextNormalizer.normalize(embossed).match?(/contents|\d+\s*(ml|oz|liter|pint|quart|gallon)/)
           FieldCheck.new(
             field: "net_contents", verdict: "pass_with_note", expected: expected, extracted: nil,
             citation: citation,
             note: "Not on the label; the application declares it blown, branded or embossed on the container"
+          )
+        elsif facts.weak_field?("net_contents")
+          FieldCheck.new(
+            field: "net_contents", verdict: "needs_review", expected: expected, extracted: nil,
+            citation: citation, note: "Net contents evidence is ambiguous; confirm the label visually"
           )
         else
           FieldCheck.new(
@@ -63,7 +84,7 @@ module Rules
         if expected_volume.nil?
           FieldCheck.new(
             field: "net_contents", verdict: "needs_review", expected: expected, extracted: extracted,
-            citation: citation, note: "Could not read a volume from the application value"
+            citation: citation, note: APPLICATION_VALUE_UNREADABLE_NOTE
           )
         elsif (expected_volume.milliliters - extracted_volume.milliliters).abs <= FILL_TOLERANCE_ML
           FieldCheck.new(field: "net_contents", verdict: "pass", expected: expected, extracted: extracted,
@@ -87,6 +108,7 @@ module Rules
       def system_check(extracted, extracted_volume, section)
         required = section["required_system"]
         return nil if extracted_volume.unit_system.to_s == required
+        return nil if Parsing::NetContents.unit_system_present?(extracted, required)
 
         # A metric-required label stated in US measure (or vice versa). The
         # malt BAM allows metric as a supplement only; a lone wrong-system
@@ -98,8 +120,10 @@ module Rules
             "Net contents must be stated in metric measure"
           end
 
+        verdict = required == "us_customary" ? "needs_review" : "fail"
+
         FieldCheck.new(
-          field: "net_contents_measurement_system", verdict: "fail",
+          field: "net_contents_measurement_system", verdict: verdict,
           expected: required, extracted: extracted, citation: section["citation"], note: note
         )
       end

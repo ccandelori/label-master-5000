@@ -77,10 +77,11 @@ module Extraction
     end
 
     def scale_word(word, factor)
-      OcrClient::Word.new(
+      OcrClient.build_word(
         text: word.text,
         x: (word.x * factor).round, y: (word.y * factor).round,
-        width: (word.width * factor).round, height: (word.height * factor).round
+        width: (word.width * factor).round, height: (word.height * factor).round,
+        confidence: word.confidence
       )
     end
 

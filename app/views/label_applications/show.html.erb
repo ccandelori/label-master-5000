@@ -1,67 +1,75 @@
 <%= turbo_stream_from @application %>
 
-<%# Pre-review applications are the applicant's sandbox; only submitted
-    work breadcrumbs back into the reviewer queue. %>
-<% if @application.submitted? %>
-  <nav class="mb-3 text-base text-ink-muted" aria-label="Breadcrumb">
-    <%= link_to "Review queue", reviewer_queue_path, class: "underline underline-offset-2 hover:text-ink" %>
+<% display_verification = @verification_attempt&.in_progress? ? nil : @verification %>
+<% history_scope = @application.verifications %>
+<% history_scope = history_scope.where.not(id: display_verification.id) if display_verification %>
+<% history = history_scope.order(created_at: :desc) %>
+
+<% if @application.reviewer_visible? %>
+  <nav class="mb-4 text-sm text-ink-muted" aria-label="Breadcrumb">
+    <%= link_to "History", validation_history_path, class: "underline underline-offset-2 hover:text-ink" %>
     <span aria-hidden="true" class="mx-1 text-ink-faint">/</span>
     <span aria-current="page"><%= @application.serial_number %></span>
   </nav>
 <% end %>
 
-<div class="flex items-start justify-between flex-wrap gap-3 mb-6">
-  <div>
-    <h1 class="text-2xl font-semibold">
-      Application <%= @application.serial_number %> — <%= @application.brand_name %>
-    </h1>
-    <p class="text-ink-muted mt-1">
-      <%= @application.beverage_type.capitalize %> ·
-      <%= @application.imported? ? "Imported (#{@application.country_of_origin})" : "Domestic" %>
-      <% if @application.alcohol_content %> · <%= @application.alcohol_content %>% ABV<% end %>
-      · <%= @application.net_contents %>
-    </p>
-  </div>
-  <div class="flex items-center gap-3 flex-wrap">
-    <%# Demo-only: re-check the same artwork under another model without
-        editing the application. Reviewer-channel records never see this. %>
-    <% if @application.pre_review? %>
-      <%= form_with url: label_application_check_path(@application), method: :post,
-            class: "flex items-center gap-2" do %>
-        <label for="demo_model" class="sr-only">Vision model for this re-check</label>
-        <%= select_tag :demo_model, demo_model_options, class: "rounded-lg border-line-strong" %>
-        <%= submit_tag "Re-check", class: "rounded-lg border border-line-strong bg-raised px-4 py-2 font-medium hover:bg-panel cursor-pointer" %>
-      <% end %>
-    <% end %>
-    <%= link_to "Edit and re-check", edit_label_application_path(@application),
-          class: "rounded-lg border border-line-strong bg-raised px-4 py-2 font-medium hover:bg-panel" %>
-  </div>
-</div>
+<%= render "validation_status_header", application: @application, verification: @verification, attempt: @verification_attempt %>
 
-<div id="verification_panel">
-  <%= render "verification_panel", application: @application, verification: @verification %>
-</div>
+<main id="check_workspace" class="scroll-mt-5">
+  <%= render "verification_panel", application: @application, verification: @verification, attempt: @verification_attempt %>
+</main>
 
-<% history = @application.verifications.order(created_at: :desc).offset(1) %>
-<% if history.any? %>
-  <section class="mt-8" aria-label="Verification history">
-    <h2 class="text-lg font-semibold mb-3">Earlier checks of this application</h2>
-    <ul class="space-y-2">
-      <% history.each do |verification| %>
-        <li class="bg-raised rounded-lg border border-line px-4 py-3 flex items-center justify-between flex-wrap gap-2">
-          <span class="text-ink-muted"><%= verification.created_at.strftime("%b %-d, %H:%M:%S") %></span>
-          <% if verification.model_id.present? %>
-            <span class="text-ink-faint"><%= demo_model_label(verification.model_id) %></span>
-          <% end %>
-          <%= verdict_chip(verification.overall_verdict) %>
-          <% if verification.decision %>
-            <span class="text-ink-muted">Decision: <%= verification.decision.humanize %></span>
-          <% end %>
-          <% if verification.extraction_reused %>
-            <span class="text-ink-faint">reading reused</span>
-          <% end %>
-        </li>
-      <% end %>
-    </ul>
-  </section>
-<% end %>
+<section class="mt-8 grid grid-cols-1 lg:grid-cols-[minmax(0,0.9fr)_minmax(320px,0.6fr)] gap-5" aria-label="Application details">
+  <div class="bg-raised rounded-lg border border-line p-5">
+    <h2 class="font-semibold mb-3">Application record</h2>
+    <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+      <div>
+        <dt class="text-xs uppercase tracking-wide text-ink-faint">Applicant</dt>
+        <dd class="mt-0.5"><%= @application.applicant_name_address %></dd>
+      </div>
+      <div>
+        <dt class="text-xs uppercase tracking-wide text-ink-faint">Class/type</dt>
+        <dd class="mt-0.5"><%= @application.declared_class_type.presence || "Not stated" %></dd>
+      </div>
+      <div>
+        <dt class="text-xs uppercase tracking-wide text-ink-faint">Fanciful name</dt>
+        <dd class="mt-0.5"><%= @application.fanciful_name.presence || "Not stated" %></dd>
+      </div>
+      <div>
+        <dt class="text-xs uppercase tracking-wide text-ink-faint">Varietals</dt>
+        <dd class="mt-0.5"><%= @application.varietals.any? ? @application.varietals.join(", ") : "Not stated" %></dd>
+      </div>
+      <div>
+        <dt class="text-xs uppercase tracking-wide text-ink-faint">Appellation</dt>
+        <dd class="mt-0.5"><%= @application.appellation.presence || "Not stated" %></dd>
+      </div>
+      <div>
+        <dt class="text-xs uppercase tracking-wide text-ink-faint">Vintage</dt>
+        <dd class="mt-0.5"><%= @application.vintage_year.presence || "Not stated" %></dd>
+      </div>
+    </dl>
+  </div>
+
+  <% if history.any? %>
+    <div class="bg-raised rounded-lg border border-line overflow-hidden">
+      <div class="border-b border-line px-5 py-3">
+        <h2 class="font-semibold">Earlier checks</h2>
+      </div>
+      <ul class="divide-y divide-line/60">
+        <% history.each do |verification| %>
+          <li class="px-5 py-3">
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-sm text-ink-muted"><%= verification.created_at.strftime("%b %-d, %H:%M:%S") %></span>
+              <%= verdict_chip(verification.overall_verdict) %>
+            </div>
+            <p class="mt-1 text-sm text-ink-faint">
+              <%= demo_model_label(verification.model_id) if verification.model_id.present? %>
+              <%= " · reading reused" if verification.extraction_reused %>
+              <%= " · Decision: #{verification.decision.humanize}" if verification.decision %>
+            </p>
+          </li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+</section>

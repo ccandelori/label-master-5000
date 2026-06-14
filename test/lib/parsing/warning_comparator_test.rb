@@ -49,6 +49,16 @@ module Parsing
       assert WarningComparator.compare(extracted, STATUTORY).text_matches
     end
 
+    test "hyphenated line break within a statutory word still matches" do
+      extracted = STATUTORY.sub("pregnancy", "preg-\nnancy")
+      assert WarningComparator.compare(extracted, STATUTORY).text_matches
+    end
+
+    test "split statutory word without hyphen still matches" do
+      extracted = STATUTORY.sub("pregnancy", "preg nancy")
+      assert WarningComparator.compare(extracted, STATUTORY).text_matches
+    end
+
     test "missing warning fails everything" do
       result = WarningComparator.compare(nil, STATUTORY)
       assert_not result.text_matches

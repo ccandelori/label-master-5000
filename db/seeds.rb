@@ -8,6 +8,11 @@
 # without one, the records are created and any label can be checked later
 # via "Edit and re-check".
 
+if Rails.root.join("downloads/ttb_cola_approved_applications_2026-06-13").exist?
+  pdf_batch = Batch.seed_application_pdfs!
+  puts "Seeded #{pdf_batch.label_applications.count} application PDF record(s)."
+end
+
 PRODUCT_TYPES = {
   "Wine" => "wine",
   "Distilled Spirits" => "spirits",
@@ -19,20 +24,64 @@ registry_dir = Rails.root.join("db/registry")
 manifest = YAML.load_file(registry_dir.join("manifest.yml"))
 values = YAML.load_file(registry_dir.join("application_values.yml"))
 
+def registry_content_type(attachment)
+  attachment["local_file"].to_s.end_with?(".png") ? "image/png" : "image/jpeg"
+end
+
+def attach_registry_artwork(application, name, registry_dir, attachment)
+  image_path = registry_dir.join("images", attachment["local_file"])
+  application.public_send(name).attach(
+    io: File.open(image_path),
+    filename: attachment["filename"],
+    content_type: registry_content_type(attachment)
+  )
+end
+
+def registry_front_attachment(record)
+  EvalCorpus::ArtworkRoleResolver.pick_front_back(record["attachments"]).first
+end
+
+def registry_back_attachment(record)
+  EvalCorpus::ArtworkRoleResolver.pick_front_back(record["attachments"]).last
+end
+
+def repair_seed_back_artwork(batch, manifest, registry_dir)
+  repaired = 0
+  manifest["records"].each do |record|
+    back = registry_back_attachment(record)
+    next if back.nil?
+
+    application = batch.label_applications.find_by(serial_number: record["serial_number"] || record["ttbid"])
+    next if application.nil? || application.back_artwork.attached?
+
+    attach_registry_artwork(application, :back_artwork, registry_dir, back)
+    application.save!
+    repaired += 1
+  end
+  repaired
+end
+
 if Batch.exists?(name: "TTB registry sample")
-  puts "Seed batch already present - skipping (db:reset to rebuild)."
+  batch = Batch.find_by!(name: "TTB registry sample")
+  batch.update!(source_kind: "seed_sample") unless batch.seed_sample?
+  batch.label_applications.where(serial_number: "DEMO-RETAKE").update_all(source_kind: "demo")
+  batch.label_applications.where.not(source_kind: "demo").update_all(source_kind: "seed_sample")
+  repaired = repair_seed_back_artwork(batch, manifest, registry_dir)
+  puts "Seed batch already present - repaired #{repaired} missing back artwork attachment(s)."
   return
 end
 
-batch = Batch.create!(name: "TTB registry sample", status: "processing",
+batch = Batch.create!(name: "TTB registry sample", source_kind: "seed_sample", status: "processing",
                       total_rows: manifest["records"].size + 1)
 
 manifest["records"].each_with_index do |record, index|
   transcribed = values.fetch(record["ttbid"], {})
-  front = record["attachments"].find { |a| a["kind"].to_s.include?("Brand") } || record["attachments"].first
+  front = registry_front_attachment(record)
+  back = registry_back_attachment(record)
 
   application = batch.label_applications.build(
     channel: "submitted",
+    source_kind: "seed_sample",
     row_number: index + 1,
     serial_number: record["serial_number"] || record["ttbid"],
     beverage_type: PRODUCT_TYPES.fetch(record["product_type"]),
@@ -49,9 +98,8 @@ manifest["records"].each_with_index do |record, index|
     vintage_year: transcribed["vintage_year"]
   )
 
-  image_path = registry_dir.join("images", front["local_file"])
-  content_type = front["local_file"].end_with?(".png") ? "image/png" : "image/jpeg"
-  application.artwork.attach(io: File.open(image_path), filename: front["filename"], content_type: content_type)
+  attach_registry_artwork(application, :artwork, registry_dir, front)
+  attach_registry_artwork(application, :back_artwork, registry_dir, back) if back
   application.save!
   puts "Seeded #{record['brand_name']} (#{record['ttbid']})"
 end
@@ -72,6 +120,7 @@ degraded = registry_dir.join("images/bad_photo_demo.jpg")
 if degraded.exist?
   application = batch.label_applications.create!(
     channel: "submitted",
+    source_kind: "demo",
     row_number: batch.total_rows,
     serial_number: "DEMO-RETAKE",
     beverage_type: "malt",
@@ -85,7 +134,7 @@ if degraded.exist?
 end
 
 if ENV["ANTHROPIC_API_KEY"].present?
-  batch.label_applications.find_each { |a| VerifyLabelJob.perform_later(a.id) }
+  batch.verify_later(provider: nil, model: nil, mode: VerifyLabelJob::VERIFIER_V2_MODE)
   puts "Enqueued verification for #{batch.label_applications.count} labels."
 else
   puts "No ANTHROPIC_API_KEY set - records created without running verification."

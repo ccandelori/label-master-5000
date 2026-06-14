@@ -184,6 +184,59 @@ class LabelApplicationsControllerTest < ActionDispatch::IntegrationTest
     assert_select "select[name=demo_model]", count: 0
   end
 
+  test "the validation record page selects the refinement model used by the latest verification" do
+    post label_applications_path, params: valid_params({})
+    application = LabelApplication.last
+    application.verifications.create!(
+      overall_verdict: "fail",
+      field_checks: [],
+      model_id: VerifierV2::MODEL_ID,
+      extraction: {
+        "vlm_refinement" => {
+          "status" => "complete",
+          "provider" => "anthropic",
+          "model" => "claude-haiku-4-5",
+          "fields" => [ "government_warning_text" ]
+        }
+      }
+    )
+
+    get label_application_path(application)
+
+    assert_select "select[name=demo_model] option[value='anthropic:claude-haiku-4-5'][selected]"
+    assert_select "select[name=demo_model] option[value='openai:gpt-5.4-mini'][selected]", count: 0
+  end
+
+  test "the validation record page displays OCR and selected VLM timings" do
+    post label_applications_path, params: valid_params({})
+    application = LabelApplication.last
+    verification = application.verifications.create!(
+      overall_verdict: "fail",
+      field_checks: [],
+      model_id: VerifierV2::MODEL_ID,
+      latency_ms: 4100,
+      extraction: {
+        "vlm_refinement" => {
+          "status" => "complete",
+          "provider" => "anthropic",
+          "model" => "claude-haiku-4-5",
+          "duration_ms" => 812.3,
+          "fields" => [ "government_warning_text" ]
+        }
+      }
+    )
+    application.latest_verification_attempt.finish_with!(
+      verification: verification,
+      stage_timings: { "ocr_ms" => 2345.6 }
+    )
+
+    get label_application_path(application)
+
+    assert_match(/verifier-v2-v1 .* checked in 4\.1s/, response.body)
+    assert_match(/OCR 2\.3s/, response.body)
+    assert_match(/Claude Haiku 4\.5 refinement 0\.8s/, response.body)
+  end
+
   test "verification history names the model that produced each check" do
     post label_applications_path, params: valid_params({})
     application = LabelApplication.last

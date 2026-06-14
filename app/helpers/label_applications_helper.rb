@@ -20,22 +20,142 @@ module LabelApplicationsHelper
     "vintage" => %w[vintage_date vintage_appellation]
   }.freeze
 
-  # Builds the JSON the bounding-box overlay renders: one entry per located
-  # element, carrying the worst verdict among its associated checks plus the
-  # note and citation for the click-through annotation.
-  # Options for the pre-review demo's model select: [label, "provider:model"],
-  # with the globally configured model selected by default.
+  # Options for the validation refinement select. Every visible option runs
+  # OCR first, then refines unresolved findings with the selected VLM.
   def demo_model_options
+    demo_model_options_for(configured_refinement_model_value)
+  end
+
+  def demo_model_options_for(selected_value)
     config = Rails.application.config.x.extraction
-    options = config.demo_models.map { |e| [ e["label"], "#{e["provider"]}:#{e["model"]}" ] }
-    options_for_select(options, "#{config.provider}:#{config.model}")
+    entries = refinement_model_entries(config)
+    options = entries.map do |entry|
+      [ "OCR + #{entry.fetch("label")} refinement", "#{entry.fetch("provider")}:#{entry.fetch("model")}" ]
+    end
+    options_for_select(options, selected_value)
+  end
+
+  def demo_model_value_for_verification(verification)
+    verification_refinement_model_value(verification) || configured_refinement_model_value
   end
 
   # The menu label for a model id, for showing which model produced a
   # verification; ids outside the menu display as themselves.
   def demo_model_label(model_id)
-    entry = Rails.application.config.x.extraction.demo_models.find { |e| e["model"] == model_id }
+    entry = Array(Rails.application.config.x.extraction.demo_models).find { |e| e["model"] == model_id }
     entry ? entry["label"] : model_id
+  end
+
+  def refinement_model_entries(config)
+    configured = {
+      "provider" => config.provider,
+      "model" => config.model,
+      "label" => demo_model_label(config.model)
+    }
+    entries = Array(config.demo_models)
+    return entries if entries.any? { |entry| entry["provider"] == configured["provider"] && entry["model"] == configured["model"] }
+
+    [ configured, *entries ]
+  end
+
+  def configured_refinement_model_value
+    config = Rails.application.config.x.extraction
+    "#{config.provider}:#{config.model}"
+  end
+
+  def verification_refinement_model_value(verification)
+    extraction = verification&.extraction
+    return nil unless extraction.is_a?(Hash)
+
+    refinement = extraction["vlm_refinement"]
+    return nil unless refinement.is_a?(Hash)
+
+    provider = refinement["provider"]
+    model = refinement["model"]
+    return nil if provider.blank? || model.blank?
+
+    "#{provider}:#{model}"
+  end
+
+  def verification_timing_lines(verification, attempt)
+    [
+      ocr_timing_line(attempt),
+      vlm_refinement_timing_line(verification)
+    ].compact
+  end
+
+  def ocr_timing_line(attempt)
+    duration_ms = ocr_duration_ms(attempt)
+    return nil if duration_ms.nil?
+
+    "OCR #{duration_label(duration_ms)}"
+  end
+
+  def vlm_refinement_timing_line(verification)
+    refinement = vlm_refinement_metadata(verification)
+    return nil unless refinement
+
+    model = refinement["model"]
+    return nil if model.blank?
+
+    status = refinement["status"].to_s
+    duration_ms = numeric_ms(refinement["duration_ms"])
+    suffix = duration_ms ? duration_label(duration_ms) : status.presence
+    return nil if suffix.blank?
+
+    "#{demo_model_label(model)} refinement #{suffix}"
+  end
+
+  def vlm_refinement_metadata(verification)
+    extraction = verification&.extraction
+    return nil unless extraction.is_a?(Hash)
+
+    refinement = extraction["vlm_refinement"]
+    refinement.is_a?(Hash) ? refinement : nil
+  end
+
+  def ocr_duration_ms(attempt)
+    stage_timings = attempt&.stage_timings
+    return nil unless stage_timings.is_a?(Hash)
+
+    values = %w[ocr_ms ocr_escalation_ms].filter_map { |key| numeric_ms(stage_timings[key]) }
+    return nil if values.empty?
+
+    values.sum
+  end
+
+  def numeric_ms(value)
+    return value if value.is_a?(Numeric)
+
+    Float(value, exception: false)
+  end
+
+  def duration_label(duration_ms)
+    "#{(duration_ms / 1000.0).round(1)}s"
+  end
+
+  def actionable_checks(verification)
+    verification.field_checks.select { |check| %w[fail needs_review].include?(check.verdict) }
+  end
+
+  def quiet_findings_count(verification)
+    verification.field_checks.count { |check| %w[pass pass_with_note not_required not_applicable].include?(check.verdict) }
+  end
+
+  def findings_groups(verification)
+    sorted = actionable_checks(verification).sort_by { |check| -check.severity }
+    [
+      { title: "Failed", verdict_key: "fail", checks: sorted.select { |check| check.verdict == "fail" } },
+      { title: "Needs review", verdict_key: "needs_review", checks: sorted.select { |check| check.verdict == "needs_review" } }
+    ].reject { |group| group[:checks].empty? }
+  end
+
+  def quiet_findings_groups(verification)
+    sorted = verification.field_checks.sort_by { |check| -check.severity }
+    [
+      { title: "Passing", verdict_key: "pass", checks: sorted.select { |check| %w[pass pass_with_note].include?(check.verdict) } },
+      { title: "Informational", verdict_key: "not_required", checks: sorted.select { |check| %w[not_required not_applicable].include?(check.verdict) } }
+    ].reject { |group| group[:checks].empty? }
   end
 
   def bbox_data(verification)
@@ -47,6 +167,7 @@ module LabelApplicationsHelper
 
     (payload["fields"] || {}).each do |key, field|
       next if field.nil? || !valid_bbox?(field["bbox"])
+      next unless field["bbox_source"] == "ocr"
 
       checks = Array(EXTRACTION_FIELD_TO_CHECKS[key]).filter_map { |f| checks_by_field[f] }
       worst = checks.max_by(&:severity)
@@ -91,6 +212,7 @@ module LabelApplicationsHelper
 
     Array(payload["disclosures"]).each do |field|
       next if field.nil? || !valid_bbox?(field["bbox"])
+      next unless field["bbox_source"] == "ocr"
       next unless seen_disclosures.add?(Parsing::TextNormalizer.normalize(field["text"]))
 
       check = disclosure_checks.find do |c|
@@ -133,16 +255,12 @@ module LabelApplicationsHelper
     key = extraction_key_for(check_field)
     slot = key && verification.extraction&.dig("fields", key)
     return nil unless slot.is_a?(Hash) && valid_bbox?(slot["bbox"])
-    return approximate_location_caption if approximate?(slot)
+    return nil if approximate?(slot)
     return nil unless croppable?(application, slot)
 
     image_tag label_application_field_crop_path(application, field: key),
               class: "mb-1.5 max-h-14 w-auto max-w-full rounded border border-line bg-white",
               loading: "lazy", alt: "Label region read for #{field_label(check_field)}"
-  end
-
-  def approximate_location_caption
-    tag.p "Location approximate — not OCR-verified", class: "mb-1 text-xs text-ink-faint"
   end
 
   def check_detail(check)
@@ -164,9 +282,8 @@ module LabelApplicationsHelper
     bbox.is_a?(Array) && bbox.size == 4 && bbox.all? { |n| n.is_a?(Numeric) }
   end
 
-  # OCR-grounded boxes carry their own coordinate basis (the raster
-  # dimensions of their page); model boxes fall back to the basis the
-  # extractor self-reported for the field's page.
+  # OCR-grounded boxes carry their own coordinate basis: the raster
+  # dimensions of their page.
   def field_basis(field)
     basis = field["bbox_basis"]
     return nil unless basis.is_a?(Array) && basis.size == 2
@@ -178,9 +295,8 @@ module LabelApplicationsHelper
     Extraction::PageBasis.dimensions(payload, field["page"] || 1) || [ 1000, 1000 ]
   end
 
-  # An evidence crop exists when the field was actually located by OCR
-  # (a model estimate is not evidence) and its page has a standalone
-  # image blob to cut from (1 = front label, 2 = back label).
+  # An evidence crop exists only when the field was anchored to OCR geometry
+  # and its page has a standalone image blob to cut from.
   def croppable?(application, field)
     return false if approximate?(field)
 
@@ -188,7 +304,7 @@ module LabelApplicationsHelper
     (field["page"] || 1) <= 2 && attachment&.attached? && attachment.image?
   end
 
-  # Anything not anchored to OCR word geometry is the model's estimate.
+  # Only OCR-anchored boxes are evidence. VLM coordinates are ignored.
   def approximate?(field)
     field["bbox_source"] != "ocr"
   end

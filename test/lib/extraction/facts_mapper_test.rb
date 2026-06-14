@@ -69,4 +69,34 @@ class FactsMapperTest < ActiveSupport::TestCase
 
     assert_equal({ "brand_name" => 1, "government_warning" => 2 }, facts.field_pages)
   end
+
+  test "to_facts carries numeric field confidences" do
+    payload = {
+      "fields" => {
+        "brand_name" => { "text" => "ABC", "confidence" => 0.96 },
+        "fanciful_name" => { "text" => "Reserve", "confidence" => nil },
+        "net_contents" => { "text" => "750 mL", "confidence" => "high" }
+      }
+    }
+
+    assert_equal({ "brand_name" => 0.96 }, Extraction::FactsMapper.to_facts(payload).field_confidences)
+  end
+
+  test "to_facts carries each field source" do
+    payload = {
+      "fields" => {
+        "brand_name" => { "text" => "ABC", "bbox_source" => "ocr" },
+        "government_warning" => { "text" => "GOVERNMENT WARNING: ...", "bbox_source" => "model" },
+        "fanciful_name" => { "text" => nil, "source" => "vlm_unsupported", "bbox_source" => "model" },
+        "net_contents" => { "text" => "750 mL" },
+        "appellation" => nil
+      }
+    }
+    facts = Extraction::FactsMapper.to_facts(payload)
+
+    assert_equal(
+      { "brand_name" => "ocr", "government_warning" => "model", "fanciful_name" => "vlm_unsupported" },
+      facts.field_sources
+    )
+  end
 end

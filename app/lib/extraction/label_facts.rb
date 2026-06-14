@@ -9,6 +9,8 @@ module Extraction
   # text was replaced by OCR-located print: a declared value matches if
   # either form agrees. field_pages maps each field to the label it was
   # found on (1 = front/brand label, 2 = back) for placement rules.
+  # field_sources records whether each located field came from OCR or from
+  # the model so rules do not hard-fail on unverified model text.
   LabelFacts = Data.define(
     :brand_name,
     :fanciful_name,
@@ -27,6 +29,8 @@ module Extraction
     :commodity_statement,
     :model_texts,
     :field_pages,
+    :field_confidences,
+    :field_sources,
     :legible,
     :confidence
   ) do
@@ -50,9 +54,25 @@ module Extraction
         commodity_statement: h.fetch("commodity_statement", nil),
         model_texts: h.fetch("model_texts", {}),
         field_pages: h.fetch("field_pages", {}),
+        field_confidences: h.fetch("field_confidences", {}),
+        field_sources: h.fetch("field_sources", {}),
         legible: h.fetch("legible", true),
         confidence: h.fetch("confidence", nil)
       )
+    end
+
+    def ambiguous_field?(field)
+      source = field_sources[field.to_s].to_s
+      %w[vlm_unsupported vlm_region].include?(source)
+    end
+
+    def low_confidence_field?(field)
+      confidence = field_confidences[field.to_s]
+      confidence.is_a?(Numeric) && confidence < 0.75
+    end
+
+    def weak_field?(field)
+      ambiguous_field?(field) || low_confidence_field?(field)
     end
   end
 end

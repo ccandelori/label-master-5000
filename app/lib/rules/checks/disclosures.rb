@@ -39,10 +39,11 @@ module Rules
       def find_statement(facts, disclosure)
         candidates = Array(facts.disclosures)
         keywords = keyword_set(disclosure)
-        candidates.find do |text|
+        matches = candidates.select do |text|
           normalized = Parsing::TextNormalizer.normalize(text)
           keywords.any? { |k| normalized.include?(k) }
         end
+        matches.find { |text| permitted_form?(text, disclosure) } || matches.first
       end
 
       def keyword_set(disclosure)
@@ -61,10 +62,7 @@ module Rules
       def format_verdict(key, found, disclosure, flag)
         texts = Array(disclosure["required_text"])
         pattern = disclosure["pattern_allowed"]
-
-        matches = texts.any? { |t| Parsing::TextNormalizer.equivalent?(t, found) || Parsing::TextNormalizer.normalize(found).include?(Parsing::TextNormalizer.normalize(t)) }
-        matches ||= pattern_match?(pattern, found)
-        matches &&= caps_ok?(disclosure, found)
+        matches = permitted_form?(found, disclosure)
 
         if matches && flag == false
           FieldCheck.new(
@@ -78,8 +76,9 @@ module Rules
             extracted: found, citation: disclosure["citation"], note: nil
           )
         else
+          verdict = flag == true ? "fail" : "needs_review"
           FieldCheck.new(
-            field: "disclosure_#{key}", verdict: "fail", expected: texts.first || pattern,
+            field: "disclosure_#{key}", verdict: verdict, expected: texts.first || pattern,
             extracted: found, citation: disclosure["citation"],
             note: caps_ok?(disclosure, found) ?
               "Disclosure present but not in a permitted form" :
@@ -130,6 +129,17 @@ module Rules
 
         prefix = Parsing::TextNormalizer.normalize(pattern.gsub("___", ""))
         Parsing::TextNormalizer.normalize(found).start_with?(prefix)
+      end
+
+      def permitted_form?(found, disclosure)
+        texts = Array(disclosure["required_text"])
+        pattern = disclosure["pattern_allowed"]
+        matches = texts.any? do |text|
+          Parsing::TextNormalizer.equivalent?(text, found) ||
+            Parsing::TextNormalizer.normalize(found).include?(Parsing::TextNormalizer.normalize(text))
+        end
+        matches ||= pattern_match?(pattern, found)
+        matches && caps_ok?(disclosure, found)
       end
 
       def caps_ok?(disclosure, found)

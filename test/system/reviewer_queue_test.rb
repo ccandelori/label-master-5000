@@ -2,7 +2,7 @@
 
 require "application_system_test_case"
 
-class ReviewerQueueFlowTest < ApplicationSystemTestCase
+class ValidationHistoryFlowTest < ApplicationSystemTestCase
   def create_application(serial:, brand:)
     LabelApplication.create!(
       channel: "submitted",
@@ -22,7 +22,7 @@ class ReviewerQueueFlowTest < ApplicationSystemTestCase
     )
   end
 
-  test "agent approves a clean pass and rejects a failure through the queue" do
+  test "user approves a clean pass and rejects a failure through history" do
     clean = create_application(serial: "26-CLEAN", brand: "CLEAN LAGER")
     add_verification(clean, verdict: "pass")
     failing = create_application(serial: "26-DIRTY", brand: "DIRTY STOUT")
@@ -32,53 +32,30 @@ class ReviewerQueueFlowTest < ApplicationSystemTestCase
         note: "GOVERNMENT WARNING must appear in capital letters" }
     ])
 
-    # Failures live on their own tab and stay in the review rotation.
-    visit reviewer_queue_path(tab: "failed")
+    # Rule failures stay in the needs-attention history list.
+    visit validation_history_path(tab: "needs_attention")
     assert_text "DIRTY STOUT"
-    assert_text "Review"
+    assert_text "Details"
     assert_no_text "CLEAN LAGER"
 
-    # One-click approve from the ready-to-approve tab.
-    click_on "Ready to approve"
+    # One-click approve from the passed tab.
+    click_on "Passed"
     assert_text "CLEAN LAGER"
-    click_on "✓ Approve"
+    click_on "Approve"
     assert_text "Decision recorded"
     assert clean.latest_verification.reload.decided_to_approve?
 
     # Reject the failure from its record page; the breadcrumb leads back.
-    click_on "Failed"
+    click_on "Needs attention"
     click_on "Details"
     assert_text "GOVERNMENT WARNING must appear in capital letters"
-    within("nav[aria-label='Breadcrumb']") { assert_link "Review queue" }
-    click_on "✗ Reject"
+    within("nav[aria-label='Breadcrumb']") { assert_link "History" }
+    click_on "Reject"
     assert_text "Decision recorded"
 
     # Both now sit under decided; the working tabs are clear.
-    visit reviewer_queue_path(tab: "decided")
+    visit validation_history_path(tab: "decided")
     assert_text "CLEAN LAGER"
     assert_text "DIRTY STOUT"
-  end
-
-  test "review mode shell renders the worst undecided item" do
-    flagged = create_application(serial: "26-HUD", brand: "HUD PORTER")
-    add_verification(flagged, verdict: "needs_review")
-
-    visit reviewer_review_path
-    assert_text "Exit review mode"
-    assert_match(/26-HUD/, page.html)
-
-    # The side switch and its shortcut hint ship hidden; the controller
-    # reveals them per item when a back label exists.
-    assert_selector "[data-review-mode-target='sideToggle']", visible: :all
-    assert_selector "[data-review-mode-target='sideHint']", visible: :all
-  end
-
-  test "failed labels enter review mode for their rejection" do
-    failing = create_application(serial: "26-YEP", brand: "FAILED STOUT")
-    add_verification(failing, verdict: "fail")
-
-    visit reviewer_review_path
-    assert_text "Exit review mode"
-    assert_match(/26-YEP/, page.html)
   end
 end
