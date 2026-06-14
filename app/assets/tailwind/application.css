@@ -81,6 +81,15 @@
     padding: 0.5rem 0.75rem;
   }
 
+  input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="file"]),
+  select:not([multiple]):not([size]) {
+    height: 2.625rem;
+  }
+
+  textarea {
+    min-height: 2.625rem;
+  }
+
   input:focus-visible,
   textarea:focus-visible,
   select:focus-visible {
