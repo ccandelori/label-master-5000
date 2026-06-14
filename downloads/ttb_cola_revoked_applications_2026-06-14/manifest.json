@@ -1,0 +1,28 @@
+[
+  {
+    "ttbId": "17118001000579",
+    "status": "REVOKED",
+    "brandName": "WOOD'S HIGH MOUNTAIN DISTILLERY",
+    "fancifulName": "BLUE YONDER",
+    "serialNumber": "170001",
+    "classTypeDescription": "GIN",
+    "approvalDate": "05/05/2017",
+    "sourceUrl": "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=17118001000579",
+    "detailUrl": "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=17118001000579",
+    "pdfPath": "/Users/sheep/Documents/Code/Treasury/label-verifier/downloads/ttb_cola_revoked_applications_2026-06-14/17118001000579__REVOKED__WOOD_39_S_HIGH_MOUNTAIN_DISTILLERY__BLUE_YONDER.pdf",
+    "bytes": 553253
+  },
+  {
+    "ttbId": "17253001000047",
+    "status": "REVOKED",
+    "brandName": "GARAGISTE MEADERY",
+    "fancifulName": "BANGKOK",
+    "serialNumber": "170030",
+    "classTypeDescription": "TABLE FLAVORED WINE",
+    "approvalDate": "09/12/2017",
+    "sourceUrl": "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicFormDisplay&ttbid=17253001000047",
+    "detailUrl": "https://www.ttbonline.gov/colasonline/viewColaDetails.do?action=publicDisplaySearchBasic&ttbid=17253001000047",
+    "pdfPath": "/Users/sheep/Documents/Code/Treasury/label-verifier/downloads/ttb_cola_revoked_applications_2026-06-14/17253001000047__REVOKED__GARAGISTE_MEADERY__BANGKOK.pdf",
+    "bytes": 752011
+  }
+]
