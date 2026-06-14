@@ -1,10 +1,43 @@
-<h1 class="text-2xl font-semibold mb-2">Pre-check your label before you file</h1>
+<h1 class="text-2xl font-semibold mb-2">Validate a label application</h1>
 <p class="text-ink-muted mb-6 max-w-2xl">
-  Enter the application details as you would file them, attach the label
-  artwork, and get a field-by-field check with the Beverage Alcohol Manual
-  rule behind each finding — so you can fix problems before TTB sees them.
-  When it is clean, submit it straight to the reviewer queue.
+  Start from a sample application, upload an application PDF, or enter the
+  application details by hand. The validation compares the application values
+  against the label artwork and shows the rule behind each finding.
 </p>
+
+<% if @samples.any? %>
+  <section class="mb-6 bg-raised rounded-xl border border-line p-6">
+    <div class="space-y-5">
+      <div>
+        <h2 class="text-lg font-semibold">Use sample data</h2>
+        <p class="text-ink-muted mt-1 max-w-2xl">
+          Choose a seeded application and run a fresh validation. The sample
+          stays unchanged; this creates a new validation record.
+        </p>
+      </div>
+      <%= form_with url: sample_validation_path,
+            class: "grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2 xl:grid-cols-[minmax(18rem,34rem)_minmax(18rem,28rem)_auto] xl:items-end" do %>
+        <div class="min-w-0">
+          <label for="sample_id" class="block font-medium mb-2">Sample application</label>
+          <%= select_tag :sample_id,
+                options_for_select(@samples.map { |sample|
+                  [
+                    "#{sample.brand_name} - #{sample.beverage_type.capitalize} - #{sample.serial_number}",
+                    sample.id
+                  ]
+                }),
+                class: "w-full min-w-0 rounded-lg border-line-strong" %>
+        </div>
+        <div class="min-w-0">
+          <label for="demo_model" class="block font-medium mb-2">Refinement model</label>
+          <%= select_tag :demo_model, demo_model_options, class: "w-full min-w-0 rounded-lg border-line-strong" %>
+        </div>
+        <%= submit_tag "Run validation",
+              class: "w-full rounded-lg bg-ink text-surface px-6 py-3 font-medium hover:opacity-90 cursor-pointer md:w-auto xl:justify-self-start" %>
+      <% end %>
+    </div>
+  </section>
+<% end %>
 
 <%= render "shared/pre_review_mode_nav", active: :single %>
 
@@ -14,7 +47,7 @@
   <section class="mt-8 bg-raised rounded-xl border border-line p-5" aria-label="Verification statistics">
     <h2 class="text-base font-semibold mb-3">So far</h2>
     <div class="flex flex-wrap gap-6 text-ink-muted">
-      <span><span class="text-xl font-semibold"><%= @stats[:count] %></span> labels checked</span>
+      <span><span class="text-xl font-semibold"><%= @stats[:count] %></span> validations run</span>
       <span><span class="text-xl font-semibold text-pass"><%= @stats[:verdicts].values_at("pass", "pass_with_note").compact.sum %></span> passed</span>
       <span><span class="text-xl font-semibold text-fail"><%= @stats[:verdicts]["fail"] || 0 %></span> failed</span>
       <span><span class="text-xl font-semibold text-warn"><%= @stats[:verdicts]["needs_review"] || 0 %></span> need review</span>
