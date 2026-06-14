@@ -3,6 +3,8 @@
 # Ignore git directory.
 /.git/
 /.gitignore
+/.taskmaster/
+**/.DS_Store
 
 # Ignore bundler config.
 /.bundle
@@ -41,6 +43,9 @@
 
 # Ignore development files
 /.devcontainer
+/ocr_service/.venv/
+**/__pycache__/
+*.py[cod]
 
 # Ignore Docker-related files
 /.dockerignore

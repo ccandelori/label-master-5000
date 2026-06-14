@@ -1,0 +1,69 @@
+services:
+  - type: web
+    name: label-verifier
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /up
+    disk:
+      name: label-verifier-storage
+      mountPath: /rails/storage
+      sizeGB: 1
+    envVars:
+      - key: RAILS_MASTER_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: label-verifier-primary
+          property: connectionString
+      - key: CACHE_DATABASE_URL
+        fromDatabase:
+          name: label-verifier-cache
+          property: connectionString
+      - key: QUEUE_DATABASE_URL
+        fromDatabase:
+          name: label-verifier-queue
+          property: connectionString
+      - key: CABLE_DATABASE_URL
+        fromDatabase:
+          name: label-verifier-cable
+          property: connectionString
+      - key: RAILS_ENV
+        value: production
+      - key: RAILS_LOG_LEVEL
+        value: info
+      - key: RAILS_MAX_THREADS
+        value: 3
+      - key: JOB_CONCURRENCY
+        value: 1
+      - key: SOLID_QUEUE_IN_PUMA
+        value: true
+      - key: EXTRACTION_PROVIDER
+        value: openai
+      - key: EXTRACTION_MODEL
+        value: gpt-5.4-nano
+      - key: EXTRACTION_EFFORT
+        value: low
+      - key: EXTRACTION_OCR_ENGINE
+        value: tesseract
+      - key: EXTRACTION_OCR_REGION_REFINEMENT
+        value: false
+      - key: EXTRACTION_OCR_TIMEOUT_SECONDS
+        value: 8
+
+databases:
+  - name: label-verifier-primary
+    databaseName: label_verifier_production
+    user: label_verifier
+  - name: label-verifier-cache
+    databaseName: label_verifier_production_cache
+    user: label_verifier
+  - name: label-verifier-queue
+    databaseName: label_verifier_production_queue
+    user: label_verifier
+  - name: label-verifier-cable
+    databaseName: label_verifier_production_cable
+    user: label_verifier

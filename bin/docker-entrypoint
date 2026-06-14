@@ -8,6 +8,35 @@ fi
 
 # If running the rails server then create or migrate existing database
 if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
+  if [ "${RAILS_ENV:-}" == "production" ]; then
+    required_envs=(DATABASE_URL CACHE_DATABASE_URL QUEUE_DATABASE_URL CABLE_DATABASE_URL RAILS_MASTER_KEY)
+
+    case "${EXTRACTION_PROVIDER:-openai}" in
+      openai)
+        required_envs+=(OPENAI_API_KEY)
+        ;;
+      anthropic)
+        required_envs+=(ANTHROPIC_API_KEY)
+        ;;
+      *)
+        echo "Invalid EXTRACTION_PROVIDER: ${EXTRACTION_PROVIDER}" >&2
+        exit 1
+        ;;
+    esac
+
+    missing_envs=()
+    for key in "${required_envs[@]}"; do
+      if [ -z "${!key:-}" ]; then
+        missing_envs+=("${key}")
+      fi
+    done
+
+    if [ "${#missing_envs[@]}" -gt 0 ]; then
+      echo "Missing required environment variables: ${missing_envs[*]}" >&2
+      exit 1
+    fi
+  fi
+
   ./bin/rails db:prepare
 fi
 

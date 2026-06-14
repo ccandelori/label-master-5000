@@ -1,24 +1,37 @@
-# README
+# LabelMaster 5000
 
-This README would normally document whatever steps are necessary to get the
-application up and running.
+Rails application for validating TTB/COLA application records against submitted
+label artwork.
 
-Things you may want to cover:
+## Runtime dependencies
 
-* Ruby version
+The app shells out to native tools during PDF/image/OCR processing:
 
-* System dependencies
+- ImageMagick (`magick`)
+- Poppler (`pdfinfo`, `pdftoppm`)
+- Tesseract (`tesseract`)
 
-* Configuration
+The production Docker image installs those packages. Local development machines
+need them on `PATH` for PDF upload and OCR tests to run without skips.
 
-* Database creation
+## Render deployment
 
-* Database initialization
+The repository includes `render.yaml` for a Docker-based Render deployment. The
+blueprint provisions:
 
-* How to run the test suite
+- one Rails web service
+- one persistent disk mounted at `/rails/storage` for Active Storage uploads
+- separate Postgres databases for primary app data, Solid Cache, Solid Queue,
+  and Solid Cable
 
-* Services (job queues, cache servers, search engines, etc.)
+Set these secret values in Render. They are intentionally not committed:
 
-* Deployment instructions
+- `RAILS_MASTER_KEY`
+- `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY`, only if Anthropic comparison models will be used
 
-* ...
+The blueprint sets non-secret defaults for the fast validation path: OpenAI,
+`gpt-5.4-nano`, low effort, local Tesseract OCR, and Solid Queue running inside
+Puma. Change those environment variables in Render when comparing models.
+
+The Docker entrypoint runs `bin/rails db:prepare` before starting the server.

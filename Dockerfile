@@ -16,8 +16,29 @@ WORKDIR /rails
 
 # Install base packages
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y curl libjemalloc2 libvips postgresql-client && \
+    apt-get install --no-install-recommends -y \
+        curl \
+        imagemagick \
+        libjemalloc2 \
+        libvips \
+        poppler-utils \
+        postgresql-client \
+        tesseract-ocr \
+        tesseract-ocr-eng && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
+
+# Debian's ImageMagick package may expose ImageMagick 6 as `convert`/`identify`
+# while the app calls the ImageMagick 7-compatible `magick` command.
+RUN if ! command -v magick >/dev/null 2>&1; then \
+        printf '%s\n' \
+          '#!/bin/sh' \
+          'if [ "$1" = "identify" ]; then' \
+          '  shift' \
+          '  exec identify "$@"' \
+          'fi' \
+          'exec convert "$@"' > /usr/local/bin/magick && \
+        chmod +x /usr/local/bin/magick; \
+    fi
 
 # Set production environment
 ENV RAILS_ENV="production" \
