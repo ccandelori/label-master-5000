@@ -17,19 +17,7 @@ services:
         sync: false
       - key: DATABASE_URL
         fromDatabase:
-          name: label-verifier-primary
-          property: connectionString
-      - key: CACHE_DATABASE_URL
-        fromDatabase:
-          name: label-verifier-cache
-          property: connectionString
-      - key: QUEUE_DATABASE_URL
-        fromDatabase:
-          name: label-verifier-queue
-          property: connectionString
-      - key: CABLE_DATABASE_URL
-        fromDatabase:
-          name: label-verifier-cable
+          name: label-verifier-db
           property: connectionString
       - key: RAILS_ENV
         value: production
@@ -55,15 +43,6 @@ services:
         value: 8
 
 databases:
-  - name: label-verifier-primary
+  - name: label-verifier-db
     databaseName: label_verifier_production
-    user: label_verifier
-  - name: label-verifier-cache
-    databaseName: label_verifier_production_cache
-    user: label_verifier
-  - name: label-verifier-queue
-    databaseName: label_verifier_production_queue
-    user: label_verifier
-  - name: label-verifier-cable
-    databaseName: label_verifier_production_cable
     user: label_verifier

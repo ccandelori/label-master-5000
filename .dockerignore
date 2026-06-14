@@ -4,6 +4,7 @@
 /.git/
 /.gitignore
 /.taskmaster/
+/.claude/
 **/.DS_Store
 
 # Ignore bundler config.

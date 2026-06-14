@@ -133,8 +133,8 @@ blueprint provisions:
 
 - one Rails web service
 - one persistent disk mounted at `/rails/storage` for Active Storage uploads
-- separate Postgres databases for primary app data, Solid Cache, Solid Queue,
-  and Solid Cable
+- one Postgres instance; the app derives logical database URLs for primary app
+  data, Solid Cache, Solid Queue, and Solid Cable from `DATABASE_URL`
 
 Set these secret values in Render:
 
@@ -142,12 +142,20 @@ Set these secret values in Render:
 - `OPENAI_API_KEY`
 - `ANTHROPIC_API_KEY`, only if Anthropic comparison models will be used
 
-Render supplies these database URLs from the blueprint-managed databases:
+Render supplies the primary database URL from the blueprint-managed database:
 
 - `DATABASE_URL`
-- `CACHE_DATABASE_URL`
-- `QUEUE_DATABASE_URL`
-- `CABLE_DATABASE_URL`
+
+By default, `config/database.yml` derives these logical database names from the
+primary database name:
+
+- `<primary_database>_cache`
+- `<primary_database>_queue`
+- `<primary_database>_cable`
+
+from the same Render Postgres internal host, user, and password. Override
+`CACHE_DATABASE_URL`, `QUEUE_DATABASE_URL`, or `CABLE_DATABASE_URL` only if those
+roles are split into separate Postgres services later.
 
 The blueprint sets production defaults for the fast path:
 
