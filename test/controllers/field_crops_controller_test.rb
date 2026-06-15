@@ -27,6 +27,24 @@ class FieldCropsControllerTest < ActionDispatch::IntegrationTest
     )
   end
 
+  def with_memory_cache
+    previous_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    yield
+  ensure
+    Rails.cache = previous_cache
+  end
+
+  def with_image_variant_method(method_name, replacement)
+    original = Extraction::ImageVariants.method(method_name)
+    Extraction::ImageVariants.define_singleton_method(method_name, &replacement)
+    yield
+  ensure
+    Extraction::ImageVariants.define_singleton_method(method_name) do |*args, **kwargs|
+      original.call(*args, **kwargs)
+    end
+  end
+
   test "serves a png crop for a located field" do
     skip "imagemagick not available" unless magick?
 
@@ -51,6 +69,34 @@ class FieldCropsControllerTest < ActionDispatch::IntegrationTest
 
     get label_application_field_crop_path(app, field: "brand_name")
     assert_response :not_found, "cutting pixels from an estimate manufactures evidence"
+  end
+
+  test "caches generated crops for repeated identical requests" do
+    app = create_application_with_artwork
+    add_verification(app, fields: {
+      "brand_name" => { "text" => "OLD TOM DISTILLERY", "bbox" => [ 100, 80, 350, 42 ],
+                        "bbox_source" => "ocr", "bbox_basis" => [ 800, 1000 ], "page" => 1 }
+    })
+    crop_calls = 0
+
+    with_memory_cache do
+      with_image_variant_method(:dimensions, ->(_data) { [ 800, 1000 ] }) do
+        with_image_variant_method(:crop, ->(_data, rect:, upscale_factor:) {
+          crop_calls += 1
+          "png-#{rect.join("-")}-#{upscale_factor}"
+        }) do
+          2.times do
+            get label_application_field_crop_path(app, field: "brand_name")
+
+            assert_response :success
+            assert_equal "image/png", response.media_type
+            assert_match(/^png-/, response.body)
+          end
+        end
+      end
+    end
+
+    assert_equal 1, crop_calls
   end
 
   test "unknown fields and unlocated fields are not found" do

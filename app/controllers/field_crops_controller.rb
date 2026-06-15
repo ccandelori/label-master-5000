@@ -6,6 +6,11 @@
 # a thumbnail. Crops are cut on demand from the original artwork of the
 # page the field was read on (1 = front label, 2 = back label).
 class FieldCropsController < ApplicationController
+  CROP_CACHE_VERSION = "field-crop-v1"
+  CROP_CACHE_TTL = 12.hours
+
+  class CropUnavailable < StandardError; end
+
   def show
     application = LabelApplication.find(params[:label_application_id])
     field = params[:field].to_s
@@ -24,20 +29,45 @@ class FieldCropsController < ApplicationController
     attachment = page == 1 ? application.artwork : application.back_artwork
     return head :not_found unless page <= 2 && attachment.attached? && attachment.image?
 
-    data = attachment.download
-    image_w, image_h = Extraction::ImageVariants.dimensions(data)
-    basis = slot["bbox_basis"] ||
-            Extraction::PageBasis.dimensions(verification.extraction, page) ||
-            [ image_w, image_h ]
-    rect = Extraction::RegionRefiner.padded_rect(
-      bbox, image_w, image_h, basis[0], basis[1], Extraction::RegionRefiner::PADDING
-    )
-    return head :not_found if rect.nil?
-
     expires_in 10.minutes
-    send_data Extraction::ImageVariants.crop(data, rect: rect, upscale_factor: 1.0),
+    send_data cached_crop(application, verification, field, slot, attachment),
               type: "image/png", disposition: "inline"
-  rescue
+  rescue CropUnavailable
+    head :not_found
+  rescue Extraction::OcrError
     head :unprocessable_entity
+  end
+
+  private
+
+  def cached_crop(application, verification, field, slot, attachment)
+    Rails.cache.fetch(crop_cache_key(application, verification, field, slot, attachment), expires_in: CROP_CACHE_TTL) do
+      data = attachment.download
+      image_w, image_h = Extraction::ImageVariants.dimensions(data)
+      basis = slot["bbox_basis"] ||
+              Extraction::PageBasis.dimensions(verification.extraction, slot["page"] || 1) ||
+              [ image_w, image_h ]
+      rect = Extraction::RegionRefiner.padded_rect(
+        slot["bbox"], image_w, image_h, basis[0], basis[1], Extraction::RegionRefiner::PADDING
+      )
+      raise CropUnavailable if rect.nil?
+
+      Extraction::ImageVariants.crop(data, rect: rect, upscale_factor: 1.0)
+    end
+  end
+
+  def crop_cache_key(application, verification, field, slot, attachment)
+    [
+      CROP_CACHE_VERSION,
+      application.id,
+      verification.id,
+      field,
+      attachment.blob.checksum,
+      attachment.blob.byte_size,
+      slot["page"] || 1,
+      slot["bbox"],
+      slot["bbox_basis"],
+      Extraction::RegionRefiner::PADDING
+    ]
   end
 end

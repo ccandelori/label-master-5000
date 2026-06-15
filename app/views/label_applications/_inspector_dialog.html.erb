@@ -26,7 +26,8 @@
           <p class="font-semibold">Evidence</p>
           <p class="text-sm text-ink-faint">Review the checks against the label artwork.</p>
         </div>
-        <%= render "label_applications/findings_groups", application: application, verification: verification %>
+        <%= render "label_applications/findings_groups", application: application, verification: verification,
+              show_crops: false %>
         <div class="pb-4"></div>
       </aside>
     </div>

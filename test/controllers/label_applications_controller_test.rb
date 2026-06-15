@@ -112,6 +112,37 @@ class LabelApplicationsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match(/field_crop/, response.body)
   end
 
+  test "show renders one crop request for checks sharing the same OCR field" do
+    post label_applications_path, params: valid_params({})
+    application = LabelApplication.last
+    verification = application.verifications.create!(
+      overall_verdict: "fail",
+      field_checks: [
+        { field: "government_warning_text", verdict: "fail", expected: "GOVERNMENT WARNING: ...",
+          extracted: "GOVERNMENT WARNING: ...", citation: "27 CFR 16.21", note: "Required warning" },
+        { field: "government_warning_prefix", verdict: "fail", expected: "GOVERNMENT WARNING",
+          extracted: "GOVERNMENT WARNING", citation: "27 CFR 16.22", note: "Prefix issue" },
+        { field: "government_warning_bold", verdict: "pass", expected: "Bold heading",
+          extracted: "Bold heading", citation: "27 CFR 16.22", note: nil },
+        { field: "government_warning_paragraph", verdict: "pass", expected: "Separate paragraph",
+          extracted: "Separate paragraph", citation: "27 CFR 16.22", note: nil }
+      ],
+      extraction: {
+        "fields" => {
+          "government_warning" => { "text" => "GOVERNMENT WARNING: ...", "bbox" => [ 10, 10, 250, 40 ],
+                                    "bbox_source" => "ocr", "bbox_basis" => [ 800, 1000 ], "page" => 1 }
+        }
+      }
+    )
+    application.latest_verification_attempt.finish_with!(verification: verification, stage_timings: {})
+
+    get label_application_path(application)
+
+    assert_response :success
+    crop_path = label_application_field_crop_path(application, field: "government_warning")
+    assert_equal 1, response.body.scan(crop_path).size
+  end
+
   test "varietals round-trip through the comma-separated form field" do
     post label_applications_path, params: valid_params(beverage_type: "wine", varietals_list: "Merlot, Syrah")
     assert_equal %w[Merlot Syrah], LabelApplication.last.varietals

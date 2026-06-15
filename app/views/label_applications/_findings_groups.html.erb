@@ -1,4 +1,9 @@
+<% show_crops = local_assigns.fetch(:show_crops, true) %>
 <% groups = findings_groups(verification) %>
+<% quiet_groups = quiet_findings_groups(verification) %>
+<% quiet_count = quiet_groups.sum { |group| group.fetch(:checks).size } %>
+<% ordered_checks = groups.flat_map { |group| group.fetch(:checks) } + quiet_groups.flat_map { |group| group.fetch(:checks) } %>
+<% crop_tags = show_crops ? field_crop_tags_by_field(application, verification, ordered_checks) : {} %>
 <% group_color = { "fail" => "text-fail", "needs_review" => "text-warn", "pass" => "text-pass" } %>
 
 <% if groups.empty? %>
@@ -30,7 +35,7 @@
             <div>
               <dt class="text-xs uppercase tracking-wide text-ink-faint">On the label</dt>
               <dd class="mt-0.5 <%= check.extracted.present? ? "" : "text-ink-faint" %>">
-                <%= field_crop_tag(application, verification, check.field) %>
+                <%= crop_tags[check.field] %>
                 <%= check.extracted.presence || "Not found" %>
               </dd>
             </div>
@@ -47,12 +52,12 @@
   </section>
 <% end %>
 
-<% if quiet_findings_count(verification).positive? %>
+<% if quiet_count.positive? %>
   <details class="border-t border-line">
     <summary class="cursor-pointer px-5 py-3 text-sm font-medium text-ink-muted hover:bg-panel">
-      <%= pluralize(quiet_findings_count(verification), "passing or informational check") %>
+      <%= pluralize(quiet_count, "passing or informational check") %>
     </summary>
-    <% quiet_findings_groups(verification).each do |group| %>
+    <% quiet_groups.each do |group| %>
       <section aria-label="<%= group.fetch(:title) %> checks">
         <h3 class="flex items-baseline gap-2 px-5 pt-4 pb-1.5 text-xs font-semibold uppercase tracking-wider <%= group.fetch(:verdict_key) == "pass" ? "text-pass" : "text-ink-faint" %>">
           <%= group.fetch(:title) %>
@@ -77,7 +82,7 @@
                   <div>
                     <dt class="text-xs uppercase tracking-wide text-ink-faint">On the label</dt>
                     <dd class="mt-0.5 <%= check.extracted.present? ? "" : "text-ink-faint" %>">
-                      <%= field_crop_tag(application, verification, check.field) %>
+                      <%= crop_tags[check.field] %>
                       <%= check.extracted.presence || "Not found" %>
                     </dd>
                   </div>

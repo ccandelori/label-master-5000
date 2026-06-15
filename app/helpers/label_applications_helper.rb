@@ -263,6 +263,20 @@ module LabelApplicationsHelper
               loading: "lazy", alt: "Label region read for #{field_label(check_field)}"
   end
 
+  def field_crop_tags_by_field(application, verification, checks)
+    rendered_keys = Set.new
+    checks.each_with_object({}) do |check, tags|
+      key = extraction_key_for(check.field)
+      next if key.nil? || rendered_keys.include?(key)
+
+      tag = field_crop_tag(application, verification, check.field)
+      next if tag.blank?
+
+      rendered_keys.add(key)
+      tags[check.field] = tag
+    end
+  end
+
   def check_detail(check)
     {
       field: check.field,
