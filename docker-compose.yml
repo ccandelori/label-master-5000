@@ -1,0 +1,50 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: label_verifier
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: label_verifier_production
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U label_verifier -d label_verifier_production"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://label_verifier:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db:5432/label_verifier_production
+      RAILS_ENV: production
+      RAILS_MASTER_KEY: ${RAILS_MASTER_KEY:?set RAILS_MASTER_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?set OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      RAILS_SERVE_STATIC_FILES: "true"
+      FORCE_SSL: ${FORCE_SSL:-false}
+      ASSUME_SSL: ${ASSUME_SSL:-false}
+      RAILS_MAX_THREADS: ${RAILS_MAX_THREADS:-2}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-1}
+      JOB_CONCURRENCY: ${JOB_CONCURRENCY:-1}
+      VERIFY_CONCURRENCY: ${VERIFY_CONCURRENCY:-1}
+      SOLID_QUEUE_IN_PUMA: ${SOLID_QUEUE_IN_PUMA:-true}
+      EXTRACTION_PROVIDER: ${EXTRACTION_PROVIDER:-openai}
+      EXTRACTION_MODEL: ${EXTRACTION_MODEL:-gpt-5.4-nano}
+      EXTRACTION_EFFORT: ${EXTRACTION_EFFORT:-low}
+      EXTRACTION_OCR_ENGINE: ${EXTRACTION_OCR_ENGINE:-tesseract}
+      EXTRACTION_OCR_REGION_REFINEMENT: ${EXTRACTION_OCR_REGION_REFINEMENT:-false}
+      EXTRACTION_OCR_TIMEOUT_SECONDS: ${EXTRACTION_OCR_TIMEOUT_SECONDS:-8}
+    ports:
+      - "80:3000"
+    volumes:
+      - rails_storage:/rails/storage
+
+volumes:
+  postgres_data:
+  rails_storage:

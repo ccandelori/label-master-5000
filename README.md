@@ -181,3 +181,52 @@ docker build -t label-verifier-render-check .
 ```
 
 The current deployment commit was verified with all three checks.
+
+## DigitalOcean Droplet Deployment
+
+The repository also includes `docker-compose.yml` for a single-Droplet
+deployment. This is the cheaper deployment shape for a prototype because it runs
+Rails, Postgres, local Active Storage, and Solid Queue on one server.
+
+Recommended Droplet:
+
+- Ubuntu 24.04 LTS
+- 2 GB RAM / 1 vCPU / 50 GB disk
+- Docker and Docker Compose plugin installed
+- ports `22`, `80`, and later `443` open
+
+Create the server env file from the checked-in template:
+
+```sh
+cp config/deploy/production.env.example .env.production
+```
+
+Fill in the real values:
+
+- `POSTGRES_PASSWORD`
+- `RAILS_MASTER_KEY`
+- `OPENAI_API_KEY`
+
+The Droplet compose stack defaults to:
+
+- local Postgres container
+- local Active Storage volume
+- conservative concurrency for a 2 GB server
+- `FORCE_SSL=false` and `ASSUME_SSL=false` so the app works by IP address
+
+Start or update the stack:
+
+```sh
+docker compose --env-file .env.production up -d --build
+```
+
+Check status:
+
+```sh
+docker compose --env-file .env.production ps
+docker compose --env-file .env.production logs --tail=100 web
+curl -I http://SERVER_IP/up
+```
+
+When a domain and TLS proxy are added, set `FORCE_SSL=true` and
+`ASSUME_SSL=true`.
