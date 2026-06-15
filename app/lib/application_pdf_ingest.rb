@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
+require "fileutils"
 require "open3"
 require "tmpdir"
 
@@ -11,6 +12,11 @@ module ApplicationPdfIngest
   PDF_CONTENT_TYPES = %w[application/pdf application/x-pdf].freeze
   PDF_EXTENSION = /\.pdf\z/i
   DEFAULT_DPI = 160
+  LABEL_TRIM_FUZZ = "6%"
+  LABEL_TRIM_PADDING = 24
+  LABEL_CONTENT_CROP = "100%x82%+0+0"
+  MIN_TRIM_WIDTH_RATIO = 0.35
+  MIN_TRIM_HEIGHT_RATIO = 0.20
 
   Source = Data.define(:path, :filename, :content_type) do
     def self.from_path(path)
@@ -224,13 +230,56 @@ module ApplicationPdfIngest
 
   def crop_label_page(path:, page_index:, dir:)
     output = dir.join("label-#{page_index + 1}.png")
+    coarse = dir.join("label-#{page_index + 1}-coarse.png")
+    content = dir.join("label-#{page_index + 1}-content.png")
+    trimmed = dir.join("label-#{page_index + 1}-trimmed.png")
     crop = page_index.zero? ? "100%x65%+0+0" : "100%x92%+0+0"
     _out, err, status = Open3.capture3(
-      "magick", path.to_s, "-gravity", "South", "-crop", crop, "+repage", output.to_s
+      "magick", path.to_s, "-gravity", "South", "-crop", crop, "+repage", coarse.to_s
+    )
+    raise PdfCommandError, err.presence || "magick exited #{status.exitstatus}" unless status.success?
+
+    crop_pdf_footer(path: coarse, output: content)
+    trim_label_crop(path: content, output: trimmed)
+    FileUtils.cp(acceptable_label_trim?(coarse: coarse, trimmed: trimmed) ? trimmed : coarse, output)
+
+    output
+  end
+
+  def crop_pdf_footer(path:, output:)
+    _out, err, status = Open3.capture3(
+      "magick", path.to_s, "-gravity", "North", "-crop", LABEL_CONTENT_CROP, "+repage", output.to_s
     )
     raise PdfCommandError, err.presence || "magick exited #{status.exitstatus}" unless status.success?
 
     output
+  end
+
+  def trim_label_crop(path:, output:)
+    _out, err, status = Open3.capture3(
+      "magick", path.to_s, "-fuzz", LABEL_TRIM_FUZZ, "-trim", "+repage",
+      "-bordercolor", "white", "-border", LABEL_TRIM_PADDING.to_s, output.to_s
+    )
+    raise PdfCommandError, err.presence || "magick exited #{status.exitstatus}" unless status.success?
+
+    output
+  end
+
+  def acceptable_label_trim?(coarse:, trimmed:)
+    coarse_w, coarse_h = image_dimensions(path: coarse)
+    trimmed_w, trimmed_h = image_dimensions(path: trimmed)
+
+    trimmed_w >= coarse_w * MIN_TRIM_WIDTH_RATIO &&
+      trimmed_h >= coarse_h * MIN_TRIM_HEIGHT_RATIO
+  end
+
+  def image_dimensions(path:)
+    out, err, status = Open3.capture3("magick", "identify", "-format", "%w %h", path.to_s)
+    raise PdfCommandError, err.presence || "magick identify exited #{status.exitstatus}" unless status.success?
+
+    out.split.first(2).map { |value| Integer(value) }
+  rescue ArgumentError, TypeError
+    raise PdfCommandError, "image dimensions were not present"
   end
 
   def manifest_record_for(source, records, text)
