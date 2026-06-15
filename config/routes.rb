@@ -1,4 +1,6 @@
 Rails.application.routes.draw do
+  mount ActionCable.server => "/cable"
+
   root "label_applications#new"
 
   get "validation", to: "label_applications#new", as: :validation
