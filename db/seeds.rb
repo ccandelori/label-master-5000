@@ -4,9 +4,8 @@
 # (db/registry/, fetched by script/harvest_cola_registry.rb) plus one
 # deliberately degraded image for the request-retake flow.
 #
-# Verification jobs are enqueued only when an ANTHROPIC_API_KEY is present;
-# without one, the records are created and any label can be checked later
-# via "Edit and re-check".
+# Seed data should be cheap and deterministic by default. Verification jobs
+# only run when explicitly requested with RUN_SEED_VERIFICATIONS=true.
 
 if Rails.root.join("downloads/ttb_cola_approved_applications_2026-06-13").exist?
   pdf_batch = Batch.seed_application_pdfs!
@@ -133,9 +132,9 @@ if degraded.exist?
   puts "Seeded degraded-photo demo (#{application.serial_number})"
 end
 
-if ENV["ANTHROPIC_API_KEY"].present?
+if ENV["RUN_SEED_VERIFICATIONS"] == "true"
   batch.verify_later(provider: nil, model: nil, mode: VerifyLabelJob::VERIFIER_V2_MODE)
   puts "Enqueued verification for #{batch.label_applications.count} labels."
 else
-  puts "No ANTHROPIC_API_KEY set - records created without running verification."
+  puts "RUN_SEED_VERIFICATIONS is not true - records created without running verification."
 end

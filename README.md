@@ -164,6 +164,9 @@ The blueprint sets production defaults for the fast path:
 - `EXTRACTION_EFFORT=low`
 - `EXTRACTION_OCR_ENGINE=tesseract`
 - `SOLID_QUEUE_IN_PUMA=true`
+- `RUN_SEED_VERIFICATIONS=false`
+- `RAILS_MAX_THREADS=3`
+- `JOB_THREADS=1`
 - `JOB_CONCURRENCY=1`
 
 The Docker entrypoint validates required environment variables, runs
