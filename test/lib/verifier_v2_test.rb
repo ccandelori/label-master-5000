@@ -130,6 +130,53 @@ class VerifierV2Test < ActiveSupport::TestCase
     )
   end
 
+  def with_verifier_build_dependencies(enriched_engine:, fast_engine:, enriched_key:, fast_key:, adjudicator:)
+    original_build = Extraction::OcrFactory.method(:build)
+    original_build_fast = Extraction::OcrFactory.method(:build_fast)
+    original_cache_key = Extraction::OcrFactory.method(:cache_key)
+    original_fast_cache_key = Extraction::OcrFactory.method(:fast_cache_key)
+    original_adjudicator = Extraction::VlmAdjudicator.method(:build_for)
+
+    Extraction::OcrFactory.define_singleton_method(:build) { enriched_engine }
+    Extraction::OcrFactory.define_singleton_method(:build_fast) { fast_engine }
+    Extraction::OcrFactory.define_singleton_method(:cache_key) { enriched_key }
+    Extraction::OcrFactory.define_singleton_method(:fast_cache_key) { fast_key }
+    Extraction::VlmAdjudicator.define_singleton_method(:build_for) do |provider:, model:|
+      raise ArgumentError, "provider is required" if provider.blank?
+      raise ArgumentError, "model is required" if model.blank?
+
+      adjudicator
+    end
+
+    yield
+  ensure
+    Extraction::OcrFactory.define_singleton_method(:build, original_build)
+    Extraction::OcrFactory.define_singleton_method(:build_fast, original_build_fast)
+    Extraction::OcrFactory.define_singleton_method(:cache_key, original_cache_key)
+    Extraction::OcrFactory.define_singleton_method(:fast_cache_key, original_fast_cache_key)
+    Extraction::VlmAdjudicator.define_singleton_method(:build_for, original_adjudicator)
+  end
+
+  test "build wires primary OCR to the strict single-pass engine and cache key" do
+    enriched_engine = Object.new
+    fast_engine = Object.new
+    adjudicator = StubAdjudicator.new(results: [])
+
+    verifier = with_verifier_build_dependencies(
+      enriched_engine: enriched_engine,
+      fast_engine: fast_engine,
+      enriched_key: "tesseract-enriched-v3",
+      fast_key: "tesseract-strict-single-pass-v2",
+      adjudicator: adjudicator
+    ) do
+      VerifierV2.build(provider: "openai", model: "gpt-5.4-mini")
+    end
+
+    assert_same fast_engine, verifier.instance_variable_get(:@ocr_engine)
+    assert_equal "tesseract-strict-single-pass-v2", verifier.instance_variable_get(:@ocr_engine_key)
+    assert_same fast_engine, verifier.instance_variable_get(:@escalation_engine)
+  end
+
   test "grounded path persists verification and completes the attempt" do
     application = create_application({})
     attempt = application.verification_attempts.create!

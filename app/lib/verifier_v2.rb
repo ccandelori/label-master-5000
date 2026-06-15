@@ -30,8 +30,8 @@ module VerifierV2
 
   def build(provider:, model:)
     Runner.new(
-      ocr_engine: Extraction::OcrFactory.build,
-      ocr_engine_key: Extraction::OcrFactory.cache_key,
+      ocr_engine: Extraction::OcrFactory.build_fast,
+      ocr_engine_key: Extraction::OcrFactory.fast_cache_key,
       escalation_engine: Extraction::OcrFactory.build_fast,
       vlm_adjudicator: Extraction::VlmAdjudicator.build_for(provider: provider, model: model),
       vlm_provider: provider,
