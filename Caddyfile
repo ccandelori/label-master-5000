@@ -1,0 +1,4 @@
+candelori.tech, lm5k.candelori.tech {
+	encode zstd gzip
+	reverse_proxy web:3000
+}

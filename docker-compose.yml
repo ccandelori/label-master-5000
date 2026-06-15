@@ -41,11 +41,26 @@ services:
       EXTRACTION_OCR_ENGINE: ${EXTRACTION_OCR_ENGINE:-tesseract}
       EXTRACTION_OCR_REGION_REFINEMENT: ${EXTRACTION_OCR_REGION_REFINEMENT:-false}
       EXTRACTION_OCR_TIMEOUT_SECONDS: ${EXTRACTION_OCR_TIMEOUT_SECONDS:-8}
-    ports:
-      - "80:3000"
+    expose:
+      - "3000"
     volumes:
       - rails_storage:/rails/storage
 
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
 volumes:
+  caddy_config:
+  caddy_data:
   postgres_data:
   rails_storage:

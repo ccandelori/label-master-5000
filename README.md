@@ -231,5 +231,7 @@ docker compose --env-file .env.production logs --tail=100 web
 curl -I http://SERVER_IP/up
 ```
 
-When a domain and TLS proxy are added, set `FORCE_SSL=true` and
+The Docker Compose stack includes Caddy as the public reverse proxy. Caddy owns
+ports 80 and 443, terminates TLS, and forwards requests to Rails on the private
+Docker network. Once DNS points at the Droplet, set `FORCE_SSL=true` and
 `ASSUME_SSL=true`.
