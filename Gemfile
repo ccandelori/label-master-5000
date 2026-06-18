@@ -62,4 +62,4 @@ gem "connection_pool", "~> 2.4"
 
 gem "dotenv-rails", "~> 3.2", groups: [ :development, :test ]
 
-gem "openai", "~> 0.66.1"
+gem "openai", "~> 0.68.0"
